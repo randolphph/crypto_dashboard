@@ -9,6 +9,7 @@ const CHAIN_LABELS: Record<string, string> = {
   optimism: 'OP',
   arbitrum: 'ARB',
   base: 'Base',
+  bsc: 'BSC',
   solana: 'SOL',
 };
 

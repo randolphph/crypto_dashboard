@@ -11,6 +11,7 @@ const EVM_CHAINS: { id: EvmChain; label: string }[] = [
   { id: 'optimism', label: 'Optimism' },
   { id: 'arbitrum', label: 'Arbitrum One' },
   { id: 'base', label: 'Base' },
+  { id: 'bsc', label: 'BNB Chain' },
 ];
 
 const CHAIN_LABELS: Record<Chain, string> = {
@@ -18,6 +19,7 @@ const CHAIN_LABELS: Record<Chain, string> = {
   optimism: 'OP',
   arbitrum: 'ARB',
   base: 'Base',
+  bsc: 'BSC',
   solana: 'SOL',
 };
 

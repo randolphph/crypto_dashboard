@@ -1,6 +1,6 @@
 import type { AssetBalance } from './common';
 
-export type EvmChain = 'ethereum' | 'optimism' | 'arbitrum' | 'base';
+export type EvmChain = 'ethereum' | 'optimism' | 'arbitrum' | 'base' | 'bsc';
 export type Chain = EvmChain | 'solana';
 
 /** @deprecated Use Chain instead */

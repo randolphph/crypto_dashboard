@@ -12,6 +12,7 @@ const CHAIN_INDEX_MAP: Record<Chain, string> = {
   optimism: '10',
   arbitrum: '42161',
   base: '8453',
+  bsc: '56',
   solana: '501',
 };
 
@@ -129,6 +130,7 @@ const CHAIN_INDEX_LABEL: Record<string, string> = {
   '10': 'OP',
   '42161': 'ARB',
   '8453': 'Base',
+  '56': 'BSC',
   '501': 'SOL',
 };
 
