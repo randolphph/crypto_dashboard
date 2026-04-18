@@ -75,6 +75,29 @@ interface FundingAssetItem {
   freeze: string;
 }
 
+interface FuturesGridOrder {
+  algoId: number;
+  symbol: string;
+  side: string;
+  positionSide: string;
+  totalPnl: string;
+  investedAmt: string;
+  direction: string;
+}
+
+interface FuturesGridOpenOrdersResponse {
+  total: number;
+  orders: FuturesGridOrder[];
+}
+
+export interface GridBotSummary {
+  algoId: number;
+  symbol: string;
+  direction: string;
+  investedAmt: number;
+  totalPnl: number;
+}
+
 export interface FuturesPosition {
   symbol: string;
   positionAmt: string;
@@ -272,6 +295,50 @@ async function fetchFuturesUsdPositions(
   }
 }
 
+async function fetchFuturesGridBots(
+  apiKey: string,
+  apiSecret: string
+): Promise<{ balances: AssetBalance[]; gridBots: GridBotSummary[] }> {
+  try {
+    const data = (await binanceRequest(
+      BASE_URL,
+      '/sapi/v1/algo/futures/openOrders',
+      apiKey,
+      apiSecret
+    )) as FuturesGridOpenOrdersResponse;
+
+    if (!data.orders || data.orders.length === 0) {
+      return { balances: [], gridBots: [] };
+    }
+
+    const gridBots: GridBotSummary[] = data.orders.map((o) => ({
+      algoId: o.algoId,
+      symbol: o.symbol,
+      direction: o.direction,
+      investedAmt: parseFloat(o.investedAmt),
+      totalPnl: parseFloat(o.totalPnl),
+    }));
+
+    // Sum up all invested amounts as USDT balance
+    const totalInvested = gridBots.reduce((sum, b) => sum + b.investedAmt, 0);
+    const totalPnl = gridBots.reduce((sum, b) => sum + b.totalPnl, 0);
+    const totalValue = totalInvested + totalPnl;
+
+    const balances: AssetBalance[] =
+      totalValue > 0
+        ? [{ asset: 'USDT', amount: totalValue, usdValue: 0 }]
+        : [];
+
+    return { balances, gridBots };
+  } catch (e) {
+    console.error(
+      '[Binance 合约网格] 错误:',
+      e instanceof Error ? e.message : e
+    );
+    return { balances: [], gridBots: [] };
+  }
+}
+
 // ---------- Aggregated result ----------
 
 export interface BinanceSubAccount {
@@ -283,12 +350,13 @@ export interface BinanceSubAccount {
 export interface BinanceAllData {
   accounts: BinanceSubAccount[];
   futuresPositions: FuturesPosition[];
+  gridBots: GridBotSummary[];
 }
 
 export async function fetchBinanceAllBalances(): Promise<BinanceAllData> {
   const { apiKey, apiSecret } = getCredentials();
 
-  const [spot, futuresUsd, futuresCoin, earn, funding, futuresPositions] =
+  const [spot, futuresUsd, futuresCoin, earn, funding, futuresPositions, gridBotData] =
     await Promise.all([
       fetchSpotBalances(apiKey, apiSecret),
       fetchFuturesUsdBalances(apiKey, apiSecret),
@@ -296,6 +364,7 @@ export async function fetchBinanceAllBalances(): Promise<BinanceAllData> {
       fetchEarnBalances(apiKey, apiSecret),
       fetchFundingBalances(apiKey, apiSecret),
       fetchFuturesUsdPositions(apiKey, apiSecret),
+      fetchFuturesGridBots(apiKey, apiSecret),
     ]);
 
   const accounts: BinanceSubAccount[] = [];
@@ -305,10 +374,12 @@ export async function fetchBinanceAllBalances(): Promise<BinanceAllData> {
     accounts.push({ label: 'U本位合约', balances: futuresUsd.balances, error: futuresUsd.error });
   if (futuresCoin.balances.length > 0 || futuresCoin.error)
     accounts.push({ label: '币本位合约', balances: futuresCoin.balances, error: futuresCoin.error });
+  if (gridBotData.balances.length > 0)
+    accounts.push({ label: '合约网格', balances: gridBotData.balances });
   if (earn.length > 0) accounts.push({ label: '理财', balances: earn });
   if (funding.length > 0) accounts.push({ label: '资金账户', balances: funding });
 
-  return { accounts, futuresPositions };
+  return { accounts, futuresPositions, gridBots: gridBotData.gridBots };
 }
 
 // Keep backward compatible

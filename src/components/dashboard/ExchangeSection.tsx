@@ -24,10 +24,19 @@ interface FuturesPosition {
   notional: string;
 }
 
+interface GridBotSummary {
+  algoId: number;
+  symbol: string;
+  direction: string;
+  investedAmt: number;
+  totalPnl: number;
+}
+
 interface ExchangeDataWithAccounts {
   exchange: string;
   accounts?: SubAccount[];
   futuresPositions?: FuturesPosition[];
+  gridBots?: GridBotSummary[];
   balances: AssetBalance[];
   totalUsdValue: number;
   lastUpdated: string;
@@ -115,6 +124,68 @@ function FuturesPositionsTable({ positions }: { positions: FuturesPosition[] }) 
   );
 }
 
+function GridBotsTable({ bots }: { bots: GridBotSummary[] }) {
+  if (bots.length === 0) return null;
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-2">
+        <span className="text-sm font-medium text-muted-foreground">
+          合约网格机器人
+        </span>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b text-left text-muted-foreground">
+              <th className="pb-2 font-medium">合约</th>
+              <th className="pb-2 font-medium">方向</th>
+              <th className="pb-2 text-right font-medium">投入保证金</th>
+              <th className="pb-2 text-right font-medium">总盈亏</th>
+            </tr>
+          </thead>
+          <tbody>
+            {bots.map((bot) => {
+              const isShort = bot.direction === 'SHORT';
+              return (
+                <tr key={bot.algoId} className="border-b last:border-0">
+                  <td className="py-2 font-medium">{bot.symbol}</td>
+                  <td className="py-2">
+                    <span
+                      className={cn(
+                        'rounded-full px-2 py-0.5 text-xs font-medium',
+                        isShort
+                          ? 'bg-red-500/10 text-red-600 dark:text-red-400'
+                          : 'bg-green-500/10 text-green-600 dark:text-green-400'
+                      )}
+                    >
+                      {isShort ? '做空网格' : '做多网格'}
+                    </span>
+                  </td>
+                  <td className="py-2 text-right tabular-nums">
+                    {formatUsd(bot.investedAmt)}
+                  </td>
+                  <td
+                    className={cn(
+                      'py-2 text-right tabular-nums font-medium',
+                      bot.totalPnl >= 0
+                        ? 'text-green-600 dark:text-green-400'
+                        : 'text-red-600 dark:text-red-400'
+                    )}
+                  >
+                    {bot.totalPnl >= 0 ? '+' : ''}
+                    {formatUsd(bot.totalPnl)}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
 function ExchangeCard({
   data,
   isLoading,
@@ -126,6 +197,7 @@ function ExchangeCard({
 }) {
   const hasSubAccounts = data?.accounts && data.accounts.length > 0;
   const hasPositions = data?.futuresPositions && data.futuresPositions.length > 0;
+  const hasGridBots = data?.gridBots && data.gridBots.length > 0;
 
   return (
     <div className="rounded-xl border bg-card p-5 shadow-sm">
@@ -175,7 +247,10 @@ function ExchangeCard({
           {hasPositions && (
             <FuturesPositionsTable positions={data.futuresPositions!} />
           )}
-          {!hasSubAccounts && !hasPositions && data && (
+          {hasGridBots && (
+            <GridBotsTable bots={data.gridBots!} />
+          )}
+          {!hasSubAccounts && !hasPositions && !hasGridBots && data && (
             <AssetTable balances={data.balances} />
           )}
         </div>

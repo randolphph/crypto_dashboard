@@ -5,7 +5,7 @@ const MIN_USD_VALUE = 10;
 
 export async function GET() {
   try {
-    const { accounts, futuresPositions } = await fetchBinanceAllBalances();
+    const { accounts, futuresPositions, gridBots } = await fetchBinanceAllBalances();
 
     // Collect all unique symbols
     const allSymbols = [
@@ -40,6 +40,7 @@ export async function GET() {
       exchange: 'Binance',
       accounts: accountsWithUsd,
       futuresPositions,
+      gridBots,
       balances: accountsWithUsd.flatMap((a) => a.balances),
       totalUsdValue,
       lastUpdated: new Date().toISOString(),
@@ -49,6 +50,7 @@ export async function GET() {
       exchange: 'Binance',
       accounts: [],
       futuresPositions: [],
+      gridBots: [],
       balances: [],
       totalUsdValue: 0,
       lastUpdated: new Date().toISOString(),
