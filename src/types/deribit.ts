@@ -23,6 +23,8 @@ export interface DeribitAccountSummary {
   available_withdrawal_funds: number;
   initial_margin: number;
   maintenance_margin: number;
+  total_equity_usd: number;
+  options_value: number;
 }
 
 export interface DeribitData {

@@ -10,15 +10,16 @@ export async function GET() {
   try {
     const { positions, accountSummaries } = await fetchDeribitData();
 
-    // Calculate total USD value from account equity
+    // Use total_equity_usd from Deribit (cross-currency portfolio margin total)
+    // Both currency summaries return the same total_equity_usd, so take it from the first one
+    const totalUsdValue = accountSummaries[0]?.total_equity_usd ?? 0;
+
     const prices = await fetchPrices(['BTC', 'ETH']);
     const balances: AssetBalance[] = accountSummaries.map((s) => ({
       asset: s.currency,
-      amount: s.equity,
-      usdValue: s.equity * (prices[s.currency] ?? 0),
+      amount: s.margin_balance,
+      usdValue: s.margin_balance * (prices[s.currency] ?? 0),
     }));
-
-    const totalUsdValue = balances.reduce((sum, b) => sum + b.usdValue, 0);
 
     return Response.json({
       positions,

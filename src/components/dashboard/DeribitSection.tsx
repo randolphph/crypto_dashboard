@@ -38,8 +38,16 @@ export function DeribitSection({ data, isLoading }: DeribitSectionProps) {
 
   if (!data) return null;
 
+  const totalEquityUsd = data.accountSummaries[0]?.total_equity_usd ?? 0;
+
   return (
     <div className="space-y-6">
+      {/* Total Account Value */}
+      <div className="rounded-xl border bg-card p-5 shadow-sm">
+        <p className="text-sm text-muted-foreground">账户总价值 (跨币种组合保证金)</p>
+        <p className="text-2xl font-bold tabular-nums">{formatUsd(totalEquityUsd)}</p>
+      </div>
+
       {/* Account Summaries */}
       <div className="grid gap-4 md:grid-cols-2">
         {data.accountSummaries.map((summary) => (
@@ -47,15 +55,15 @@ export function DeribitSection({ data, isLoading }: DeribitSectionProps) {
             <h3 className="font-semibold text-lg mb-3">{summary.currency} 账户</h3>
             <div className="grid grid-cols-2 gap-3 text-sm">
               <div>
-                <p className="text-muted-foreground">权益</p>
+                <p className="text-muted-foreground">保证金余额</p>
                 <p className="font-medium tabular-nums">
-                  {formatCrypto(summary.equity)} {summary.currency}
+                  {formatCrypto(summary.margin_balance)} {summary.currency}
                 </p>
               </div>
               <div>
-                <p className="text-muted-foreground">余额</p>
+                <p className="text-muted-foreground">权益</p>
                 <p className="font-medium tabular-nums">
-                  {formatCrypto(summary.balance)} {summary.currency}
+                  {formatCrypto(summary.equity)} {summary.currency}
                 </p>
               </div>
               <div>
@@ -65,10 +73,9 @@ export function DeribitSection({ data, isLoading }: DeribitSectionProps) {
                 </p>
               </div>
               <div>
-                <p className="text-muted-foreground">可提取</p>
+                <p className="text-muted-foreground">维持保证金</p>
                 <p className="font-medium tabular-nums">
-                  {formatCrypto(summary.available_withdrawal_funds)}{' '}
-                  {summary.currency}
+                  {formatCrypto(summary.maintenance_margin)} {summary.currency}
                 </p>
               </div>
             </div>

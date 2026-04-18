@@ -119,6 +119,8 @@ export async function fetchDeribitAccountSummary(
     available_withdrawal_funds: number;
     initial_margin: number;
     maintenance_margin: number;
+    total_equity_usd: number;
+    options_value: number;
   };
 
   return {
@@ -129,6 +131,8 @@ export async function fetchDeribitAccountSummary(
     available_withdrawal_funds: result.available_withdrawal_funds,
     initial_margin: result.initial_margin,
     maintenance_margin: result.maintenance_margin,
+    total_equity_usd: result.total_equity_usd,
+    options_value: result.options_value,
   };
 }
 
