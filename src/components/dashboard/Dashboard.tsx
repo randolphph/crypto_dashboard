@@ -7,6 +7,7 @@ import { DeribitSection } from './DeribitSection';
 import { OnchainSection } from './OnchainSection';
 import { useExchangeData } from '@/hooks/useExchangeData';
 import { useOnchainData } from '@/hooks/useOnchainData';
+import { useCustomAssetStore } from '@/stores/customAssetStore';
 import { cn } from '@/lib/utils';
 
 const tabs = [
@@ -24,6 +25,7 @@ export function Dashboard() {
   const okx = useExchangeData('okx');
   const deribit = useExchangeData('deribit');
   const onchain = useOnchainData();
+  const customAssets = useCustomAssetStore((s) => s.assets);
 
   const isLoading =
     binance.isLoading || okx.isLoading || deribit.isLoading || onchain.isLoading;
@@ -40,6 +42,7 @@ export function Dashboard() {
           0
         ) ?? 0,
     },
+    ...customAssets.map((a) => ({ label: a.name, value: a.value })),
   ].filter((item): item is { label: string; value: number } => !!item);
 
   const totalValue = breakdown.reduce((sum, item) => sum + item.value, 0);
