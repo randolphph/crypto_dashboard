@@ -33,6 +33,7 @@ interface GridBotSummary {
 }
 
 interface ExchangeDataWithAccounts {
+  configured?: boolean;
   exchange: string;
   accounts?: SubAccount[];
   futuresPositions?: FuturesPosition[];
@@ -260,10 +261,24 @@ function ExchangeCard({
 }
 
 export function ExchangeSection({ binance, okx }: ExchangeSectionProps) {
+  const cards = [
+    { data: binance.data, isLoading: binance.isLoading, name: 'Binance' },
+    { data: okx.data, isLoading: okx.isLoading, name: 'OKX' },
+  ].filter((c) => c.isLoading || c.data?.configured !== false);
+
+  if (cards.length === 0) {
+    return (
+      <p className="text-sm text-muted-foreground">
+        未配置任何交易所 API，请在环境变量中添加对应的 API Key。
+      </p>
+    );
+  }
+
   return (
     <div className="grid gap-6 md:grid-cols-2">
-      <ExchangeCard data={binance.data} isLoading={binance.isLoading} name="Binance" />
-      <ExchangeCard data={okx.data} isLoading={okx.isLoading} name="OKX" />
+      {cards.map((c) => (
+        <ExchangeCard key={c.name} data={c.data} isLoading={c.isLoading} name={c.name} />
+      ))}
     </div>
   );
 }

@@ -3,6 +3,10 @@ import { fetchPrices } from '@/lib/prices';
 import type { AssetBalance } from '@/types/common';
 
 export async function GET() {
+  if (!process.env.DERIBIT_CLIENT_ID || !process.env.DERIBIT_CLIENT_SECRET) {
+    return Response.json({ configured: false });
+  }
+
   try {
     const { positions, accountSummaries } = await fetchDeribitData();
 

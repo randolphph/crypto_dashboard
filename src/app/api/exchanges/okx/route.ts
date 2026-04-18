@@ -2,6 +2,10 @@ import { fetchOkxBalances } from '@/lib/exchanges/okx';
 import { fetchPrices } from '@/lib/prices';
 
 export async function GET() {
+  if (!process.env.OKX_API_KEY || !process.env.OKX_API_SECRET || !process.env.OKX_PASSPHRASE) {
+    return Response.json({ configured: false });
+  }
+
   try {
     const balances = await fetchOkxBalances();
 

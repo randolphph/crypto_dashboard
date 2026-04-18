@@ -4,6 +4,10 @@ import { fetchPrices } from '@/lib/prices';
 const MIN_USD_VALUE = 10;
 
 export async function GET() {
+  if (!process.env.BINANCE_API_KEY || !process.env.BINANCE_API_SECRET) {
+    return Response.json({ configured: false });
+  }
+
   try {
     const { accounts, futuresPositions, gridBots } = await fetchBinanceAllBalances();
 

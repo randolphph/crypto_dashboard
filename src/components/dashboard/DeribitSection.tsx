@@ -20,6 +20,14 @@ export function DeribitSection({ data, isLoading }: DeribitSectionProps) {
     );
   }
 
+  if (data?.configured === false) {
+    return (
+      <p className="text-sm text-muted-foreground">
+        未配置 Deribit API，请在环境变量中添加 DERIBIT_CLIENT_ID 和 DERIBIT_CLIENT_SECRET。
+      </p>
+    );
+  }
+
   if (data?.error) {
     return (
       <div className="rounded-xl border bg-card p-5">

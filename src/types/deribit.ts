@@ -26,6 +26,7 @@ export interface DeribitAccountSummary {
 }
 
 export interface DeribitData {
+  configured?: boolean;
   positions: DeribitPosition[];
   accountSummaries: DeribitAccountSummary[];
   balances: AssetBalance[];

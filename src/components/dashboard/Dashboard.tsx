@@ -29,9 +29,9 @@ export function Dashboard() {
     binance.isLoading || okx.isLoading || deribit.isLoading || onchain.isLoading;
 
   const breakdown = [
-    { label: 'Binance', value: binance.data?.totalUsdValue ?? 0 },
-    { label: 'OKX', value: okx.data?.totalUsdValue ?? 0 },
-    { label: 'Deribit', value: deribit.data?.totalUsdValue ?? 0 },
+    binance.data?.configured !== false && { label: 'Binance', value: binance.data?.totalUsdValue ?? 0 },
+    okx.data?.configured !== false && { label: 'OKX', value: okx.data?.totalUsdValue ?? 0 },
+    deribit.data?.configured !== false && { label: 'Deribit', value: deribit.data?.totalUsdValue ?? 0 },
     {
       label: '链上',
       value:
@@ -40,7 +40,7 @@ export function Dashboard() {
           0
         ) ?? 0,
     },
-  ];
+  ].filter((item): item is { label: string; value: number } => !!item);
 
   const totalValue = breakdown.reduce((sum, item) => sum + item.value, 0);
 
