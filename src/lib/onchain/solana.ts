@@ -2,6 +2,7 @@ import 'server-only';
 import { Connection, PublicKey, LAMPORTS_PER_SOL } from '@solana/web3.js';
 import type { AssetBalance } from '@/types/common';
 import type { WalletConfig } from '@/types/onchain';
+import { isOkxWeb3Available, fetchSolanaBalancesViaOkx } from './okxWeb3';
 
 function getConnection() {
   const rpcUrl =
@@ -9,60 +10,42 @@ function getConnection() {
   return new Connection(rpcUrl, 'confirmed');
 }
 
+/**
+ * Primary entry: try OKX Web3 API first, fall back to direct RPC.
+ */
 export async function fetchSolanaWalletBalances(
   wallet: WalletConfig
 ): Promise<AssetBalance[]> {
-  const connection = getConnection();
-  const pubkey = new PublicKey(wallet.address);
-  const balances: AssetBalance[] = [];
-
-  // Check for native SOL
-  const hasNativeSOL = wallet.trackedTokens.some(
-    (t) => !t.contractAddress && t.symbol === 'SOL'
-  );
-
-  if (hasNativeSOL) {
+  if (isOkxWeb3Available()) {
     try {
-      const lamports = await connection.getBalance(pubkey);
-      const amount = lamports / LAMPORTS_PER_SOL;
-      if (amount > 0) {
-        balances.push({ asset: 'SOL', amount, usdValue: 0 });
-      }
+      return await fetchSolanaBalancesViaOkx(wallet.address);
     } catch (error) {
-      console.error(`Error fetching SOL for ${wallet.name}:`, error);
+      console.warn(
+        `OKX Web3 API failed for ${wallet.name}, falling back to RPC:`,
+        error
+      );
     }
   }
 
-  // Fetch SPL token accounts
-  const splTokens = wallet.trackedTokens.filter((t) => t.contractAddress);
-  if (splTokens.length > 0) {
-    try {
-      const tokenAccounts = await connection.getParsedTokenAccountsByOwner(
-        pubkey,
-        { programId: new PublicKey('TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA') }
-      );
+  return fetchSolanaWalletBalancesViaRpc(wallet);
+}
 
-      const mintToToken = new Map(
-        splTokens.map((t) => [t.contractAddress, t])
-      );
-
-      for (const account of tokenAccounts.value) {
-        const parsed = account.account.data.parsed?.info;
-        if (!parsed) continue;
-
-        const mint = parsed.mint as string;
-        const token = mintToToken.get(mint);
-        if (!token) continue;
-
-        const amount = parsed.tokenAmount?.uiAmount;
-        if (amount && amount > 0) {
-          balances.push({ asset: token.symbol, amount, usdValue: 0 });
-        }
-      }
-    } catch (error) {
-      console.error(`Error fetching SPL tokens for ${wallet.name}:`, error);
+/**
+ * Fallback: direct Solana RPC, native SOL only
+ */
+async function fetchSolanaWalletBalancesViaRpc(
+  wallet: WalletConfig
+): Promise<AssetBalance[]> {
+  try {
+    const connection = getConnection();
+    const pubkey = new PublicKey(wallet.address);
+    const lamports = await connection.getBalance(pubkey);
+    const amount = lamports / LAMPORTS_PER_SOL;
+    if (amount > 0) {
+      return [{ asset: 'SOL', amount, usdValue: 0 }];
     }
+  } catch (error) {
+    console.error(`Error fetching SOL for ${wallet.name}:`, error);
   }
-
-  return balances;
+  return [];
 }

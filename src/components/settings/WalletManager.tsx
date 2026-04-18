@@ -1,98 +1,101 @@
 'use client';
 
 import { useState } from 'react';
-import { Plus, Trash2, X } from 'lucide-react';
+import { Plus, Trash2, Pencil, X } from 'lucide-react';
 import { useWalletStore } from '@/stores/walletStore';
 import { truncateAddress } from '@/lib/format';
-import type { Network, TrackedToken, WalletConfig } from '@/types/onchain';
+import type { Chain, EvmChain, WalletConfig } from '@/types/onchain';
 
-const PRESET_TOKENS: Record<Network, TrackedToken[]> = {
-  ethereum: [
-    { symbol: 'ETH', contractAddress: '', decimals: 18, coingeckoId: 'ethereum' },
-    { symbol: 'USDT', contractAddress: '0xdAC17F958D2ee523a2206206994597C13D831ec7', decimals: 6, coingeckoId: 'tether' },
-    { symbol: 'USDC', contractAddress: '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48', decimals: 6, coingeckoId: 'usd-coin' },
-    { symbol: 'WBTC', contractAddress: '0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599', decimals: 8, coingeckoId: 'wrapped-bitcoin' },
-    { symbol: 'WETH', contractAddress: '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2', decimals: 18, coingeckoId: 'weth' },
-  ],
-  solana: [
-    { symbol: 'SOL', contractAddress: '', decimals: 9, coingeckoId: 'solana' },
-    { symbol: 'USDC', contractAddress: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v', decimals: 6, coingeckoId: 'usd-coin' },
-    { symbol: 'USDT', contractAddress: 'Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB', decimals: 6, coingeckoId: 'tether' },
-  ],
+const EVM_CHAINS: { id: EvmChain; label: string }[] = [
+  { id: 'ethereum', label: 'Ethereum' },
+  { id: 'optimism', label: 'Optimism' },
+  { id: 'arbitrum', label: 'Arbitrum One' },
+  { id: 'base', label: 'Base' },
+];
+
+const CHAIN_LABELS: Record<Chain, string> = {
+  ethereum: 'ETH',
+  optimism: 'OP',
+  arbitrum: 'ARB',
+  base: 'Base',
+  solana: 'SOL',
 };
 
+type WalletType = 'evm' | 'solana';
+
+function getWalletChains(wallet: WalletConfig): Chain[] {
+  if (wallet.chains?.length) return wallet.chains;
+  if (wallet.network) return [wallet.network];
+  return ['ethereum'];
+}
+
+function getWalletType(chains: Chain[]): WalletType {
+  return chains.includes('solana') ? 'solana' : 'evm';
+}
+
 export function WalletManager() {
-  const { wallets, addWallet, removeWallet } = useWalletStore();
+  const { wallets, addWallet, removeWallet, updateWallet } = useWalletStore();
   const [showForm, setShowForm] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [name, setName] = useState('');
   const [address, setAddress] = useState('');
-  const [network, setNetwork] = useState<Network>('ethereum');
-  const [selectedTokens, setSelectedTokens] = useState<TrackedToken[]>([]);
-  const [customSymbol, setCustomSymbol] = useState('');
-  const [customContract, setCustomContract] = useState('');
-  const [customDecimals, setCustomDecimals] = useState('18');
+  const [walletType, setWalletType] = useState<WalletType>('evm');
+  const [selectedEvmChains, setSelectedEvmChains] = useState<EvmChain[]>(['ethereum']);
 
   const resetForm = () => {
     setName('');
     setAddress('');
-    setNetwork('ethereum');
-    setSelectedTokens([]);
-    setCustomSymbol('');
-    setCustomContract('');
-    setCustomDecimals('18');
+    setWalletType('evm');
+    setSelectedEvmChains(['ethereum']);
     setShowForm(false);
+    setEditingId(null);
   };
 
-  const handleAddWallet = () => {
+  const handleEditWallet = (wallet: WalletConfig) => {
+    const chains = getWalletChains(wallet);
+    const type = getWalletType(chains);
+    setEditingId(wallet.id);
+    setName(wallet.name);
+    setAddress(wallet.address);
+    setWalletType(type);
+    setSelectedEvmChains(
+      type === 'evm' ? (chains as EvmChain[]) : ['ethereum']
+    );
+    setShowForm(true);
+  };
+
+  const handleSubmitWallet = () => {
     if (!name.trim() || !address.trim()) return;
 
-    const wallet: WalletConfig = {
-      id: crypto.randomUUID(),
-      name: name.trim(),
-      address: address.trim(),
-      network,
-      trackedTokens:
-        selectedTokens.length > 0
-          ? selectedTokens
-          : [PRESET_TOKENS[network][0]],
-    };
+    const chains: Chain[] =
+      walletType === 'solana' ? ['solana'] : selectedEvmChains;
 
-    addWallet(wallet);
+    if (editingId) {
+      updateWallet(editingId, {
+        name: name.trim(),
+        address: address.trim(),
+        chains,
+      });
+    } else {
+      addWallet({
+        id: crypto.randomUUID(),
+        name: name.trim(),
+        address: address.trim(),
+        chains,
+      });
+    }
+
     resetForm();
   };
 
-  const handleAddCustomToken = () => {
-    if (!customSymbol.trim()) return;
-    const token: TrackedToken = {
-      symbol: customSymbol.trim().toUpperCase(),
-      contractAddress: customContract.trim(),
-      decimals: parseInt(customDecimals) || 18,
-    };
-    setSelectedTokens([...selectedTokens, token]);
-    setCustomSymbol('');
-    setCustomContract('');
-    setCustomDecimals('18');
-  };
-
-  const togglePresetToken = (token: TrackedToken) => {
-    const exists = selectedTokens.some(
-      (t) =>
-        t.contractAddress === token.contractAddress &&
-        t.symbol === token.symbol
+  const toggleEvmChain = (chain: EvmChain) => {
+    setSelectedEvmChains((prev) =>
+      prev.includes(chain)
+        ? prev.length > 1
+          ? prev.filter((c) => c !== chain)
+          : prev
+        : [...prev, chain]
     );
-    if (exists) {
-      setSelectedTokens(
-        selectedTokens.filter(
-          (t) =>
-            !(
-              t.contractAddress === token.contractAddress &&
-              t.symbol === token.symbol
-            )
-        )
-      );
-    } else {
-      setSelectedTokens([...selectedTokens, token]);
-    }
   };
 
   return (
@@ -113,41 +116,56 @@ export function WalletManager() {
       {/* Wallet List */}
       {wallets.length > 0 && (
         <div className="space-y-3 mb-4">
-          {wallets.map((wallet) => (
-            <div
-              key={wallet.id}
-              className="flex items-center justify-between rounded-lg border p-3"
-            >
-              <div>
-                <div className="flex items-center gap-2">
-                  <span className="font-medium">{wallet.name}</span>
-                  <span className="rounded-full bg-secondary px-2 py-0.5 text-xs font-medium">
-                    {wallet.network === 'ethereum' ? 'ETH' : 'SOL'}
-                  </span>
-                </div>
-                <p className="text-xs text-muted-foreground font-mono mt-0.5">
-                  {truncateAddress(wallet.address)}
-                </p>
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  追踪: {wallet.trackedTokens.map((t) => t.symbol).join(', ')}
-                </p>
-              </div>
-              <button
-                onClick={() => removeWallet(wallet.id)}
-                className="rounded-md p-1.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+          {wallets.map((wallet) => {
+            const chains = getWalletChains(wallet);
+            return (
+              <div
+                key={wallet.id}
+                className="flex items-center justify-between rounded-lg border p-3"
               >
-                <Trash2 className="h-4 w-4" />
-              </button>
-            </div>
-          ))}
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="font-medium">{wallet.name}</span>
+                    <div className="flex gap-1">
+                      {chains.map((c) => (
+                        <span
+                          key={c}
+                          className="rounded-full bg-secondary px-2 py-0.5 text-xs font-medium"
+                        >
+                          {CHAIN_LABELS[c]}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                  <p className="text-xs text-muted-foreground font-mono mt-0.5">
+                    {truncateAddress(wallet.address)}
+                  </p>
+                </div>
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={() => handleEditWallet(wallet)}
+                    className="rounded-md p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground"
+                  >
+                    <Pencil className="h-4 w-4" />
+                  </button>
+                  <button
+                    onClick={() => removeWallet(wallet.id)}
+                    className="rounded-md p-1.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                </div>
+              </div>
+            );
+          })}
         </div>
       )}
 
-      {/* Add Wallet Form */}
+      {/* Add / Edit Wallet Form */}
       {showForm && (
         <div className="space-y-4 rounded-lg border p-4">
           <div className="flex items-center justify-between">
-            <h3 className="font-medium">添加新钱包</h3>
+            <h3 className="font-medium">{editingId ? '编辑钱包' : '添加新钱包'}</h3>
             <button onClick={resetForm} className="text-muted-foreground hover:text-foreground">
               <X className="h-4 w-4" />
             </button>
@@ -165,20 +183,46 @@ export function WalletManager() {
               />
             </div>
             <div>
-              <label className="text-sm font-medium">网络</label>
+              <label className="text-sm font-medium">钱包类型</label>
               <select
-                value={network}
+                value={walletType}
                 onChange={(e) => {
-                  setNetwork(e.target.value as Network);
-                  setSelectedTokens([]);
+                  const t = e.target.value as WalletType;
+                  setWalletType(t);
+                  if (t === 'evm') setSelectedEvmChains(['ethereum']);
                 }}
                 className="mt-1 w-full rounded-lg border bg-background px-3 py-2 text-sm"
               >
-                <option value="ethereum">Ethereum</option>
+                <option value="evm">EVM</option>
                 <option value="solana">Solana</option>
               </select>
             </div>
           </div>
+
+          {/* EVM Chain Selection */}
+          {walletType === 'evm' && (
+            <div>
+              <label className="text-sm font-medium mb-2 block">选择网络</label>
+              <div className="flex flex-wrap gap-2">
+                {EVM_CHAINS.map((chain) => {
+                  const isSelected = selectedEvmChains.includes(chain.id);
+                  return (
+                    <button
+                      key={chain.id}
+                      onClick={() => toggleEvmChain(chain.id)}
+                      className={`rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
+                        isSelected
+                          ? 'bg-primary text-primary-foreground'
+                          : 'bg-secondary text-secondary-foreground hover:bg-accent'
+                      }`}
+                    >
+                      {chain.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
 
           <div>
             <label className="text-sm font-medium">钱包地址</label>
@@ -186,91 +230,17 @@ export function WalletManager() {
               type="text"
               value={address}
               onChange={(e) => setAddress(e.target.value)}
-              placeholder={
-                network === 'ethereum' ? '0x...' : 'Solana 地址...'
-              }
+              placeholder={walletType === 'evm' ? '0x...' : 'Solana 地址...'}
               className="mt-1 w-full rounded-lg border bg-background px-3 py-2 text-sm font-mono"
             />
           </div>
 
-          {/* Preset Tokens */}
-          <div>
-            <label className="text-sm font-medium mb-2 block">追踪代币</label>
-            <div className="flex flex-wrap gap-2">
-              {PRESET_TOKENS[network].map((token) => {
-                const isSelected = selectedTokens.some(
-                  (t) =>
-                    t.contractAddress === token.contractAddress &&
-                    t.symbol === token.symbol
-                );
-                return (
-                  <button
-                    key={token.symbol + token.contractAddress}
-                    onClick={() => togglePresetToken(token)}
-                    className={`rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
-                      isSelected
-                        ? 'bg-primary text-primary-foreground'
-                        : 'bg-secondary text-secondary-foreground hover:bg-accent'
-                    }`}
-                  >
-                    {token.symbol}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Custom Token */}
-          <div>
-            <label className="text-sm font-medium mb-2 block">
-              添加自定义代币
-            </label>
-            <div className="flex gap-2">
-              <input
-                type="text"
-                value={customSymbol}
-                onChange={(e) => setCustomSymbol(e.target.value)}
-                placeholder="Symbol"
-                className="w-24 rounded-lg border bg-background px-3 py-2 text-sm"
-              />
-              <input
-                type="text"
-                value={customContract}
-                onChange={(e) => setCustomContract(e.target.value)}
-                placeholder="合约地址"
-                className="flex-1 rounded-lg border bg-background px-3 py-2 text-sm font-mono"
-              />
-              <input
-                type="number"
-                value={customDecimals}
-                onChange={(e) => setCustomDecimals(e.target.value)}
-                placeholder="Decimals"
-                className="w-20 rounded-lg border bg-background px-3 py-2 text-sm"
-              />
-              <button
-                onClick={handleAddCustomToken}
-                className="rounded-lg bg-secondary px-3 py-2 text-sm font-medium hover:bg-accent"
-              >
-                添加
-              </button>
-            </div>
-          </div>
-
-          {/* Selected Tokens Display */}
-          {selectedTokens.length > 0 && (
-            <div>
-              <p className="text-sm text-muted-foreground mb-1">
-                已选代币: {selectedTokens.map((t) => t.symbol).join(', ')}
-              </p>
-            </div>
-          )}
-
           <button
-            onClick={handleAddWallet}
+            onClick={handleSubmitWallet}
             disabled={!name.trim() || !address.trim()}
             className="w-full rounded-lg bg-primary py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
           >
-            确认添加
+            {editingId ? '保存修改' : '确认添加'}
           </button>
         </div>
       )}

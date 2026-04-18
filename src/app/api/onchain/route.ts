@@ -1,8 +1,15 @@
-import { fetchEthereumWalletBalances } from '@/lib/onchain/ethereum';
+import { fetchEvmWalletBalances } from '@/lib/onchain/ethereum';
 import { fetchSolanaWalletBalances } from '@/lib/onchain/solana';
 import { fetchPrices } from '@/lib/prices';
-import type { WalletConfig } from '@/types/onchain';
+import type { WalletConfig, Chain, EvmChain } from '@/types/onchain';
 import type { WalletBalance } from '@/types/onchain';
+
+function getWalletChains(wallet: WalletConfig): Chain[] {
+  // Backward compat: migrate legacy `network` field
+  if (wallet.chains?.length) return wallet.chains;
+  if (wallet.network) return [wallet.network];
+  return ['ethereum'];
+}
 
 export async function POST(request: Request) {
   try {
@@ -15,19 +22,33 @@ export async function POST(request: Request) {
     const results: WalletBalance[] = await Promise.all(
       wallets.map(async (wallet) => {
         try {
-          const balances =
-            wallet.network === 'ethereum'
-              ? await fetchEthereumWalletBalances(wallet)
-              : await fetchSolanaWalletBalances(wallet);
+          const chains = getWalletChains(wallet);
+          const isSolana = chains.includes('solana');
+          const evmChains = chains.filter((c) => c !== 'solana') as EvmChain[];
 
-          // Fetch prices
-          const symbols = balances.map((b) => b.asset);
+          const balancePromises: Promise<import('@/types/common').AssetBalance[]>[] = [];
+
+          if (isSolana) {
+            balancePromises.push(fetchSolanaWalletBalances(wallet));
+          }
+          if (evmChains.length > 0) {
+            balancePromises.push(fetchEvmWalletBalances(wallet, evmChains));
+          }
+
+          const results = await Promise.all(balancePromises);
+          const balances = results.flat();
+
+          // Fetch prices only for assets without USD values (RPC fallback)
+          const needsPricing = balances.filter((b) => !b.usdValue);
+          const symbols = needsPricing.map((b) => b.asset);
           const prices = symbols.length > 0 ? await fetchPrices(symbols) : {};
 
-          const balancesWithUsd = balances.map((b) => ({
-            ...b,
-            usdValue: b.amount * (prices[b.asset] ?? 0),
-          }));
+          const balancesWithUsd = balances
+            .map((b) => ({
+              ...b,
+              usdValue: b.usdValue || b.amount * (prices[b.asset] ?? 0),
+            }))
+            .filter((b) => b.usdValue >= 1);
 
           const totalUsdValue = balancesWithUsd.reduce(
             (sum, b) => sum + b.usdValue,
@@ -38,7 +59,7 @@ export async function POST(request: Request) {
             walletId: wallet.id,
             walletName: wallet.name,
             address: wallet.address,
-            network: wallet.network,
+            chains,
             balances: balancesWithUsd,
             totalUsdValue,
           };
@@ -47,7 +68,7 @@ export async function POST(request: Request) {
             walletId: wallet.id,
             walletName: wallet.name,
             address: wallet.address,
-            network: wallet.network,
+            chains: getWalletChains(wallet),
             balances: [],
             totalUsdValue: 0,
             error: error instanceof Error ? error.message : 'Unknown error',

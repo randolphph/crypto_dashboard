@@ -4,6 +4,14 @@ import { formatUsd, truncateAddress } from '@/lib/format';
 import { AssetTable } from './AssetTable';
 import type { WalletBalance } from '@/types/onchain';
 
+const CHAIN_LABELS: Record<string, string> = {
+  ethereum: 'ETH',
+  optimism: 'OP',
+  arbitrum: 'ARB',
+  base: 'Base',
+  solana: 'SOL',
+};
+
 interface OnchainSectionProps {
   wallets: WalletBalance[];
   isLoading: boolean;
@@ -43,7 +51,7 @@ export function OnchainSection({ wallets, isLoading }: OnchainSectionProps) {
             </div>
             <div className="flex items-center gap-2">
               <span className="rounded-full bg-secondary px-2.5 py-0.5 text-xs font-medium">
-                {wallet.network === 'ethereum' ? 'ETH' : 'SOL'}
+                {(wallet.chains ?? []).map((c: string) => CHAIN_LABELS[c] ?? c).join(' / ')}
               </span>
               <span className="text-sm font-medium text-muted-foreground">
                 {formatUsd(wallet.totalUsdValue)}

@@ -356,6 +356,8 @@ export interface BinanceAllData {
 export async function fetchBinanceAllBalances(): Promise<BinanceAllData> {
   const { apiKey, apiSecret } = getCredentials();
 
+  const enableGridBot = process.env.BINANCE_ENABLE_GRID_BOT === 'true';
+
   const [spot, futuresUsd, futuresCoin, earn, funding, futuresPositions, gridBotData] =
     await Promise.all([
       fetchSpotBalances(apiKey, apiSecret),
@@ -364,7 +366,9 @@ export async function fetchBinanceAllBalances(): Promise<BinanceAllData> {
       fetchEarnBalances(apiKey, apiSecret),
       fetchFundingBalances(apiKey, apiSecret),
       fetchFuturesUsdPositions(apiKey, apiSecret),
-      fetchFuturesGridBots(apiKey, apiSecret),
+      enableGridBot
+        ? fetchFuturesGridBots(apiKey, apiSecret)
+        : Promise.resolve({ balances: [], gridBots: [] }),
     ]);
 
   const accounts: BinanceSubAccount[] = [];

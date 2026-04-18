@@ -1,27 +1,25 @@
 import type { AssetBalance } from './common';
 
-export type Network = 'ethereum' | 'solana';
+export type EvmChain = 'ethereum' | 'optimism' | 'arbitrum' | 'base';
+export type Chain = EvmChain | 'solana';
 
-export interface TrackedToken {
-  symbol: string;
-  contractAddress: string;
-  decimals: number;
-  coingeckoId?: string;
-}
+/** @deprecated Use Chain instead */
+export type Network = Chain;
 
 export interface WalletConfig {
   id: string;
   name: string;
   address: string;
-  network: Network;
-  trackedTokens: TrackedToken[];
+  chains: Chain[];
+  /** @deprecated Use chains instead */
+  network?: Chain;
 }
 
 export interface WalletBalance {
   walletId: string;
   walletName: string;
   address: string;
-  network: Network;
+  chains: Chain[];
   balances: AssetBalance[];
   totalUsdValue: number;
   error?: string;
