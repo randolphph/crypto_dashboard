@@ -39,6 +39,17 @@ export function DeribitSection({ data, isLoading }: DeribitSectionProps) {
   if (!data) return null;
 
   const totalEquityUsd = data.accountSummaries[0]?.total_equity_usd ?? 0;
+  const prices = data.prices ?? {};
+
+  function getCurrencyPrice(instrumentName: string): number {
+    const currency = instrumentName.split('-')[0];
+    return prices[currency] ?? 0;
+  }
+
+  const totalPnlUsd = data.positions.reduce(
+    (sum, pos) => sum + pos.total_profit_loss * getCurrencyPrice(pos.instrument_name),
+    0
+  );
 
   return (
     <div className="space-y-6">
@@ -134,7 +145,7 @@ export function DeribitSection({ data, isLoading }: DeribitSectionProps) {
                       )}
                     >
                       {pos.total_profit_loss >= 0 ? '+' : ''}
-                      {formatCrypto(pos.total_profit_loss, 6)}
+                      {formatUsd(pos.total_profit_loss * getCurrencyPrice(pos.instrument_name))}
                     </td>
                     <td className="py-2 text-right tabular-nums">
                       {pos.delta.toFixed(4)}
@@ -142,6 +153,22 @@ export function DeribitSection({ data, isLoading }: DeribitSectionProps) {
                   </tr>
                 ))}
               </tbody>
+              <tfoot>
+                <tr className="border-t">
+                  <td colSpan={5} className="py-2 font-semibold text-right">总盈亏</td>
+                  <td
+                    className={cn(
+                      'py-2 text-right tabular-nums font-semibold',
+                      totalPnlUsd >= 0
+                        ? 'text-green-600 dark:text-green-400'
+                        : 'text-red-600 dark:text-red-400'
+                    )}
+                  >
+                    {totalPnlUsd >= 0 ? '+' : ''}{formatUsd(totalPnlUsd)}
+                  </td>
+                  <td />
+                </tr>
+              </tfoot>
             </table>
           </div>
         </div>

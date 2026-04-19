@@ -32,6 +32,7 @@ export interface DeribitData {
   positions: DeribitPosition[];
   accountSummaries: DeribitAccountSummary[];
   balances: AssetBalance[];
+  prices: Record<string, number>;
   totalUsdValue: number;
   lastUpdated: string;
   error?: string;

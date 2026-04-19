@@ -25,6 +25,7 @@ export async function GET() {
       positions,
       accountSummaries,
       balances,
+      prices,
       totalUsdValue,
       lastUpdated: new Date().toISOString(),
     });
@@ -33,6 +34,7 @@ export async function GET() {
       positions: [],
       accountSummaries: [],
       balances: [],
+      prices: {},
       totalUsdValue: 0,
       lastUpdated: new Date().toISOString(),
       error: error instanceof Error ? error.message : 'Unknown error',
