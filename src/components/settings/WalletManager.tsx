@@ -21,9 +21,10 @@ const CHAIN_LABELS: Record<Chain, string> = {
   base: 'Base',
   bsc: 'BSC',
   solana: 'SOL',
+  bitcoin: 'BTC',
 };
 
-type WalletType = 'evm' | 'solana';
+type WalletType = 'evm' | 'solana' | 'bitcoin';
 
 function getWalletChains(wallet: WalletConfig): Chain[] {
   if (wallet.chains?.length) return wallet.chains;
@@ -32,7 +33,9 @@ function getWalletChains(wallet: WalletConfig): Chain[] {
 }
 
 function getWalletType(chains: Chain[]): WalletType {
-  return chains.includes('solana') ? 'solana' : 'evm';
+  if (chains.includes('bitcoin')) return 'bitcoin';
+  if (chains.includes('solana')) return 'solana';
+  return 'evm';
 }
 
 export function WalletManager() {
@@ -70,7 +73,11 @@ export function WalletManager() {
     if (!name.trim() || !address.trim()) return;
 
     const chains: Chain[] =
-      walletType === 'solana' ? ['solana'] : selectedEvmChains;
+      walletType === 'bitcoin'
+        ? ['bitcoin']
+        : walletType === 'solana'
+          ? ['solana']
+          : selectedEvmChains;
 
     if (editingId) {
       updateWallet(editingId, {
@@ -197,6 +204,7 @@ export function WalletManager() {
               >
                 <option value="evm">EVM</option>
                 <option value="solana">Solana</option>
+                <option value="bitcoin">Bitcoin</option>
               </select>
             </div>
           </div>
@@ -232,7 +240,7 @@ export function WalletManager() {
               type="text"
               value={address}
               onChange={(e) => setAddress(e.target.value)}
-              placeholder={walletType === 'evm' ? '0x...' : 'Solana 地址...'}
+              placeholder={walletType === 'evm' ? '0x...' : walletType === 'bitcoin' ? 'bc1... / 1... / 3...' : 'Solana 地址...'}
               className="mt-1 w-full rounded-lg border bg-background px-3 py-2 text-sm font-mono"
             />
           </div>

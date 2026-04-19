@@ -14,6 +14,7 @@ const CHAIN_INDEX_MAP: Record<Chain, string> = {
   base: '8453',
   bsc: '56',
   solana: '501',
+  bitcoin: '0',
 };
 
 function sign(
@@ -126,6 +127,7 @@ export function isOkxWeb3Available(): boolean {
 
 // Reverse lookup: chainIndex -> chain label
 const CHAIN_INDEX_LABEL: Record<string, string> = {
+  '0': 'BTC',
   '1': 'ETH',
   '10': 'OP',
   '42161': 'ARB',
@@ -176,4 +178,10 @@ export async function fetchSolanaBalancesViaOkx(
   address: string
 ): Promise<AssetBalance[]> {
   return fetchBalancesViaOkx(address, ['solana']);
+}
+
+export async function fetchBitcoinBalancesViaOkx(
+  address: string
+): Promise<AssetBalance[]> {
+  return fetchBalancesViaOkx(address, ['bitcoin']);
 }

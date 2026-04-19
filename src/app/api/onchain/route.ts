@@ -1,5 +1,6 @@
 import { fetchEvmWalletBalances } from '@/lib/onchain/ethereum';
 import { fetchSolanaWalletBalances } from '@/lib/onchain/solana';
+import { fetchBitcoinWalletBalances } from '@/lib/onchain/bitcoin';
 import { fetchPrices } from '@/lib/prices';
 import type { WalletConfig, Chain, EvmChain } from '@/types/onchain';
 import type { WalletBalance } from '@/types/onchain';
@@ -24,12 +25,16 @@ export async function POST(request: Request) {
         try {
           const chains = getWalletChains(wallet);
           const isSolana = chains.includes('solana');
-          const evmChains = chains.filter((c) => c !== 'solana') as EvmChain[];
+          const isBitcoin = chains.includes('bitcoin');
+          const evmChains = chains.filter((c) => c !== 'solana' && c !== 'bitcoin') as EvmChain[];
 
           const balancePromises: Promise<import('@/types/common').AssetBalance[]>[] = [];
 
           if (isSolana) {
             balancePromises.push(fetchSolanaWalletBalances(wallet));
+          }
+          if (isBitcoin) {
+            balancePromises.push(fetchBitcoinWalletBalances(wallet));
           }
           if (evmChains.length > 0) {
             balancePromises.push(fetchEvmWalletBalances(wallet, evmChains));
