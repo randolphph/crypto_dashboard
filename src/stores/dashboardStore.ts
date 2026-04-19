@@ -18,6 +18,9 @@ export const useDashboardStore = create<DashboardState>()(
     }),
     {
       name: 'crypto-dashboard-settings',
+      partialize: (state) => ({
+        refreshInterval: state.refreshInterval,
+      }),
     }
   )
 );

@@ -1,6 +1,7 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { PortfolioSummary } from './PortfolioSummary';
 import { ExchangeSection } from './ExchangeSection';
 import { DeribitSection } from './DeribitSection';
@@ -8,6 +9,8 @@ import { OnchainSection } from './OnchainSection';
 import { useExchangeData } from '@/hooks/useExchangeData';
 import { useOnchainData } from '@/hooks/useOnchainData';
 import { useCustomAssetStore } from '@/stores/customAssetStore';
+import { usePortfolioHistoryStore } from '@/stores/portfolioHistoryStore';
+import { useDashboardStore } from '@/stores/dashboardStore';
 import { cn } from '@/lib/utils';
 
 const tabs = [
@@ -20,12 +23,15 @@ type TabId = (typeof tabs)[number]['id'];
 
 export function Dashboard() {
   const [activeTab, setActiveTab] = useState<TabId>('exchanges');
+  const queryClient = useQueryClient();
 
   const binance = useExchangeData('binance');
   const okx = useExchangeData('okx');
   const deribit = useExchangeData('deribit');
   const onchain = useOnchainData();
   const customAssets = useCustomAssetStore((s) => s.assets);
+  const addSnapshot = usePortfolioHistoryStore((s) => s.addSnapshot);
+  const setLastRefreshed = useDashboardStore((s) => s.setLastRefreshed);
 
   const isLoading =
     binance.isLoading || okx.isLoading || deribit.isLoading || onchain.isLoading;
@@ -46,6 +52,36 @@ export function Dashboard() {
   ].filter((item): item is { label: string; value: number } => !!item);
 
   const totalValue = breakdown.reduce((sum, item) => sum + item.value, 0);
+
+  // Track custom assets changes: when they change, refresh API data + record snapshot
+  const prevCustomAssetsRef = useRef(customAssets);
+  useEffect(() => {
+    const prev = prevCustomAssetsRef.current;
+    prevCustomAssetsRef.current = customAssets;
+
+    // Skip on initial mount
+    if (prev === customAssets) return;
+
+    const prevTotal = prev.reduce((s, a) => s + a.value, 0);
+    const currTotal = customAssets.reduce((s, a) => s + a.value, 0);
+    if (prevTotal !== currTotal) {
+      queryClient.invalidateQueries();
+      setLastRefreshed(new Date().toLocaleTimeString());
+    }
+  }, [customAssets, queryClient, setLastRefreshed]);
+
+  // Record snapshot when total value settles (not loading and value > 0)
+  const lastRecordedRef = useRef<number>(0);
+  const recordSnapshot = useCallback(() => {
+    if (!isLoading && totalValue > 0 && totalValue !== lastRecordedRef.current) {
+      lastRecordedRef.current = totalValue;
+      addSnapshot(totalValue);
+    }
+  }, [isLoading, totalValue, addSnapshot]);
+
+  useEffect(() => {
+    recordSnapshot();
+  }, [recordSnapshot]);
 
   return (
     <div className="space-y-6">

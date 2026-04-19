@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { Plus, Trash2, Pencil, Check, X } from 'lucide-react';
 import { formatUsd } from '@/lib/format';
 import { useCustomAssetStore, type CustomAsset } from '@/stores/customAssetStore';
+import { PortfolioChart } from './PortfolioChart';
 
 interface PortfolioSummaryProps {
   totalValue: number;
@@ -242,6 +243,9 @@ export function PortfolioSummary({
           <PieChart breakdown={breakdown} totalValue={totalValue} />
         )}
       </div>
+
+      {/* Portfolio value history chart */}
+      {!isLoading && <PortfolioChart />}
     </div>
   );
 }

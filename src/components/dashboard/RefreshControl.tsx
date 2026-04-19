@@ -2,7 +2,7 @@
 
 import { RefreshCw } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useDashboardStore } from '@/stores/dashboardStore';
 
 export function RefreshControl() {
@@ -10,6 +10,10 @@ export function RefreshControl() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const lastRefreshed = useDashboardStore((s) => s.lastRefreshed);
   const setLastRefreshed = useDashboardStore((s) => s.setLastRefreshed);
+
+  useEffect(() => {
+    setLastRefreshed(new Date().toLocaleTimeString());
+  }, [setLastRefreshed]);
 
   const handleRefresh = async () => {
     setIsRefreshing(true);
