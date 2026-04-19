@@ -3,13 +3,23 @@ import { fetchPrices } from '@/lib/prices';
 
 const MIN_USD_VALUE = 10;
 
-export async function GET() {
-  if (!process.env.BINANCE_API_KEY || !process.env.BINANCE_API_SECRET) {
+export async function GET(request: Request) {
+  const apiKey = request.headers.get('x-binance-api-key') || process.env.BINANCE_API_KEY;
+  const apiSecret = request.headers.get('x-binance-api-secret') || process.env.BINANCE_API_SECRET;
+  const enableGridBot =
+    request.headers.get('x-binance-enable-grid-bot') === 'true' ||
+    process.env.BINANCE_ENABLE_GRID_BOT === 'true';
+
+  if (!apiKey || !apiSecret) {
     return Response.json({ configured: false });
   }
 
   try {
-    const { accounts, futuresPositions, gridBots } = await fetchBinanceAllBalances();
+    const { accounts, futuresPositions, gridBots } = await fetchBinanceAllBalances(
+      apiKey,
+      apiSecret,
+      enableGridBot
+    );
 
     // Collect all unique symbols
     const allSymbols = [

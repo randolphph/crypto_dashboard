@@ -2,13 +2,16 @@ import { fetchDeribitData } from '@/lib/exchanges/deribit';
 import { fetchPrices } from '@/lib/prices';
 import type { AssetBalance } from '@/types/common';
 
-export async function GET() {
-  if (!process.env.DERIBIT_CLIENT_ID || !process.env.DERIBIT_CLIENT_SECRET) {
+export async function GET(request: Request) {
+  const clientId = request.headers.get('x-deribit-client-id') || process.env.DERIBIT_CLIENT_ID;
+  const clientSecret = request.headers.get('x-deribit-client-secret') || process.env.DERIBIT_CLIENT_SECRET;
+
+  if (!clientId || !clientSecret) {
     return Response.json({ configured: false });
   }
 
   try {
-    const { positions, accountSummaries } = await fetchDeribitData();
+    const { positions, accountSummaries } = await fetchDeribitData(clientId, clientSecret);
 
     // Use total_equity_usd from Deribit (cross-currency portfolio margin total)
     // Both currency summaries return the same total_equity_usd, so take it from the first one

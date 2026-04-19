@@ -2,7 +2,7 @@ import 'server-only';
 import { Connection, PublicKey, LAMPORTS_PER_SOL } from '@solana/web3.js';
 import type { AssetBalance } from '@/types/common';
 import type { WalletConfig } from '@/types/onchain';
-import { isOkxWeb3Available, fetchSolanaBalancesViaOkx } from './okxWeb3';
+import { isOkxWeb3Available, fetchSolanaBalancesViaOkx, type OkxWeb3Creds } from './okxWeb3';
 
 function getConnection() {
   const rpcUrl =
@@ -14,11 +14,12 @@ function getConnection() {
  * Primary entry: try OKX Web3 API first, fall back to direct RPC.
  */
 export async function fetchSolanaWalletBalances(
-  wallet: WalletConfig
+  wallet: WalletConfig,
+  okxWeb3Creds?: OkxWeb3Creds
 ): Promise<AssetBalance[]> {
-  if (isOkxWeb3Available()) {
+  if (isOkxWeb3Available(okxWeb3Creds)) {
     try {
-      return await fetchSolanaBalancesViaOkx(wallet.address);
+      return await fetchSolanaBalancesViaOkx(wallet.address, okxWeb3Creds);
     } catch (error) {
       console.warn(
         `OKX Web3 API failed for ${wallet.name}, falling back to RPC:`,

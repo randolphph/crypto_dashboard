@@ -13,6 +13,14 @@ function getWalletChains(wallet: WalletConfig): Chain[] {
 }
 
 export async function POST(request: Request) {
+  // Read OKX Web3 credentials from headers (client-side override)
+  const okxWeb3Creds = {
+    apiKey: request.headers.get('x-okx-web3-api-key') || undefined,
+    apiSecret: request.headers.get('x-okx-web3-api-secret') || undefined,
+    passphrase: request.headers.get('x-okx-web3-passphrase') || undefined,
+    projectId: request.headers.get('x-okx-web3-project-id') || undefined,
+  };
+
   try {
     const { wallets } = (await request.json()) as { wallets: WalletConfig[] };
 
@@ -31,13 +39,13 @@ export async function POST(request: Request) {
           const balancePromises: Promise<import('@/types/common').AssetBalance[]>[] = [];
 
           if (isSolana) {
-            balancePromises.push(fetchSolanaWalletBalances(wallet));
+            balancePromises.push(fetchSolanaWalletBalances(wallet, okxWeb3Creds));
           }
           if (isBitcoin) {
-            balancePromises.push(fetchBitcoinWalletBalances(wallet));
+            balancePromises.push(fetchBitcoinWalletBalances(wallet, okxWeb3Creds));
           }
           if (evmChains.length > 0) {
-            balancePromises.push(fetchEvmWalletBalances(wallet, evmChains));
+            balancePromises.push(fetchEvmWalletBalances(wallet, evmChains, okxWeb3Creds));
           }
 
           const results = await Promise.all(balancePromises);

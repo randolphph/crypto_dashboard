@@ -1,13 +1,17 @@
 import { fetchOkxBalances } from '@/lib/exchanges/okx';
 import { fetchPrices } from '@/lib/prices';
 
-export async function GET() {
-  if (!process.env.OKX_API_KEY || !process.env.OKX_API_SECRET || !process.env.OKX_PASSPHRASE) {
+export async function GET(request: Request) {
+  const apiKey = request.headers.get('x-okx-api-key') || process.env.OKX_API_KEY;
+  const apiSecret = request.headers.get('x-okx-api-secret') || process.env.OKX_API_SECRET;
+  const passphrase = request.headers.get('x-okx-passphrase') || process.env.OKX_PASSPHRASE;
+
+  if (!apiKey || !apiSecret || !passphrase) {
     return Response.json({ configured: false });
   }
 
   try {
-    const balances = await fetchOkxBalances();
+    const balances = await fetchOkxBalances(apiKey, apiSecret, passphrase);
 
     // OKX already returns eq (USD equivalent) for some assets
     // For those without, fetch prices

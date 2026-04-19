@@ -6,16 +6,19 @@ const BASE_URL = 'https://www.deribit.com';
 // Module-level token cache
 let tokenCache: { token: string; expiresAt: number } | null = null;
 
-async function authenticate(): Promise<string> {
-  const clientId = process.env.DERIBIT_CLIENT_ID;
-  const clientSecret = process.env.DERIBIT_CLIENT_SECRET;
+async function authenticate(
+  clientIdOverride?: string,
+  clientSecretOverride?: string
+): Promise<string> {
+  const clientId = clientIdOverride || process.env.DERIBIT_CLIENT_ID;
+  const clientSecret = clientSecretOverride || process.env.DERIBIT_CLIENT_SECRET;
 
   if (!clientId || !clientSecret) {
     throw new Error('DERIBIT_CLIENT_ID 或 DERIBIT_CLIENT_SECRET 未配置');
   }
 
-  // Check cached token
-  if (tokenCache && Date.now() < tokenCache.expiresAt) {
+  // Check cached token (skip cache when using overrides to avoid cross-user leaks)
+  if (!clientIdOverride && tokenCache && Date.now() < tokenCache.expiresAt) {
     return tokenCache.token;
   }
 
@@ -136,8 +139,11 @@ export async function fetchDeribitAccountSummary(
   };
 }
 
-export async function fetchDeribitData() {
-  const token = await authenticate();
+export async function fetchDeribitData(
+  clientIdOverride?: string,
+  clientSecretOverride?: string
+) {
+  const token = await authenticate(clientIdOverride, clientSecretOverride);
 
   const [btcPositions, ethPositions, btcSummary, ethSummary] =
     await Promise.all([

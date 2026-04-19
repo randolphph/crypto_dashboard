@@ -28,11 +28,18 @@ function sign(
   return crypto.createHmac('sha256', secret).update(preSign).digest('base64');
 }
 
-function getOkxWeb3Config() {
-  const apiKey = process.env.OKX_WEB3_API_KEY;
-  const apiSecret = process.env.OKX_WEB3_API_SECRET;
-  const passphrase = process.env.OKX_WEB3_PASSPHRASE;
-  const projectId = process.env.OKX_WEB3_PROJECT_ID;
+export interface OkxWeb3Creds {
+  apiKey?: string;
+  apiSecret?: string;
+  passphrase?: string;
+  projectId?: string;
+}
+
+function getOkxWeb3Config(overrides?: OkxWeb3Creds) {
+  const apiKey = overrides?.apiKey || process.env.OKX_WEB3_API_KEY;
+  const apiSecret = overrides?.apiSecret || process.env.OKX_WEB3_API_SECRET;
+  const passphrase = overrides?.passphrase || process.env.OKX_WEB3_PASSPHRASE;
+  const projectId = overrides?.projectId || process.env.OKX_WEB3_PROJECT_ID;
 
   if (!apiKey || !apiSecret || !passphrase || !projectId) {
     return null;
@@ -46,8 +53,8 @@ const REQUEST_INTERVAL_MS = 1000;
 const MAX_RETRIES = 3;
 let requestQueue: Promise<void> = Promise.resolve();
 
-async function okxWeb3Request(path: string): Promise<unknown> {
-  const config = getOkxWeb3Config();
+async function okxWeb3Request(path: string, overrides?: OkxWeb3Creds): Promise<unknown> {
+  const config = getOkxWeb3Config(overrides);
   if (!config) {
     throw new Error('OKX Web3 API credentials not configured');
   }
@@ -121,8 +128,8 @@ interface OkxAllTokenBalancesResponse {
   }>;
 }
 
-export function isOkxWeb3Available(): boolean {
-  return getOkxWeb3Config() !== null;
+export function isOkxWeb3Available(overrides?: OkxWeb3Creds): boolean {
+  return getOkxWeb3Config(overrides) !== null;
 }
 
 // Reverse lookup: chainIndex -> chain label
@@ -138,12 +145,13 @@ const CHAIN_INDEX_LABEL: Record<string, string> = {
 
 export async function fetchBalancesViaOkx(
   address: string,
-  chains: Chain[]
+  chains: Chain[],
+  overrides?: OkxWeb3Creds
 ): Promise<AssetBalance[]> {
   const chainIndexes = chains.map((c) => CHAIN_INDEX_MAP[c]).join(',');
   const path = `/api/v5/wallet/asset/all-token-balances-by-address?address=${address}&chains=${chainIndexes}&filter=0`;
 
-  const data = (await okxWeb3Request(path)) as OkxAllTokenBalancesResponse;
+  const data = (await okxWeb3Request(path, overrides)) as OkxAllTokenBalancesResponse;
 
   if (data.code !== '0') {
     throw new Error(`OKX Web3 API error: ${data.msg}`);
@@ -169,19 +177,22 @@ export async function fetchBalancesViaOkx(
 
 export async function fetchEvmBalancesViaOkx(
   address: string,
-  chains: EvmChain[]
+  chains: EvmChain[],
+  overrides?: OkxWeb3Creds
 ): Promise<AssetBalance[]> {
-  return fetchBalancesViaOkx(address, chains);
+  return fetchBalancesViaOkx(address, chains, overrides);
 }
 
 export async function fetchSolanaBalancesViaOkx(
-  address: string
+  address: string,
+  overrides?: OkxWeb3Creds
 ): Promise<AssetBalance[]> {
-  return fetchBalancesViaOkx(address, ['solana']);
+  return fetchBalancesViaOkx(address, ['solana'], overrides);
 }
 
 export async function fetchBitcoinBalancesViaOkx(
-  address: string
+  address: string,
+  overrides?: OkxWeb3Creds
 ): Promise<AssetBalance[]> {
-  return fetchBalancesViaOkx(address, ['bitcoin']);
+  return fetchBalancesViaOkx(address, ['bitcoin'], overrides);
 }

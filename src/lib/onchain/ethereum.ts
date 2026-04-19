@@ -3,7 +3,7 @@ import { createPublicClient, http, formatUnits } from 'viem';
 import { mainnet } from 'viem/chains';
 import type { AssetBalance } from '@/types/common';
 import type { EvmChain, WalletConfig } from '@/types/onchain';
-import { isOkxWeb3Available, fetchEvmBalancesViaOkx } from './okxWeb3';
+import { isOkxWeb3Available, fetchEvmBalancesViaOkx, type OkxWeb3Creds } from './okxWeb3';
 
 function getClient() {
   const rpcUrl = process.env.ETHEREUM_RPC_URL || 'https://eth.llamarpc.com';
@@ -18,11 +18,12 @@ function getClient() {
  */
 export async function fetchEvmWalletBalances(
   wallet: WalletConfig,
-  chains: EvmChain[]
+  chains: EvmChain[],
+  okxWeb3Creds?: OkxWeb3Creds
 ): Promise<AssetBalance[]> {
-  if (isOkxWeb3Available()) {
+  if (isOkxWeb3Available(okxWeb3Creds)) {
     try {
-      return await fetchEvmBalancesViaOkx(wallet.address, chains);
+      return await fetchEvmBalancesViaOkx(wallet.address, chains, okxWeb3Creds);
     } catch (error) {
       console.warn(
         `OKX Web3 API failed for ${wallet.name}, falling back to RPC:`,

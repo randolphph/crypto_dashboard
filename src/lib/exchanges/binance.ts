@@ -112,9 +112,12 @@ export interface FuturesPosition {
 
 // ---------- Fetch functions ----------
 
-function getCredentials() {
-  const apiKey = process.env.BINANCE_API_KEY;
-  const apiSecret = process.env.BINANCE_API_SECRET;
+function getCredentials(
+  apiKeyOverride?: string,
+  apiSecretOverride?: string
+) {
+  const apiKey = apiKeyOverride || process.env.BINANCE_API_KEY;
+  const apiSecret = apiSecretOverride || process.env.BINANCE_API_SECRET;
   if (!apiKey || !apiSecret) {
     throw new Error('BINANCE_API_KEY 或 BINANCE_API_SECRET 未配置');
   }
@@ -353,10 +356,16 @@ export interface BinanceAllData {
   gridBots: GridBotSummary[];
 }
 
-export async function fetchBinanceAllBalances(): Promise<BinanceAllData> {
-  const { apiKey, apiSecret } = getCredentials();
+export async function fetchBinanceAllBalances(
+  apiKeyOverride?: string,
+  apiSecretOverride?: string,
+  enableGridBot?: boolean
+): Promise<BinanceAllData> {
+  const { apiKey, apiSecret } = getCredentials(apiKeyOverride, apiSecretOverride);
 
-  const enableGridBot = process.env.BINANCE_ENABLE_GRID_BOT === 'true';
+  if (enableGridBot === undefined) {
+    enableGridBot = process.env.BINANCE_ENABLE_GRID_BOT === 'true';
+  }
 
   const [spot, futuresUsd, futuresCoin, earn, funding, futuresPositions, gridBotData] =
     await Promise.all([

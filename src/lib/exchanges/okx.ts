@@ -54,10 +54,14 @@ interface OkxBalanceResponse {
   }>;
 }
 
-export async function fetchOkxBalances(): Promise<AssetBalance[]> {
-  const apiKey = process.env.OKX_API_KEY;
-  const apiSecret = process.env.OKX_API_SECRET;
-  const passphrase = process.env.OKX_PASSPHRASE;
+export async function fetchOkxBalances(
+  apiKeyOverride?: string,
+  apiSecretOverride?: string,
+  passphraseOverride?: string
+): Promise<AssetBalance[]> {
+  const apiKey = apiKeyOverride || process.env.OKX_API_KEY;
+  const apiSecret = apiSecretOverride || process.env.OKX_API_SECRET;
+  const passphrase = passphraseOverride || process.env.OKX_PASSPHRASE;
 
   if (!apiKey || !apiSecret || !passphrase) {
     throw new Error('OKX_API_KEY, OKX_API_SECRET 或 OKX_PASSPHRASE 未配置');
