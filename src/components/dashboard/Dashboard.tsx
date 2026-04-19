@@ -36,6 +36,9 @@ export function Dashboard() {
   const isLoading =
     binance.isLoading || okx.isLoading || deribit.isLoading || onchain.isLoading;
 
+  const hasError =
+    binance.isError || okx.isError || deribit.isError || onchain.isError;
+
   const breakdown = [
     binance.data?.configured !== false && { label: 'Binance', value: binance.data?.totalUsdValue ?? 0 },
     okx.data?.configured !== false && { label: 'OKX', value: okx.data?.totalUsdValue ?? 0 },
@@ -73,11 +76,11 @@ export function Dashboard() {
   // Record snapshot when total value settles (not loading and value > 0)
   const lastRecordedRef = useRef<number>(0);
   const recordSnapshot = useCallback(() => {
-    if (!isLoading && totalValue > 0 && totalValue !== lastRecordedRef.current) {
+    if (!isLoading && !hasError && totalValue > 0 && totalValue !== lastRecordedRef.current) {
       lastRecordedRef.current = totalValue;
       addSnapshot(totalValue);
     }
-  }, [isLoading, totalValue, addSnapshot]);
+  }, [isLoading, hasError, totalValue, addSnapshot]);
 
   useEffect(() => {
     recordSnapshot();

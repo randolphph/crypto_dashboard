@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
+import { Download } from 'lucide-react';
 import {
   ResponsiveContainer,
   AreaChart,
@@ -42,6 +43,23 @@ function formatTime(ts: number, range: RangeId): string {
 export function PortfolioChart() {
   const snapshots = usePortfolioHistoryStore((s) => s.snapshots);
   const [range, setRange] = useState<RangeId>('day');
+
+  const exportCsv = useCallback(() => {
+    if (snapshots.length === 0) return;
+    const header = 'timestamp,date,value_usd';
+    const rows = snapshots
+      .slice()
+      .sort((a, b) => a.timestamp - b.timestamp)
+      .map((s) => `${s.timestamp},${new Date(s.timestamp).toISOString()},${s.value}`);
+    const csv = [header, ...rows].join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `portfolio-history-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }, [snapshots]);
 
   const data = useMemo(() => {
     const now = Date.now();
@@ -88,20 +106,29 @@ export function PortfolioChart() {
             </span>
           )}
         </div>
-        <div className="flex gap-1">
-          {RANGES.map((r) => (
-            <button
-              key={r.id}
-              onClick={() => setRange(r.id)}
-              className={`px-2 py-0.5 text-xs rounded transition-colors ${
-                range === r.id
-                  ? 'bg-primary text-primary-foreground'
-                  : 'text-muted-foreground hover:bg-secondary'
-              }`}
-            >
-              {r.label}
-            </button>
-          ))}
+        <div className="flex items-center gap-2">
+          <div className="flex gap-1">
+            {RANGES.map((r) => (
+              <button
+                key={r.id}
+                onClick={() => setRange(r.id)}
+                className={`px-2 py-0.5 text-xs rounded transition-colors ${
+                  range === r.id
+                    ? 'bg-primary text-primary-foreground'
+                    : 'text-muted-foreground hover:bg-secondary'
+                }`}
+              >
+                {r.label}
+              </button>
+            ))}
+          </div>
+          <button
+            onClick={exportCsv}
+            title="导出 CSV"
+            className="p-1 rounded text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors"
+          >
+            <Download className="h-3.5 w-3.5" />
+          </button>
         </div>
       </div>
 
