@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useMemo, useCallback } from 'react';
-import { Download } from 'lucide-react';
+import { Download, Trash2, X } from 'lucide-react';
 import {
   ResponsiveContainer,
   AreaChart,
@@ -47,7 +47,9 @@ function formatTime(ts: number, range: RangeId): string {
 
 export function PortfolioChart() {
   const snapshots = usePortfolioHistoryStore((s) => s.snapshots);
+  const removeSnapshot = usePortfolioHistoryStore((s) => s.removeSnapshot);
   const [range, setRange] = useState<RangeId>('day');
+  const [selected, setSelected] = useState<PortfolioSnapshot | null>(null);
 
   const exportCsv = useCallback(() => {
     if (snapshots.length === 0) return;
@@ -137,6 +139,33 @@ export function PortfolioChart() {
         </div>
       </div>
 
+      {selected && (
+        <div className="flex items-center justify-between rounded-md border bg-popover px-3 py-1.5 mb-2 text-sm">
+          <div className="flex items-center gap-3">
+            <span className="text-muted-foreground">{new Date(selected.timestamp).toLocaleString()}</span>
+            <span className="font-semibold">{formatUsd(selected.value)}</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <button
+              className="flex items-center gap-1 px-2 py-0.5 text-xs text-red-500 hover:bg-red-500/10 rounded transition-colors"
+              onClick={() => {
+                removeSnapshot(selected.timestamp);
+                setSelected(null);
+              }}
+            >
+              <Trash2 className="h-3 w-3" />
+              删除
+            </button>
+            <button
+              className="p-0.5 text-muted-foreground hover:text-foreground rounded transition-colors"
+              onClick={() => setSelected(null)}
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        </div>
+      )}
+
       {data.length < 2 ? (
         <div className="flex items-center justify-center rounded-lg border border-dashed p-6 text-sm text-muted-foreground">
           该时间范围内数据不足
@@ -186,6 +215,7 @@ export function PortfolioChart() {
                       {new Date(snap.timestamp).toLocaleString()}
                     </p>
                     <p className="font-semibold">{formatUsd(snap.value)}</p>
+                    <p className="text-xs text-muted-foreground mt-1">点击选中以删除</p>
                   </div>
                 );
               }}
@@ -197,7 +227,14 @@ export function PortfolioChart() {
               strokeWidth={2}
               fill="url(#valueGradient)"
               dot={false}
-              activeDot={{ r: 4 }}
+              activeDot={{
+                r: 4,
+                cursor: 'pointer',
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                onClick: (_: any, e: any) => {
+                  if (e?.payload) setSelected(e.payload as PortfolioSnapshot);
+                },
+              }}
             />
           </AreaChart>
         </ResponsiveContainer>
