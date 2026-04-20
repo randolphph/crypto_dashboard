@@ -22,6 +22,8 @@ const RANGES = [
   { id: 'day', label: '日', ms: 24 * 60 * 60 * 1000 },
   { id: 'week', label: '周', ms: 7 * 24 * 60 * 60 * 1000 },
   { id: 'month', label: '月', ms: 30 * 24 * 60 * 60 * 1000 },
+  { id: 'quarter', label: '季', ms: 90 * 24 * 60 * 60 * 1000 },
+  { id: 'year', label: '年', ms: 365 * 24 * 60 * 60 * 1000 },
 ] as const;
 
 type RangeId = (typeof RANGES)[number]['id'];
@@ -36,6 +38,9 @@ function formatTime(ts: number, range: RangeId): string {
   }
   if (range === 'week') {
     return d.toLocaleDateString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+  }
+  if (range === 'year') {
+    return d.toLocaleDateString([], { year: 'numeric', month: 'short' });
   }
   return d.toLocaleDateString([], { month: 'short', day: 'numeric' });
 }
