@@ -62,10 +62,40 @@ function PieChart({
     return <path key={item.label} d={d} fill={COLORS[i % COLORS.length]} />;
   });
 
+  const maskR = r / 2;
+  const circumference = 2 * Math.PI * maskR;
+
   return (
     <div className="flex items-center gap-4">
       <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
-        {slices}
+        <defs>
+          <mask id="pie-sweep-mask">
+            <circle
+              cx={cx}
+              cy={cy}
+              r={maskR}
+              fill="none"
+              stroke="white"
+              strokeWidth={r + 2}
+              strokeDasharray={circumference}
+              strokeDashoffset={circumference}
+              transform={`rotate(-90 ${cx} ${cy})`}
+            >
+              <animate
+                attributeName="stroke-dashoffset"
+                from={circumference}
+                to={0}
+                dur="0.8s"
+                fill="freeze"
+                calcMode="spline"
+                keySplines="0.25 0.1 0.25 1"
+              />
+            </circle>
+          </mask>
+        </defs>
+        <g mask="url(#pie-sweep-mask)">
+          {slices}
+        </g>
       </svg>
       <div className="flex flex-col gap-1.5">
         {items.map((item, i) => (
