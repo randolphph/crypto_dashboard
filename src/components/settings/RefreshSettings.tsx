@@ -7,6 +7,9 @@ const intervals = [
   { label: '30 秒', value: 30 },
   { label: '1 分钟', value: 60 },
   { label: '5 分钟', value: 300 },
+  { label: '10 分钟', value: 600 },
+  { label: '30 分钟', value: 1800 },
+  { label: '1 小时', value: 3600 },
 ];
 
 export function RefreshSettings() {
