@@ -21,6 +21,7 @@ export function useOnchainData() {
       }
       return res.json();
     },
+    refetchOnMount: false,
     refetchInterval: refreshInterval > 0 ? refreshInterval * 1000 : false,
     enabled: wallets.length > 0,
   });

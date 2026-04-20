@@ -17,6 +17,7 @@ export function useExchangeData(exchange: 'binance' | 'okx' | 'deribit') {
       }
       return res.json();
     },
+    refetchOnMount: false,
     refetchInterval: refreshInterval > 0 ? refreshInterval * 1000 : false,
   });
 }
