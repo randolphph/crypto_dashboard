@@ -1,7 +1,7 @@
 'use client';
 
 import { RefreshCw } from 'lucide-react';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQueryClient, useIsFetching } from '@tanstack/react-query';
 import { useState, useEffect } from 'react';
 import { useDashboardStore } from '@/stores/dashboardStore';
 
@@ -10,10 +10,18 @@ export function RefreshControl() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const lastRefreshed = useDashboardStore((s) => s.lastRefreshed);
   const setLastRefreshed = useDashboardStore((s) => s.setLastRefreshed);
+  const isFetching = useIsFetching();
 
   useEffect(() => {
     setLastRefreshed(new Date().toLocaleTimeString());
   }, [setLastRefreshed]);
+
+  // Update last refreshed time when background refetch completes
+  useEffect(() => {
+    if (isFetching === 0) {
+      setLastRefreshed(new Date().toLocaleTimeString());
+    }
+  }, [isFetching, setLastRefreshed]);
 
   const handleRefresh = async () => {
     setIsRefreshing(true);
