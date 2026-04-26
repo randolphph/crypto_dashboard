@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useMemo, useCallback } from 'react';
-import { Download, Trash2, X } from 'lucide-react';
+import { useState, useMemo, useCallback, useRef } from 'react';
+import { Download, Upload, Trash2, X } from 'lucide-react';
 import {
   ResponsiveContainer,
   AreaChart,
@@ -48,8 +48,10 @@ function formatTime(ts: number, range: RangeId): string {
 export function PortfolioChart() {
   const snapshots = usePortfolioHistoryStore((s) => s.snapshots);
   const removeSnapshot = usePortfolioHistoryStore((s) => s.removeSnapshot);
+  const importSnapshots = usePortfolioHistoryStore((s) => s.importSnapshots);
   const [range, setRange] = useState<RangeId>('day');
   const [selected, setSelected] = useState<PortfolioSnapshot | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const exportCsv = useCallback(() => {
     if (snapshots.length === 0) return;
@@ -67,6 +69,34 @@ export function PortfolioChart() {
     a.click();
     URL.revokeObjectURL(url);
   }, [snapshots]);
+
+  const handleImportCsv = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = () => {
+        const text = reader.result as string;
+        const lines = text.trim().split('\n').slice(1); // skip header
+        const parsed: PortfolioSnapshot[] = [];
+        for (const line of lines) {
+          const cols = line.split(',');
+          const timestamp = Number(cols[0]);
+          const value = Number(cols[2]);
+          if (!isNaN(timestamp) && !isNaN(value) && timestamp > 0) {
+            parsed.push({ timestamp, value });
+          }
+        }
+        if (parsed.length > 0) {
+          importSnapshots(parsed);
+        }
+      };
+      reader.readAsText(file);
+      // reset so the same file can be re-imported
+      e.target.value = '';
+    },
+    [importSnapshots]
+  );
 
   const data = useMemo(() => {
     const now = Date.now();
@@ -129,6 +159,20 @@ export function PortfolioChart() {
               </button>
             ))}
           </div>
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            title="导入 CSV"
+            className="p-1 rounded text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors"
+          >
+            <Upload className="h-3.5 w-3.5" />
+          </button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".csv"
+            className="hidden"
+            onChange={handleImportCsv}
+          />
           <button
             onClick={exportCsv}
             title="导出 CSV"

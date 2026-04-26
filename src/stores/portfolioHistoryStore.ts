@@ -10,6 +10,7 @@ interface PortfolioHistoryState {
   snapshots: PortfolioSnapshot[];
   addSnapshot: (value: number) => void;
   removeSnapshot: (timestamp: number) => void;
+  importSnapshots: (incoming: PortfolioSnapshot[]) => void;
 }
 
 // Keep at most 30 days of data (one snapshot per data refresh)
@@ -30,6 +31,18 @@ export const usePortfolioHistoryStore = create<PortfolioHistoryState>()(
         set((state) => ({
           snapshots: state.snapshots.filter((s) => s.timestamp !== timestamp),
         })),
+      importSnapshots: (incoming) =>
+        set((state) => {
+          const map = new Map(state.snapshots.map((s) => [s.timestamp, s]));
+          for (const s of incoming) {
+            map.set(s.timestamp, s);
+          }
+          return {
+            snapshots: Array.from(map.values()).sort(
+              (a, b) => a.timestamp - b.timestamp
+            ),
+          };
+        }),
     }),
     { name: 'crypto-dashboard-portfolio-history' }
   )
