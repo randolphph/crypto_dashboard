@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useCallback, useRef } from 'react';
+import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import { Download, Upload, Trash2, X } from 'lucide-react';
 import {
   ResponsiveContainer,
@@ -51,7 +51,12 @@ export function PortfolioChart() {
   const importSnapshots = usePortfolioHistoryStore((s) => s.importSnapshots);
   const [range, setRange] = useState<RangeId>('day');
   const [selected, setSelected] = useState<PortfolioSnapshot | null>(null);
+  const [mounted, setMounted] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const exportCsv = useCallback(() => {
     if (snapshots.length === 0) return;
@@ -106,6 +111,18 @@ export function PortfolioChart() {
       .filter((s) => s.timestamp >= cutoff)
       .sort((a, b) => a.timestamp - b.timestamp);
   }, [snapshots, range]);
+
+  if (!mounted) {
+    return (
+      <div className="mt-4">
+        <div className="flex items-center justify-between mb-2">
+          <div className="h-4 w-32 animate-pulse rounded bg-muted" />
+          <div className="h-5 w-48 animate-pulse rounded bg-muted" />
+        </div>
+        <div className="h-[200px] animate-pulse rounded-lg bg-muted" />
+      </div>
+    );
+  }
 
   if (snapshots.length < 2) {
     return (

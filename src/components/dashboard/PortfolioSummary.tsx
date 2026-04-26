@@ -275,7 +275,7 @@ export function PortfolioSummary({
       </div>
 
       {/* Portfolio value history chart */}
-      {!isLoading && <PortfolioChart />}
+      <PortfolioChart />
     </div>
   );
 }
