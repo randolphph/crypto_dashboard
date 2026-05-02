@@ -1,6 +1,6 @@
 'use client';
 
-import { formatUsd, formatCrypto } from '@/lib/format';
+import { usePrivacyFormat } from '@/hooks/usePrivacyFormat';
 import { cn } from '@/lib/utils';
 import type { DeribitData } from '@/types/deribit';
 
@@ -10,6 +10,7 @@ interface DeribitSectionProps {
 }
 
 export function DeribitSection({ data, isLoading }: DeribitSectionProps) {
+  const { fmtUsd, fmtCrypto, hidden } = usePrivacyFormat();
   if (isLoading) {
     return (
       <div className="space-y-4">
@@ -56,7 +57,7 @@ export function DeribitSection({ data, isLoading }: DeribitSectionProps) {
       {/* Total Account Value */}
       <div className="rounded-xl border bg-card p-5 shadow-sm">
         <p className="text-sm text-muted-foreground">账户总价值 (跨币种组合保证金)</p>
-        <p className="text-2xl font-bold tabular-nums">{formatUsd(totalEquityUsd)}</p>
+        <p className="text-2xl font-bold tabular-nums">{fmtUsd(totalEquityUsd)}</p>
       </div>
 
       {/* Account Summaries */}
@@ -68,25 +69,25 @@ export function DeribitSection({ data, isLoading }: DeribitSectionProps) {
               <div>
                 <p className="text-muted-foreground">保证金余额</p>
                 <p className="font-medium tabular-nums">
-                  {formatCrypto(summary.margin_balance)} {summary.currency}
+                  {fmtCrypto(summary.margin_balance)} {summary.currency}
                 </p>
               </div>
               <div>
                 <p className="text-muted-foreground">权益</p>
                 <p className="font-medium tabular-nums">
-                  {formatCrypto(summary.equity)} {summary.currency}
+                  {fmtCrypto(summary.equity)} {summary.currency}
                 </p>
               </div>
               <div>
                 <p className="text-muted-foreground">初始保证金</p>
                 <p className="font-medium tabular-nums">
-                  {formatCrypto(summary.initial_margin)} {summary.currency}
+                  {fmtCrypto(summary.initial_margin)} {summary.currency}
                 </p>
               </div>
               <div>
                 <p className="text-muted-foreground">维持保证金</p>
                 <p className="font-medium tabular-nums">
-                  {formatCrypto(summary.maintenance_margin)} {summary.currency}
+                  {fmtCrypto(summary.maintenance_margin)} {summary.currency}
                 </p>
               </div>
             </div>
@@ -128,13 +129,13 @@ export function DeribitSection({ data, isLoading }: DeribitSectionProps) {
                       </span>
                     </td>
                     <td className="py-2 text-right tabular-nums">
-                      {formatCrypto(Math.abs(pos.size), 4)}
+                      {fmtCrypto(Math.abs(pos.size), 4)}
                     </td>
                     <td className="py-2 text-right tabular-nums">
-                      {formatCrypto(pos.average_price, 4)}
+                      {fmtCrypto(pos.average_price, 4)}
                     </td>
                     <td className="py-2 text-right tabular-nums">
-                      {formatCrypto(pos.mark_price, 4)}
+                      {fmtCrypto(pos.mark_price, 4)}
                     </td>
                     <td
                       className={cn(
@@ -144,11 +145,11 @@ export function DeribitSection({ data, isLoading }: DeribitSectionProps) {
                           : 'text-red-600 dark:text-red-400'
                       )}
                     >
-                      {pos.total_profit_loss >= 0 ? '+' : ''}
-                      {formatUsd(pos.total_profit_loss * getCurrencyPrice(pos.instrument_name))}
+                      {hidden ? '' : pos.total_profit_loss >= 0 ? '+' : ''}
+                      {fmtUsd(pos.total_profit_loss * getCurrencyPrice(pos.instrument_name))}
                     </td>
                     <td className="py-2 text-right tabular-nums">
-                      {pos.delta.toFixed(4)}
+                      {hidden ? '****' : pos.delta.toFixed(4)}
                     </td>
                   </tr>
                 ))}
@@ -164,7 +165,7 @@ export function DeribitSection({ data, isLoading }: DeribitSectionProps) {
                         : 'text-red-600 dark:text-red-400'
                     )}
                   >
-                    {totalPnlUsd >= 0 ? '+' : ''}{formatUsd(totalPnlUsd)}
+                    {hidden ? '' : totalPnlUsd >= 0 ? '+' : ''}{fmtUsd(totalPnlUsd)}
                   </td>
                   <td />
                 </tr>

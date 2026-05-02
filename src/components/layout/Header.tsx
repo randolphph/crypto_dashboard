@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { BarChart3, Settings } from 'lucide-react';
 import { ThemeToggle } from '@/components/common/ThemeToggle';
+import { PrivacyToggle } from '@/components/common/PrivacyToggle';
 import { RefreshControl } from '@/components/dashboard/RefreshControl';
 import { cn } from '@/lib/utils';
 
@@ -41,6 +42,7 @@ export function Header() {
         </nav>
         <div className="ml-auto flex items-center gap-3">
           <RefreshControl />
+          <PrivacyToggle />
           <ThemeToggle />
         </div>
       </div>

@@ -15,7 +15,7 @@ import {
   usePortfolioHistoryStore,
   type PortfolioSnapshot,
 } from '@/stores/portfolioHistoryStore';
-import { formatUsd } from '@/lib/format';
+import { usePrivacyFormat } from '@/hooks/usePrivacyFormat';
 
 const RANGES = [
   { id: 'hour', label: '小时', ms: 60 * 60 * 1000 },
@@ -49,6 +49,7 @@ export function PortfolioChart() {
   const snapshots = usePortfolioHistoryStore((s) => s.snapshots);
   const removeSnapshot = usePortfolioHistoryStore((s) => s.removeSnapshot);
   const importSnapshots = usePortfolioHistoryStore((s) => s.importSnapshots);
+  const { fmtUsd, hidden } = usePrivacyFormat();
   const [range, setRange] = useState<RangeId>('day');
   const [selected, setSelected] = useState<PortfolioSnapshot | null>(null);
   const [mounted, setMounted] = useState(false);
@@ -156,7 +157,13 @@ export function PortfolioChart() {
         <div className="flex items-center gap-2 text-sm">
           {data.length >= 2 && (
             <span className={isPositive ? 'text-green-500' : 'text-red-500'}>
-              {isPositive ? '+' : ''}{formatUsd(change)} ({isPositive ? '+' : ''}{changePercent.toFixed(2)}%)
+              {hidden ? (
+                '******'
+              ) : (
+                <>
+                  {isPositive ? '+' : ''}{fmtUsd(change)} ({isPositive ? '+' : ''}{changePercent.toFixed(2)}%)
+                </>
+              )}
             </span>
           )}
         </div>
@@ -204,7 +211,7 @@ export function PortfolioChart() {
         <div className="flex items-center justify-between rounded-md border bg-popover px-3 py-1.5 mb-2 text-sm">
           <div className="flex items-center gap-3">
             <span className="text-muted-foreground">{new Date(selected.timestamp).toLocaleString()}</span>
-            <span className="font-semibold">{formatUsd(selected.value)}</span>
+            <span className="font-semibold">{fmtUsd(selected.value)}</span>
           </div>
           <div className="flex items-center gap-1">
             <button
@@ -259,12 +266,12 @@ export function PortfolioChart() {
             />
             <YAxis
               domain={yDomain}
-              tickFormatter={(v: number) => formatUsd(v)}
+              tickFormatter={(v: number) => fmtUsd(v)}
               tick={{ fontSize: 11 }}
               stroke="var(--color-muted-foreground, #9ca3af)"
               tickLine={false}
               axisLine={false}
-              width={90}
+              width={hidden ? 60 : 90}
             />
             <Tooltip
               content={({ active, payload }) => {
@@ -275,7 +282,7 @@ export function PortfolioChart() {
                     <p className="text-muted-foreground">
                       {new Date(snap.timestamp).toLocaleString()}
                     </p>
-                    <p className="font-semibold">{formatUsd(snap.value)}</p>
+                    <p className="font-semibold">{fmtUsd(snap.value)}</p>
                     <p className="text-xs text-muted-foreground mt-1">点击选中以删除</p>
                   </div>
                 );

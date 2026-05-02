@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { Plus, Trash2, Pencil, Check, X } from 'lucide-react';
-import { formatUsd } from '@/lib/format';
+import { usePrivacyFormat } from '@/hooks/usePrivacyFormat';
 import { useCustomAssetStore, type CustomAsset } from '@/stores/customAssetStore';
 import { PortfolioChart } from './PortfolioChart';
 
@@ -30,6 +30,7 @@ function PieChart({
   breakdown: { label: string; value: number }[];
   totalValue: number;
 }) {
+  const { hidden } = usePrivacyFormat();
   const items = breakdown.filter((b) => b.value > 0);
   if (items.length === 0 || totalValue <= 0) return null;
 
@@ -106,7 +107,7 @@ function PieChart({
             />
             <span className="text-muted-foreground">{item.label}</span>
             <span className="font-medium tabular-nums">
-              {((item.value / totalValue) * 100).toFixed(1)}%
+              {hidden ? '**%' : `${((item.value / totalValue) * 100).toFixed(1)}%`}
             </span>
           </div>
         ))}
@@ -169,6 +170,7 @@ function CustomAssetItem({
   onEdit: () => void;
   onDelete: () => void;
 }) {
+  const { fmtUsd } = usePrivacyFormat();
   return (
     <div className="flex flex-col gap-0.5 group relative">
       <div className="flex items-center gap-1">
@@ -182,7 +184,7 @@ function CustomAssetItem({
           </button>
         </div>
       </div>
-      <p className="text-sm font-medium">{formatUsd(asset.value)}</p>
+      <p className="text-sm font-medium">{fmtUsd(asset.value)}</p>
     </div>
   );
 }
@@ -193,6 +195,7 @@ export function PortfolioSummary({
   isLoading,
 }: PortfolioSummaryProps) {
   const { assets, addAsset, removeAsset, updateAsset } = useCustomAssetStore();
+  const { fmtUsd } = usePrivacyFormat();
   const [adding, setAdding] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
 
@@ -211,7 +214,7 @@ export function PortfolioSummary({
               <div className="h-9 w-48 animate-pulse rounded bg-muted" />
             ) : (
               <p className="text-3xl font-bold tracking-tight">
-                {formatUsd(totalValue)}
+                {fmtUsd(totalValue)}
               </p>
             )}
           </div>
@@ -221,7 +224,7 @@ export function PortfolioSummary({
               {apiBreakdown.map((item) => (
                 <div key={item.label} className="flex flex-col gap-0.5">
                   <p className="text-xs text-muted-foreground">{item.label}</p>
-                  <p className="text-sm font-medium">{formatUsd(item.value)}</p>
+                  <p className="text-sm font-medium">{fmtUsd(item.value)}</p>
                 </div>
               ))}
 

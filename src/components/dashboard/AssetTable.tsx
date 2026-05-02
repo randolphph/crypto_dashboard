@@ -1,6 +1,6 @@
 'use client';
 
-import { formatUsd, formatCrypto } from '@/lib/format';
+import { usePrivacyFormat } from '@/hooks/usePrivacyFormat';
 import type { AssetBalance } from '@/types/common';
 
 interface AssetTableProps {
@@ -8,6 +8,7 @@ interface AssetTableProps {
 }
 
 export function AssetTable({ balances }: AssetTableProps) {
+  const { fmtUsd, fmtCrypto } = usePrivacyFormat();
   const sorted = [...balances].sort((a, b) => b.usdValue - a.usdValue);
 
   if (sorted.length === 0) {
@@ -33,10 +34,10 @@ export function AssetTable({ balances }: AssetTableProps) {
             <tr key={item.asset} className="border-b last:border-0">
               <td className="py-2 font-medium">{item.asset}</td>
               <td className="py-2 text-right tabular-nums">
-                {formatCrypto(item.amount)}
+                {fmtCrypto(item.amount)}
               </td>
               <td className="py-2 text-right tabular-nums">
-                {formatUsd(item.usdValue)}
+                {fmtUsd(item.usdValue)}
               </td>
             </tr>
           ))}

@@ -1,6 +1,6 @@
 'use client';
 
-import { formatUsd, formatCrypto } from '@/lib/format';
+import { usePrivacyFormat } from '@/hooks/usePrivacyFormat';
 import { cn } from '@/lib/utils';
 import { AssetTable } from './AssetTable';
 import type { AssetBalance } from '@/types/common';
@@ -50,6 +50,7 @@ interface ExchangeSectionProps {
 }
 
 function FuturesPositionsTable({ positions }: { positions: FuturesPosition[] }) {
+  const { fmtUsd, fmtCrypto, hidden } = usePrivacyFormat();
   if (positions.length === 0) return null;
 
   return (
@@ -93,13 +94,13 @@ function FuturesPositionsTable({ positions }: { positions: FuturesPosition[] }) 
                     </span>
                   </td>
                   <td className="py-2 text-right tabular-nums">
-                    {formatCrypto(Math.abs(amt), 4)}
+                    {fmtCrypto(Math.abs(amt), 4)}
                   </td>
                   <td className="py-2 text-right tabular-nums">
-                    {formatCrypto(parseFloat(pos.entryPrice), 2)}
+                    {fmtCrypto(parseFloat(pos.entryPrice), 2)}
                   </td>
                   <td className="py-2 text-right tabular-nums">
-                    {formatCrypto(parseFloat(pos.markPrice), 2)}
+                    {fmtCrypto(parseFloat(pos.markPrice), 2)}
                   </td>
                   <td
                     className={cn(
@@ -109,8 +110,8 @@ function FuturesPositionsTable({ positions }: { positions: FuturesPosition[] }) 
                         : 'text-red-600 dark:text-red-400'
                     )}
                   >
-                    {pnl >= 0 ? '+' : ''}
-                    {formatUsd(pnl)}
+                    {hidden ? '' : pnl >= 0 ? '+' : ''}
+                    {fmtUsd(pnl)}
                   </td>
                   <td className="py-2 text-right tabular-nums">
                     {pos.leverage}x
@@ -126,6 +127,7 @@ function FuturesPositionsTable({ positions }: { positions: FuturesPosition[] }) 
 }
 
 function GridBotsTable({ bots }: { bots: GridBotSummary[] }) {
+  const { fmtUsd, hidden } = usePrivacyFormat();
   if (bots.length === 0) return null;
 
   return (
@@ -164,7 +166,7 @@ function GridBotsTable({ bots }: { bots: GridBotSummary[] }) {
                     </span>
                   </td>
                   <td className="py-2 text-right tabular-nums">
-                    {formatUsd(bot.investedAmt)}
+                    {fmtUsd(bot.investedAmt)}
                   </td>
                   <td
                     className={cn(
@@ -174,8 +176,8 @@ function GridBotsTable({ bots }: { bots: GridBotSummary[] }) {
                         : 'text-red-600 dark:text-red-400'
                     )}
                   >
-                    {bot.totalPnl >= 0 ? '+' : ''}
-                    {formatUsd(bot.totalPnl)}
+                    {hidden ? '' : bot.totalPnl >= 0 ? '+' : ''}
+                    {fmtUsd(bot.totalPnl)}
                   </td>
                 </tr>
               );
@@ -196,6 +198,7 @@ function ExchangeCard({
   isLoading: boolean;
   name: string;
 }) {
+  const { fmtUsd } = usePrivacyFormat();
   const hasSubAccounts = data?.accounts && data.accounts.length > 0;
   const hasPositions = data?.futuresPositions && data.futuresPositions.length > 0;
   const hasGridBots = data?.gridBots && data.gridBots.length > 0;
@@ -212,7 +215,7 @@ function ExchangeCard({
           !isLoading &&
           data && (
             <span className="text-sm font-medium text-muted-foreground">
-              {formatUsd(data.totalUsdValue)}
+              {fmtUsd(data.totalUsdValue)}
             </span>
           )
         )}
@@ -235,7 +238,7 @@ function ExchangeCard({
                     {account.label}
                   </span>
                   <span className="text-xs text-muted-foreground">
-                    {formatUsd(account.totalUsdValue)}
+                    {fmtUsd(account.totalUsdValue)}
                   </span>
                 </div>
                 {account.error ? (

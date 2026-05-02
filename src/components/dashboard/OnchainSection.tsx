@@ -1,6 +1,7 @@
 'use client';
 
-import { formatUsd, truncateAddress } from '@/lib/format';
+import { truncateAddress } from '@/lib/format';
+import { usePrivacyFormat } from '@/hooks/usePrivacyFormat';
 import { AssetTable } from './AssetTable';
 import type { WalletBalance } from '@/types/onchain';
 
@@ -19,6 +20,7 @@ interface OnchainSectionProps {
 }
 
 export function OnchainSection({ wallets, isLoading }: OnchainSectionProps) {
+  const { fmtUsd } = usePrivacyFormat();
   if (isLoading) {
     return (
       <div className="grid gap-6 md:grid-cols-2">
@@ -55,7 +57,7 @@ export function OnchainSection({ wallets, isLoading }: OnchainSectionProps) {
                 {(wallet.chains ?? []).map((c: string) => CHAIN_LABELS[c] ?? c).join(' / ')}
               </span>
               <span className="text-sm font-medium text-muted-foreground">
-                {formatUsd(wallet.totalUsdValue)}
+                {fmtUsd(wallet.totalUsdValue)}
               </span>
             </div>
           </div>
