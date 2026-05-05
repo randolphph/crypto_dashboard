@@ -1,6 +1,7 @@
 'use client';
 
 import { usePrivacyFormat } from '@/hooks/usePrivacyFormat';
+import { TokenIcon } from './TokenIcon';
 import type { AssetBalance } from '@/types/common';
 
 interface AssetTableProps {
@@ -36,8 +37,9 @@ export function AssetTable({ balances }: AssetTableProps) {
               className={`border-b last:border-0 ${item.dedupedToDefi ? 'text-muted-foreground' : ''}`}
             >
               <td className="py-2 font-medium">
-                <span className="inline-flex items-center gap-1.5">
-                  {item.asset}
+                <span className="inline-flex items-center gap-2">
+                  <TokenIcon src={item.logo} symbol={item.asset} />
+                  <span>{item.asset}</span>
                   {item.dedupedToDefi && (
                     <span
                       className="rounded-full bg-secondary px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground"

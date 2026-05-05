@@ -1,5 +1,6 @@
 import 'server-only';
 import crypto from 'crypto';
+import { getAddress } from 'viem';
 import type { AssetBalance } from '@/types/common';
 
 const BASE_URL = 'https://web3.okx.com';
@@ -163,6 +164,48 @@ const CHAIN_INDEX_LABEL: Record<string, string> = {
   '501': 'SOL',
 };
 
+// Trust Wallet's assets repo on GitHub serves token icons keyed by
+// (chain, address). Free, no API key, but coverage is best for top tokens —
+// long-tail tokens 404 and the UI falls back to a letter glyph.
+const TRUSTWALLET_CHAIN_DIR: Record<string, string> = {
+  '0': 'bitcoin',
+  '1': 'ethereum',
+  '10': 'optimism',
+  '42161': 'arbitrum',
+  '8453': 'base',
+  '56': 'smartchain',
+  '501': 'solana',
+};
+
+const TRUSTWALLET_BASE =
+  'https://raw.githubusercontent.com/trustwallet/assets/master/blockchains';
+
+function tokenLogoUrl(chainIndex: string, tokenAddress: string): string | undefined {
+  const dir = TRUSTWALLET_CHAIN_DIR[chainIndex];
+  if (!dir) return undefined;
+
+  // Native token (no contract address) → use chain's info logo.
+  if (
+    !tokenAddress ||
+    tokenAddress === '0x0000000000000000000000000000000000000000'
+  ) {
+    return `${TRUSTWALLET_BASE}/${dir}/info/logo.png`;
+  }
+
+  // Non-EVM (Solana, Bitcoin token IDs) keep address case as-is.
+  if (dir === 'solana' || dir === 'bitcoin') {
+    return `${TRUSTWALLET_BASE}/${dir}/assets/${tokenAddress}/logo.png`;
+  }
+
+  // Trust Wallet's GitHub paths are case-sensitive and use EIP-55 checksum.
+  try {
+    const checksummed = getAddress(tokenAddress as `0x${string}`);
+    return `${TRUSTWALLET_BASE}/${dir}/assets/${checksummed}/logo.png`;
+  } catch {
+    return undefined;
+  }
+}
+
 export async function fetchBalancesViaOkx(
   address: string,
   chains: Chain[],
@@ -193,6 +236,7 @@ export async function fetchBalancesViaOkx(
         usdValue: parseFloat(t.balance) * parseFloat(t.tokenPrice || '0'),
         tokenAddress: t.tokenAddress,
         chainId: t.chainIndex,
+        logo: tokenLogoUrl(t.chainIndex, t.tokenAddress),
       };
     });
 }
