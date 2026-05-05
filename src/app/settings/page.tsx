@@ -3,6 +3,7 @@
 import { WalletManager } from '@/components/settings/WalletManager';
 import { RefreshSettings } from '@/components/settings/RefreshSettings';
 import { ApiKeySettings } from '@/components/settings/ApiKeySettings';
+import { ReceiptTokenSettings } from '@/components/settings/ReceiptTokenSettings';
 
 export default function SettingsPage() {
   return (
@@ -11,6 +12,7 @@ export default function SettingsPage() {
       <ApiKeySettings />
       <RefreshSettings />
       <WalletManager />
+      <ReceiptTokenSettings />
     </div>
   );
 }

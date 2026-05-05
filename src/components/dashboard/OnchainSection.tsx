@@ -3,6 +3,7 @@
 import { truncateAddress } from '@/lib/format';
 import { usePrivacyFormat } from '@/hooks/usePrivacyFormat';
 import { AssetTable } from './AssetTable';
+import { DefiPositions } from './DefiPositions';
 import type { WalletBalance } from '@/types/onchain';
 
 const CHAIN_LABELS: Record<string, string> = {
@@ -64,7 +65,15 @@ export function OnchainSection({ wallets, isLoading }: OnchainSectionProps) {
           {wallet.error ? (
             <p className="text-sm text-destructive">{wallet.error}</p>
           ) : (
-            <AssetTable balances={wallet.balances} />
+            <>
+              <AssetTable balances={wallet.balances} />
+              {wallet.defiPositions && wallet.defiPositions.length > 0 && (
+                <DefiPositions
+                  positions={wallet.defiPositions}
+                  totalUsdValue={wallet.defiTotalUsdValue ?? 0}
+                />
+              )}
+            </>
           )}
         </div>
       ))}

@@ -31,8 +31,23 @@ export function AssetTable({ balances }: AssetTableProps) {
         </thead>
         <tbody>
           {sorted.map((item) => (
-            <tr key={item.asset} className="border-b last:border-0">
-              <td className="py-2 font-medium">{item.asset}</td>
+            <tr
+              key={item.asset}
+              className={`border-b last:border-0 ${item.dedupedToDefi ? 'text-muted-foreground' : ''}`}
+            >
+              <td className="py-2 font-medium">
+                <span className="inline-flex items-center gap-1.5">
+                  {item.asset}
+                  {item.dedupedToDefi && (
+                    <span
+                      className="rounded-full bg-secondary px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground"
+                      title="该代币的价值已计入下方 DeFi 持仓，不重复加总"
+                    >
+                      已计入 DeFi
+                    </span>
+                  )}
+                </span>
+              </td>
               <td className="py-2 text-right tabular-nums">
                 {fmtCrypto(item.amount)}
               </td>
