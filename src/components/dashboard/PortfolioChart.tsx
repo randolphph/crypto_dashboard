@@ -311,12 +311,12 @@ export function PortfolioChart() {
               <linearGradient id="valueGradient" x1="0" y1="0" x2="0" y2="1">
                 <stop
                   offset="0%"
-                  stopColor={isPositive ? '#10b981' : '#ef4444'}
+                  stopColor={isAdjustedPositive ? '#10b981' : '#ef4444'}
                   stopOpacity={0.2}
                 />
                 <stop
                   offset="100%"
-                  stopColor={isPositive ? '#10b981' : '#ef4444'}
+                  stopColor={isAdjustedPositive ? '#10b981' : '#ef4444'}
                   stopOpacity={0}
                 />
               </linearGradient>
@@ -377,7 +377,7 @@ export function PortfolioChart() {
             <Area
               type="monotone"
               dataKey="value"
-              stroke={isPositive ? '#10b981' : '#ef4444'}
+              stroke={isAdjustedPositive ? '#10b981' : '#ef4444'}
               strokeWidth={2}
               fill="url(#valueGradient)"
               dot={false}
