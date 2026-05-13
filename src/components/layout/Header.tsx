@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { BarChart3, Settings } from 'lucide-react';
+import { BarChart3, LineChart, Settings } from 'lucide-react';
 import { ThemeToggle } from '@/components/common/ThemeToggle';
 import { PrivacyToggle } from '@/components/common/PrivacyToggle';
 import { RefreshControl } from '@/components/dashboard/RefreshControl';
@@ -10,6 +10,7 @@ import { cn } from '@/lib/utils';
 
 const navItems = [
   { href: '/', label: '总览', icon: BarChart3 },
+  { href: '/mnav', label: 'MSTR mNAV', icon: LineChart },
   { href: '/settings', label: '设置', icon: Settings },
 ];
 
