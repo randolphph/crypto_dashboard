@@ -10,11 +10,13 @@ import {
   YAxis,
   Tooltip,
   CartesianGrid,
+  ReferenceLine,
 } from 'recharts';
 import {
   usePortfolioHistoryStore,
   type PortfolioSnapshot,
 } from '@/stores/portfolioHistoryStore';
+import { useCashFlowStore, netFlowInRange, type CashFlowEvent } from '@/stores/cashFlowStore';
 import { usePrivacyFormat } from '@/hooks/usePrivacyFormat';
 
 const RANGES = [
@@ -27,6 +29,8 @@ const RANGES = [
 ] as const;
 
 type RangeId = (typeof RANGES)[number]['id'];
+
+type ChartPoint = { timestamp: number; value: number; event?: CashFlowEvent };
 
 function formatTime(ts: number, range: RangeId): string {
   const d = new Date(ts);
@@ -49,6 +53,7 @@ export function PortfolioChart() {
   const snapshots = usePortfolioHistoryStore((s) => s.snapshots);
   const removeSnapshot = usePortfolioHistoryStore((s) => s.removeSnapshot);
   const importSnapshots = usePortfolioHistoryStore((s) => s.importSnapshots);
+  const cashFlowEvents = useCashFlowStore((s) => s.events);
   const { fmtUsd, hidden } = usePrivacyFormat();
   const [range, setRange] = useState<RangeId>('day');
   const [selected, setSelected] = useState<PortfolioSnapshot | null>(null);
@@ -104,14 +109,47 @@ export function PortfolioChart() {
     [importSnapshots]
   );
 
-  const data = useMemo(() => {
+  const data = useMemo<ChartPoint[]>(() => {
     const now = Date.now();
     const rangeMs = RANGES.find((r) => r.id === range)!.ms;
     const cutoff = now - rangeMs;
-    return snapshots
+    const base: ChartPoint[] = snapshots
       .filter((s) => s.timestamp >= cutoff)
       .sort((a, b) => a.timestamp - b.timestamp);
-  }, [snapshots, range]);
+    if (base.length === 0) return base;
+
+    const lo = base[0].timestamp;
+    const hi = base[base.length - 1].timestamp;
+    const eventsInRange = cashFlowEvents.filter(
+      (e) => e.timestamp >= lo && e.timestamp <= hi
+    );
+    if (eventsInRange.length === 0) return base;
+
+    const augmented: ChartPoint[] = [...base];
+    for (const e of eventsInRange) {
+      let before: ChartPoint | null = null;
+      let after: ChartPoint | null = null;
+      for (const p of base) {
+        if (p.timestamp <= e.timestamp) before = p;
+        else {
+          after = p;
+          break;
+        }
+      }
+      let value = 0;
+      if (before && after) {
+        const t = (e.timestamp - before.timestamp) / (after.timestamp - before.timestamp);
+        value = before.value + (after.value - before.value) * t;
+      } else if (before) {
+        value = before.value;
+      } else if (after) {
+        value = after.value;
+      }
+      augmented.push({ timestamp: e.timestamp, value, event: e });
+    }
+    augmented.sort((a, b) => a.timestamp - b.timestamp);
+    return augmented;
+  }, [snapshots, range, cashFlowEvents]);
 
   if (!mounted) {
     return (
@@ -141,6 +179,22 @@ export function PortfolioChart() {
       : 0;
   const isPositive = change >= 0;
 
+  // Cash flow within visible range
+  const rangeStart = data.length >= 2 ? data[0].timestamp : 0;
+  const rangeEnd = data.length >= 2 ? data[data.length - 1].timestamp : 0;
+  const netFlow = netFlowInRange(cashFlowEvents, rangeStart, rangeEnd);
+  // Real performance = raw change minus net flow (deposits inflate value, withdrawals deflate it)
+  const adjustedChange = change - netFlow;
+  const adjustedChangePercent =
+    data.length >= 2 && data[0].value > 0
+      ? (adjustedChange / data[0].value) * 100
+      : 0;
+  const isAdjustedPositive = adjustedChange >= 0;
+  const visibleEvents = cashFlowEvents.filter(
+    (e) => e.timestamp >= rangeStart && e.timestamp <= rangeEnd
+  );
+  const hasFlow = visibleEvents.length > 0;
+
   // Compute Y-axis domain with padding
   const values = data.map((d) => d.value);
   const minVal = Math.min(...values);
@@ -154,7 +208,7 @@ export function PortfolioChart() {
   return (
     <div className="mt-4">
       <div className="flex items-center justify-between mb-2">
-        <div className="flex items-center gap-2 text-sm">
+        <div className="flex items-center gap-3 text-sm">
           {data.length >= 2 && (
             <span className={isPositive ? 'text-green-500' : 'text-red-500'}>
               {hidden ? (
@@ -164,6 +218,18 @@ export function PortfolioChart() {
                   {isPositive ? '+' : ''}{fmtUsd(change)} ({isPositive ? '+' : ''}{changePercent.toFixed(2)}%)
                 </>
               )}
+            </span>
+          )}
+          {data.length >= 2 && hasFlow && !hidden && (
+            <span
+              className={`text-xs px-1.5 py-0.5 rounded border ${
+                isAdjustedPositive
+                  ? 'text-green-600 border-green-500/30'
+                  : 'text-red-600 border-red-500/30'
+              }`}
+              title={`已扣除区间内 ${netFlow >= 0 ? '净流入' : '净流出'} ${fmtUsd(Math.abs(netFlow))}`}
+            >
+              调整后 {isAdjustedPositive ? '+' : ''}{fmtUsd(adjustedChange)} ({isAdjustedPositive ? '+' : ''}{adjustedChangePercent.toFixed(2)}%)
             </span>
           )}
         </div>
@@ -258,6 +324,9 @@ export function PortfolioChart() {
             <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border, #e5e7eb)" opacity={0.5} />
             <XAxis
               dataKey="timestamp"
+              type="number"
+              domain={['dataMin', 'dataMax']}
+              scale="time"
               tickFormatter={(ts: number) => formatTime(ts, range)}
               tick={{ fontSize: 11 }}
               stroke="var(--color-muted-foreground, #9ca3af)"
@@ -276,13 +345,33 @@ export function PortfolioChart() {
             <Tooltip
               content={({ active, payload }) => {
                 if (!active || !payload?.length) return null;
-                const snap = payload[0].payload as PortfolioSnapshot;
+                const point = payload[0].payload as ChartPoint;
+                if (point.event) {
+                  const ev = point.event;
+                  const isWithdraw = ev.type === 'withdraw';
+                  return (
+                    <div className="rounded-md border bg-popover px-3 py-2 text-sm shadow-md">
+                      <p className="text-muted-foreground text-xs">
+                        {new Date(ev.timestamp).toLocaleString()}
+                      </p>
+                      <p
+                        className="font-semibold"
+                        style={{ color: isWithdraw ? '#ef4444' : '#10b981' }}
+                      >
+                        {isWithdraw ? '↓ 提现' : '↑ 充值'} {fmtUsd(ev.amount)}
+                      </p>
+                      {ev.note && (
+                        <p className="text-xs text-muted-foreground mt-1">{ev.note}</p>
+                      )}
+                    </div>
+                  );
+                }
                 return (
                   <div className="rounded-md border bg-popover px-3 py-2 text-sm shadow-md">
                     <p className="text-muted-foreground">
-                      {new Date(snap.timestamp).toLocaleString()}
+                      {new Date(point.timestamp).toLocaleString()}
                     </p>
-                    <p className="font-semibold">{fmtUsd(snap.value)}</p>
+                    <p className="font-semibold">{fmtUsd(point.value)}</p>
                     <p className="text-xs text-muted-foreground mt-1">点击选中以删除</p>
                   </div>
                 );
@@ -300,10 +389,33 @@ export function PortfolioChart() {
                 cursor: 'pointer',
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 onClick: (_: any, e: any) => {
-                  if (e?.payload) setSelected(e.payload as PortfolioSnapshot);
+                  const p = e?.payload as ChartPoint | undefined;
+                  if (p && !p.event) setSelected(p as PortfolioSnapshot);
                 },
               }}
             />
+            {visibleEvents.map((e) => {
+              const isWithdraw = e.type === 'withdraw';
+              const color = isWithdraw ? '#ef4444' : '#10b981';
+              const sign = isWithdraw ? '↓' : '↑';
+              const amountLabel =
+                e.amount >= 1000 ? `${(e.amount / 1000).toFixed(e.amount >= 10000 ? 0 : 1)}k` : `${e.amount}`;
+              return (
+                <ReferenceLine
+                  key={e.id}
+                  x={e.timestamp}
+                  stroke={color}
+                  strokeDasharray="3 3"
+                  strokeOpacity={0.7}
+                  label={{
+                    value: `${sign}$${amountLabel}`,
+                    position: 'top',
+                    fontSize: 10,
+                    fill: color,
+                  }}
+                />
+              );
+            })}
           </AreaChart>
         </ResponsiveContainer>
       )}
