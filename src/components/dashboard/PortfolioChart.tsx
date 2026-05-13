@@ -324,9 +324,6 @@ export function PortfolioChart() {
             <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border, #e5e7eb)" opacity={0.5} />
             <XAxis
               dataKey="timestamp"
-              type="number"
-              domain={['dataMin', 'dataMax']}
-              scale="time"
               tickFormatter={(ts: number) => formatTime(ts, range)}
               tick={{ fontSize: 11 }}
               stroke="var(--color-muted-foreground, #9ca3af)"
