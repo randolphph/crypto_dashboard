@@ -122,6 +122,14 @@ export function MnavChart() {
             <div className="text-2xl font-semibold">{latest.mnav.toFixed(2)}x</div>
           </div>
           <div>
+            <div className="text-xs text-muted-foreground">MSTR 价格</div>
+            <div className="text-sm">${latest.mstrClose.toFixed(2)}</div>
+          </div>
+          <div>
+            <div className="text-xs text-muted-foreground">MSTR 股本</div>
+            <div className="text-sm">{(latest.sharesOutstanding / 1e6).toFixed(2)}M</div>
+          </div>
+          <div>
             <div className="text-xs text-muted-foreground">市值</div>
             <div className="text-sm">{formatUsdCompact(latest.marketCap)}</div>
           </div>
