@@ -6,9 +6,15 @@ import { usePrivacyFormat } from '@/hooks/usePrivacyFormat';
 import { useCustomAssetStore, type CustomAsset } from '@/stores/customAssetStore';
 import { PortfolioChart } from './PortfolioChart';
 
+interface BreakdownItem {
+  label: string;
+  value: number;
+}
+
 interface PortfolioSummaryProps {
   totalValue: number;
-  breakdown: { label: string; value: number }[];
+  breakdown: BreakdownItem[];
+  categoryBreakdown: BreakdownItem[];
   isLoading: boolean;
 }
 
@@ -23,12 +29,27 @@ const COLORS = [
   '#f97316', // orange
 ];
 
+// Stable color per category so the strip and the pie agree even when slice
+// order changes session to session.
+const CATEGORY_COLORS: Record<string, string> = {
+  加密: '#f59e0b', // amber
+  股票: '#3b82f6', // blue
+  现金: '#10b981', // emerald
+  其它: '#8b5cf6', // violet
+};
+
+function categoryColor(label: string, fallbackIdx: number): string {
+  return CATEGORY_COLORS[label] ?? COLORS[fallbackIdx % COLORS.length];
+}
+
 function PieChart({
   breakdown,
   totalValue,
+  colorFor,
 }: {
-  breakdown: { label: string; value: number }[];
+  breakdown: BreakdownItem[];
   totalValue: number;
+  colorFor: (label: string, idx: number) => string;
 }) {
   const { hidden } = usePrivacyFormat();
   const items = breakdown.filter((b) => b.value > 0);
@@ -45,10 +66,11 @@ function PieChart({
     const startAngle = cumulative * 2 * Math.PI - Math.PI / 2;
     cumulative += fraction;
     const endAngle = cumulative * 2 * Math.PI - Math.PI / 2;
+    const fill = colorFor(item.label, i);
 
     if (fraction >= 0.9999) {
       return (
-        <circle key={item.label} cx={cx} cy={cy} r={r} fill={COLORS[i % COLORS.length]} />
+        <circle key={item.label} cx={cx} cy={cy} r={r} fill={fill} />
       );
     }
 
@@ -60,7 +82,7 @@ function PieChart({
 
     const d = `M ${cx} ${cy} L ${x1} ${y1} A ${r} ${r} 0 ${largeArc} 1 ${x2} ${y2} Z`;
 
-    return <path key={item.label} d={d} fill={COLORS[i % COLORS.length]} />;
+    return <path key={item.label} d={d} fill={fill} />;
   });
 
   const maskR = r / 2;
@@ -103,7 +125,7 @@ function PieChart({
           <div key={item.label} className="flex items-center gap-2 text-sm">
             <span
               className="inline-block h-3 w-3 rounded-sm"
-              style={{ backgroundColor: COLORS[i % COLORS.length] }}
+              style={{ backgroundColor: colorFor(item.label, i) }}
             />
             <span className="text-muted-foreground">{item.label}</span>
             <span className="font-medium tabular-nums">
@@ -192,22 +214,24 @@ function CustomAssetItem({
 export function PortfolioSummary({
   totalValue,
   breakdown,
+  categoryBreakdown,
   isLoading,
 }: PortfolioSummaryProps) {
   const { assets, addAsset, removeAsset, updateAsset } = useCustomAssetStore();
-  const { fmtUsd } = usePrivacyFormat();
+  const { fmtUsd, hidden } = usePrivacyFormat();
   const [adding, setAdding] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
 
   // Split breakdown into API items and custom items
   const customLabels = new Set(assets.map((a) => a.name));
   const apiBreakdown = breakdown.filter((b) => !customLabels.has(b.label));
+  const showCategoryStrip = categoryBreakdown.length > 0 && totalValue > 0;
 
   return (
     <div className="rounded-xl border bg-card p-6 shadow-sm">
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-6">
-        {/* Left: total value + breakdown */}
-        <div>
+      <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-6">
+        {/* Left: total value + category-level strip */}
+        <div className="min-w-0 flex-1">
           <div className="flex flex-col gap-1">
             <p className="text-sm text-muted-foreground">总资产价值</p>
             {isLoading ? (
@@ -218,64 +242,98 @@ export function PortfolioSummary({
               </p>
             )}
           </div>
-          {(breakdown.length > 0 || assets.length > 0) && (
-            <div className="mt-4 flex flex-wrap items-end gap-4">
-              {/* API breakdown items */}
-              {apiBreakdown.map((item) => (
-                <div key={item.label} className="flex flex-col gap-0.5">
-                  <p className="text-xs text-muted-foreground">{item.label}</p>
-                  <p className="text-sm font-medium">{fmtUsd(item.value)}</p>
-                </div>
-              ))}
 
-              {/* Custom asset items */}
-              {assets.map((asset) =>
-                editingId === asset.id ? (
-                  <InlineEditor
-                    key={asset.id}
-                    initial={{ name: asset.name, value: asset.value }}
-                    onSave={(name, value) => {
-                      updateAsset(asset.id, { name, value });
-                      setEditingId(null);
-                    }}
-                    onCancel={() => setEditingId(null)}
-                  />
-                ) : (
-                  <CustomAssetItem
-                    key={asset.id}
-                    asset={asset}
-                    onEdit={() => setEditingId(asset.id)}
-                    onDelete={() => removeAsset(asset.id)}
-                  />
-                )
-              )}
-
-              {/* Add button / inline add form */}
-              {adding ? (
-                <InlineEditor
-                  onSave={(name, value) => {
-                    addAsset({ id: crypto.randomUUID(), name, value });
-                    setAdding(false);
-                  }}
-                  onCancel={() => setAdding(false)}
-                />
-              ) : (
-                <button
-                  onClick={() => setAdding(true)}
-                  className="flex items-center gap-0.5 rounded-md px-1.5 py-0.5 text-xs text-muted-foreground hover:bg-secondary transition-colors self-center"
-                >
-                  <Plus className="h-3.5 w-3.5" />
-                </button>
-              )}
+          {/* Category strip — the "where are my eggs" answer in one row. */}
+          {showCategoryStrip && (
+            <div className="mt-4 flex flex-wrap gap-x-6 gap-y-2">
+              {categoryBreakdown.map((item, i) => {
+                const pct = (item.value / totalValue) * 100;
+                return (
+                  <div key={item.label} className="flex items-center gap-2">
+                    <span
+                      className="inline-block h-2.5 w-2.5 rounded-sm"
+                      style={{ backgroundColor: categoryColor(item.label, i) }}
+                    />
+                    <div className="flex items-baseline gap-1.5">
+                      <span className="text-sm font-medium">{item.label}</span>
+                      <span className="text-sm font-semibold tabular-nums">
+                        {fmtUsd(item.value)}
+                      </span>
+                      <span className="text-xs text-muted-foreground tabular-nums">
+                        {hidden ? '**%' : `${pct.toFixed(1)}%`}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>
 
-        {/* Right: pie chart */}
-        {!isLoading && breakdown.length > 0 && (
-          <PieChart breakdown={breakdown} totalValue={totalValue} />
+        {/* Right: category pie (cleaner — 2-4 slices) */}
+        {!isLoading && categoryBreakdown.length > 0 && (
+          <PieChart
+            breakdown={categoryBreakdown}
+            totalValue={totalValue}
+            colorFor={categoryColor}
+          />
         )}
       </div>
+
+      {/* Per-source breakdown row — secondary detail under the category strip. */}
+      {(breakdown.length > 0 || assets.length > 0) && (
+        <div className="mt-6 pt-4 border-t">
+          <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground/70 mb-2">
+            分账户
+          </p>
+          <div className="flex flex-wrap items-end gap-x-5 gap-y-3">
+            {apiBreakdown.map((item) => (
+              <div key={item.label} className="flex flex-col gap-0.5">
+                <p className="text-xs text-muted-foreground">{item.label}</p>
+                <p className="text-sm font-medium tabular-nums">{fmtUsd(item.value)}</p>
+              </div>
+            ))}
+
+            {assets.map((asset) =>
+              editingId === asset.id ? (
+                <InlineEditor
+                  key={asset.id}
+                  initial={{ name: asset.name, value: asset.value }}
+                  onSave={(name, value) => {
+                    updateAsset(asset.id, { name, value });
+                    setEditingId(null);
+                  }}
+                  onCancel={() => setEditingId(null)}
+                />
+              ) : (
+                <CustomAssetItem
+                  key={asset.id}
+                  asset={asset}
+                  onEdit={() => setEditingId(asset.id)}
+                  onDelete={() => removeAsset(asset.id)}
+                />
+              )
+            )}
+
+            {adding ? (
+              <InlineEditor
+                onSave={(name, value) => {
+                  addAsset({ id: crypto.randomUUID(), name, value });
+                  setAdding(false);
+                }}
+                onCancel={() => setAdding(false)}
+              />
+            ) : (
+              <button
+                onClick={() => setAdding(true)}
+                className="flex items-center gap-0.5 rounded-md px-1.5 py-0.5 text-xs text-muted-foreground hover:bg-secondary transition-colors self-center"
+              >
+                <Plus className="h-3.5 w-3.5" />
+              </button>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Portfolio value history chart */}
       <PortfolioChart />
