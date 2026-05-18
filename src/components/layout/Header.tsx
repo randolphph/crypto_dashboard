@@ -7,6 +7,7 @@ import { ThemeToggle } from '@/components/common/ThemeToggle';
 import { PrivacyToggle } from '@/components/common/PrivacyToggle';
 import { RefreshControl } from '@/components/dashboard/RefreshControl';
 import { FxBadge } from '@/components/layout/FxBadge';
+import { WalletStatus } from '@/components/auth/WalletStatus';
 import { cn } from '@/lib/utils';
 
 const navItems = [
@@ -44,6 +45,7 @@ export function Header() {
         </nav>
         <div className="ml-auto flex items-center gap-3">
           <FxBadge />
+          <WalletStatus />
           <RefreshControl />
           <PrivacyToggle />
           <ThemeToggle />

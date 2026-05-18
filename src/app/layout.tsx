@@ -3,6 +3,8 @@ import { Geist, Geist_Mono } from 'next/font/google';
 import { ThemeProvider } from '@/components/layout/ThemeProvider';
 import { QueryProvider } from '@/lib/queryClient';
 import { Header } from '@/components/layout/Header';
+import { VaultBootstrap } from '@/components/auth/VaultBootstrap';
+import { VaultGate } from '@/components/auth/VaultGate';
 import './globals.css';
 
 const geistSans = Geist({
@@ -34,8 +36,11 @@ export default function RootLayout({
       <body className="min-h-full flex flex-col">
         <ThemeProvider>
           <QueryProvider>
+            <VaultBootstrap />
             <Header />
-            <main className="flex-1 px-6 py-6">{children}</main>
+            <main className="flex-1 px-6 py-6">
+              <VaultGate>{children}</VaultGate>
+            </main>
           </QueryProvider>
         </ThemeProvider>
       </body>
