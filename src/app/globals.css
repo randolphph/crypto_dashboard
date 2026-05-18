@@ -130,3 +130,12 @@
     @apply font-sans;
   }
 }
+
+@keyframes cd-spiral-block-enter {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
