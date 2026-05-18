@@ -6,6 +6,7 @@ import { BarChart3, LineChart, Settings } from 'lucide-react';
 import { ThemeToggle } from '@/components/common/ThemeToggle';
 import { PrivacyToggle } from '@/components/common/PrivacyToggle';
 import { RefreshControl } from '@/components/dashboard/RefreshControl';
+import { FxBadge } from '@/components/layout/FxBadge';
 import { cn } from '@/lib/utils';
 
 const navItems = [
@@ -42,6 +43,7 @@ export function Header() {
           ))}
         </nav>
         <div className="ml-auto flex items-center gap-3">
+          <FxBadge />
           <RefreshControl />
           <PrivacyToggle />
           <ThemeToggle />

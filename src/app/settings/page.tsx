@@ -5,6 +5,8 @@ import { RefreshSettings } from '@/components/settings/RefreshSettings';
 import { ApiKeySettings } from '@/components/settings/ApiKeySettings';
 import { ReceiptTokenSettings } from '@/components/settings/ReceiptTokenSettings';
 import { CashFlowSettings } from '@/components/settings/CashFlowSettings';
+import { StockPositionsManager } from '@/components/settings/StockPositionsManager';
+import { CashBalancesManager } from '@/components/settings/CashBalancesManager';
 
 export default function SettingsPage() {
   return (
@@ -13,6 +15,8 @@ export default function SettingsPage() {
       <ApiKeySettings />
       <RefreshSettings />
       <WalletManager />
+      <StockPositionsManager />
+      <CashBalancesManager />
       <CashFlowSettings />
       <ReceiptTokenSettings />
     </div>

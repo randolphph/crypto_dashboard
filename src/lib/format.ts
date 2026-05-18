@@ -7,6 +7,21 @@ export function formatUsd(value: number): string {
   }).format(value);
 }
 
+const CURRENCY_LOCALE: Record<string, string> = {
+  USD: 'en-US',
+  CNY: 'zh-CN',
+  HKD: 'zh-HK',
+};
+
+export function formatCurrency(value: number, currency: string): string {
+  return new Intl.NumberFormat(CURRENCY_LOCALE[currency] ?? 'en-US', {
+    style: 'currency',
+    currency,
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(value);
+}
+
 export function formatCrypto(value: number, decimals = 8): string {
   if (value === 0) return '0';
   const formatted = value.toFixed(decimals);
