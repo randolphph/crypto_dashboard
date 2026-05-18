@@ -30,7 +30,36 @@ const RANGES = [
 
 type RangeId = (typeof RANGES)[number]['id'];
 
-type ChartPoint = { timestamp: number; value: number; event?: CashFlowEvent };
+interface DayBucket {
+  timestamp: number;
+  events: CashFlowEvent[];
+  net: number; // signed: deposit positive, withdraw negative
+}
+
+type ChartPoint = { timestamp: number; value: number; bucket?: DayBucket };
+
+function dateKey(ts: number): string {
+  const d = new Date(ts);
+  return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+}
+
+function bucketByDay(events: CashFlowEvent[]): DayBucket[] {
+  const groups = new Map<string, CashFlowEvent[]>();
+  for (const e of events) {
+    const k = dateKey(e.timestamp);
+    const arr = groups.get(k);
+    if (arr) arr.push(e);
+    else groups.set(k, [e]);
+  }
+  return [...groups.values()].map((es) => ({
+    timestamp: es[0].timestamp,
+    events: es.slice().sort((a, b) => a.timestamp - b.timestamp),
+    net: es.reduce(
+      (s, e) => s + (e.type === 'deposit' ? e.amount : -e.amount),
+      0
+    ),
+  }));
+}
 
 function formatTime(ts: number, range: RangeId): string {
   const d = new Date(ts);
@@ -120,17 +149,17 @@ export function PortfolioChart() {
 
     const lo = base[0].timestamp;
     const hi = base[base.length - 1].timestamp;
-    const eventsInRange = cashFlowEvents.filter(
-      (e) => e.timestamp >= lo && e.timestamp <= hi
+    const buckets = bucketByDay(
+      cashFlowEvents.filter((e) => e.timestamp >= lo && e.timestamp <= hi)
     );
-    if (eventsInRange.length === 0) return base;
+    if (buckets.length === 0) return base;
 
     const augmented: ChartPoint[] = [...base];
-    for (const e of eventsInRange) {
+    for (const bucket of buckets) {
       let before: ChartPoint | null = null;
       let after: ChartPoint | null = null;
       for (const p of base) {
-        if (p.timestamp <= e.timestamp) before = p;
+        if (p.timestamp <= bucket.timestamp) before = p;
         else {
           after = p;
           break;
@@ -138,14 +167,14 @@ export function PortfolioChart() {
       }
       let value = 0;
       if (before && after) {
-        const t = (e.timestamp - before.timestamp) / (after.timestamp - before.timestamp);
+        const t = (bucket.timestamp - before.timestamp) / (after.timestamp - before.timestamp);
         value = before.value + (after.value - before.value) * t;
       } else if (before) {
         value = before.value;
       } else if (after) {
         value = after.value;
       }
-      augmented.push({ timestamp: e.timestamp, value, event: e });
+      augmented.push({ timestamp: bucket.timestamp, value, bucket });
     }
     augmented.sort((a, b) => a.timestamp - b.timestamp);
     return augmented;
@@ -193,6 +222,7 @@ export function PortfolioChart() {
   const visibleEvents = cashFlowEvents.filter(
     (e) => e.timestamp >= rangeStart && e.timestamp <= rangeEnd
   );
+  const visibleBuckets = bucketByDay(visibleEvents);
   const hasFlow = visibleEvents.length > 0;
 
   // Compute Y-axis domain with padding
@@ -343,23 +373,39 @@ export function PortfolioChart() {
               content={({ active, payload }) => {
                 if (!active || !payload?.length) return null;
                 const point = payload[0].payload as ChartPoint;
-                if (point.event) {
-                  const ev = point.event;
-                  const isWithdraw = ev.type === 'withdraw';
+                if (point.bucket) {
+                  const b = point.bucket;
+                  const netPositive = b.net >= 0;
                   return (
                     <div className="rounded-md border bg-popover px-3 py-2 text-sm shadow-md">
                       <p className="text-muted-foreground text-xs">
-                        {new Date(ev.timestamp).toLocaleString()}
+                        {new Date(b.timestamp).toLocaleDateString()} · {b.events.length} 笔
                       </p>
                       <p
                         className="font-semibold"
-                        style={{ color: isWithdraw ? '#ef4444' : '#10b981' }}
+                        style={{ color: netPositive ? '#10b981' : '#ef4444' }}
                       >
-                        {isWithdraw ? '↓ 提现' : '↑ 充值'} {fmtUsd(ev.amount)}
+                        净 {netPositive ? '+' : ''}{fmtUsd(b.net)}
                       </p>
-                      {ev.note && (
-                        <p className="text-xs text-muted-foreground mt-1">{ev.note}</p>
-                      )}
+                      <div className="mt-1.5 space-y-0.5">
+                        {b.events.map((ev) => {
+                          const isWithdraw = ev.type === 'withdraw';
+                          return (
+                            <div
+                              key={ev.id}
+                              className="text-xs"
+                              style={{ color: isWithdraw ? '#ef4444' : '#10b981' }}
+                            >
+                              {isWithdraw ? '↓ 提现' : '↑ 充值'} {fmtUsd(ev.amount)}
+                              {ev.note && (
+                                <span className="text-muted-foreground ml-1">
+                                  · {ev.note}
+                                </span>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
                     </div>
                   );
                 }
@@ -387,25 +433,28 @@ export function PortfolioChart() {
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 onClick: (_: any, e: any) => {
                   const p = e?.payload as ChartPoint | undefined;
-                  if (p && !p.event) setSelected(p as PortfolioSnapshot);
+                  if (p && !p.bucket) setSelected(p as PortfolioSnapshot);
                 },
               }}
             />
-            {visibleEvents.map((e) => {
-              const isWithdraw = e.type === 'withdraw';
-              const color = isWithdraw ? '#ef4444' : '#10b981';
-              const sign = isWithdraw ? '↓' : '↑';
+            {visibleBuckets.map((b) => {
+              const netPositive = b.net >= 0;
+              const color = netPositive ? '#10b981' : '#ef4444';
+              const sign = netPositive ? '↑' : '↓';
+              const abs = Math.abs(b.net);
               const amountLabel =
-                e.amount >= 1000 ? `${(e.amount / 1000).toFixed(e.amount >= 10000 ? 0 : 1)}k` : `${e.amount}`;
+                abs >= 1000 ? `${(abs / 1000).toFixed(abs >= 10000 ? 0 : 1)}k` : `${abs}`;
+              const tag =
+                b.events.length > 1 ? `${sign}$${amountLabel} (${b.events.length})` : `${sign}$${amountLabel}`;
               return (
                 <ReferenceLine
-                  key={e.id}
-                  x={e.timestamp}
+                  key={dateKey(b.timestamp)}
+                  x={b.timestamp}
                   stroke={color}
                   strokeDasharray="3 3"
                   strokeOpacity={0.7}
                   label={{
-                    value: `${sign}$${amountLabel}`,
+                    value: tag,
                     position: 'top',
                     fontSize: 10,
                     fill: color,
