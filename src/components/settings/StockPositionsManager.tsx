@@ -1,8 +1,9 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Plus, Trash2, Pencil, X } from 'lucide-react';
 import { useStockPositionStore } from '@/stores/stockPositionStore';
+import { cn } from '@/lib/utils';
 import {
   BROKER_LABEL,
   MARKET_LABEL,
@@ -20,28 +21,44 @@ const DEFAULT_MARKET: Record<StockBroker, StockMarket> = {
   ibkr: 'US',
 };
 
+interface StockPositionsManagerProps {
+  embedded?: boolean;
+  autoOpenForm?: boolean;
+  initialBroker?: StockBroker;
+}
+
 function PlaceholderForMarket(market: StockMarket): string {
   if (market === 'A') return '例如 600519';
   if (market === 'HK') return '例如 0700';
   return '例如 AAPL';
 }
 
-export function StockPositionsManager() {
+export function StockPositionsManager({
+  embedded,
+  autoOpenForm,
+  initialBroker,
+}: StockPositionsManagerProps = {}) {
   const { positions, addPosition, removePosition, updatePosition } =
     useStockPositionStore();
-  const [showForm, setShowForm] = useState(false);
+  const [showForm, setShowForm] = useState(!!autoOpenForm);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [broker, setBroker] = useState<StockBroker>('ths');
-  const [market, setMarket] = useState<StockMarket>('A');
+  const [broker, setBroker] = useState<StockBroker>(initialBroker ?? 'ths');
+  const [market, setMarket] = useState<StockMarket>(
+    DEFAULT_MARKET[initialBroker ?? 'ths']
+  );
   const [symbol, setSymbol] = useState('');
   const [name, setName] = useState('');
   const [shares, setShares] = useState('');
   const [costBasis, setCostBasis] = useState('');
 
+  useEffect(() => {
+    if (autoOpenForm) setShowForm(true);
+  }, [autoOpenForm]);
+
   const resetForm = () => {
     setEditingId(null);
-    setBroker('ths');
-    setMarket('A');
+    setBroker(initialBroker ?? 'ths');
+    setMarket(DEFAULT_MARKET[initialBroker ?? 'ths']);
     setSymbol('');
     setName('');
     setShares('');
@@ -94,20 +111,27 @@ export function StockPositionsManager() {
     items: positions.filter((p) => p.broker === b),
   }));
 
-  return (
-    <div className="rounded-xl border bg-card p-5 shadow-sm">
-      <div className="flex items-center justify-between mb-4">
-        <h2 className="font-semibold text-lg">股票持仓</h2>
-        {!showForm && (
-          <button
-            onClick={() => setShowForm(true)}
-            className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:bg-primary/90"
-          >
-            <Plus className="h-4 w-4" />
-            添加持仓
-          </button>
-        )}
-      </div>
+  const content = (
+    <>
+      {(!embedded || !showForm) && (
+        <div
+          className={cn(
+            'flex items-center mb-4',
+            embedded ? 'justify-end' : 'justify-between'
+          )}
+        >
+          {!embedded && <h2 className="font-semibold text-lg">股票持仓</h2>}
+          {!showForm && (
+            <button
+              onClick={() => setShowForm(true)}
+              className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+            >
+              <Plus className="h-4 w-4" />
+              添加持仓
+            </button>
+          )}
+        </div>
+      )}
 
       <div className="space-y-4 mb-4">
         {grouped.map((g) => (
@@ -269,6 +293,11 @@ export function StockPositionsManager() {
           </button>
         </div>
       )}
-    </div>
+    </>
+  );
+
+  if (embedded) return content;
+  return (
+    <div className="rounded-xl border bg-card p-5 shadow-sm">{content}</div>
   );
 }

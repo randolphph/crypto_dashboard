@@ -1,12 +1,22 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { Plus } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { PortfolioSummary } from './PortfolioSummary';
 import { ExchangeSection } from './ExchangeSection';
 import { DeribitSection } from './DeribitSection';
 import { OnchainSection } from './OnchainSection';
 import { StockSection } from './StockSection';
+import { WalletManager } from '@/components/settings/WalletManager';
+import { StockPositionsManager } from '@/components/settings/StockPositionsManager';
+import { CashBalancesManager } from '@/components/settings/CashBalancesManager';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { useExchangeData } from '@/hooks/useExchangeData';
 import { useOnchainData } from '@/hooks/useOnchainData';
 import { useStockData } from '@/hooks/useStockData';
@@ -21,6 +31,13 @@ import {
   classifyOnchain,
 } from '@/lib/portfolio/category';
 import { cn } from '@/lib/utils';
+
+type AddDialog = 'wallet' | 'stock-position' | 'stock-cash';
+const STOCK_TAB_IDS = ['ths', 'longport', 'ibkr'] as const;
+type StockTabId = (typeof STOCK_TAB_IDS)[number];
+function isStockTab(id: string): id is StockTabId {
+  return (STOCK_TAB_IDS as readonly string[]).includes(id);
+}
 
 const tabGroups = [
   {
@@ -48,6 +65,7 @@ type TabId =
 
 export function Dashboard() {
   const [activeTab, setActiveTab] = useState<TabId>('exchanges');
+  const [addDialog, setAddDialog] = useState<AddDialog | null>(null);
   const queryClient = useQueryClient();
 
   const binance = useExchangeData('binance');
@@ -172,35 +190,58 @@ export function Dashboard() {
           scrollable row; on wider screens a subtle group label is shown above
           each chunk and a vertical separator divides 加密 from 股票. */}
       <div className="border-b">
-        <div className="flex items-end gap-3 overflow-x-auto">
-          {tabGroups.map((group, gi) => (
-            <div key={group.id} className="flex items-end">
-              {gi > 0 && (
-                <div className="mb-2 mr-3 hidden h-5 w-px bg-border md:block" />
-              )}
-              <div className="flex flex-col">
-                <span className="hidden px-4 pb-0.5 text-[10px] font-medium uppercase tracking-wider text-muted-foreground/70 md:block">
-                  {group.label}
-                </span>
-                <div className="flex gap-1">
-                  {group.tabs.map((tab) => (
-                    <button
-                      key={tab.id}
-                      onClick={() => setActiveTab(tab.id)}
-                      className={cn(
-                        'whitespace-nowrap px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px',
-                        activeTab === tab.id
-                          ? 'border-primary text-foreground'
-                          : 'border-transparent text-muted-foreground hover:text-foreground'
-                      )}
-                    >
-                      {tab.label}
-                    </button>
-                  ))}
+        <div className="flex items-end justify-between gap-3">
+          <div className="flex items-end gap-3 overflow-x-auto">
+            {tabGroups.map((group, gi) => (
+              <div key={group.id} className="flex items-end">
+                {gi > 0 && (
+                  <div className="mb-2 mr-3 hidden h-5 w-px bg-border md:block" />
+                )}
+                <div className="flex flex-col">
+                  <span className="hidden px-4 pb-0.5 text-[10px] font-medium uppercase tracking-wider text-muted-foreground/70 md:block">
+                    {group.label}
+                  </span>
+                  <div className="flex gap-1">
+                    {group.tabs.map((tab) => (
+                      <button
+                        key={tab.id}
+                        onClick={() => setActiveTab(tab.id)}
+                        className={cn(
+                          'whitespace-nowrap px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px',
+                          activeTab === tab.id
+                            ? 'border-primary text-foreground'
+                            : 'border-transparent text-muted-foreground hover:text-foreground'
+                        )}
+                      >
+                        {tab.label}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               </div>
-            </div>
-          ))}
+            ))}
+          </div>
+
+          {/* Tab-context action: lets the user add the entity that lives in
+              this tab without bouncing to Settings. Crypto exchanges + Deribit
+              are API-driven so they have no manual-add affordance here. */}
+          <div className="mb-1 flex shrink-0 items-center gap-1.5">
+            {activeTab === 'onchain' && (
+              <AddButton onClick={() => setAddDialog('wallet')} label="添加钱包" />
+            )}
+            {isStockTab(activeTab) && (
+              <>
+                <AddButton
+                  onClick={() => setAddDialog('stock-position')}
+                  label="添加持仓"
+                />
+                <AddButton
+                  onClick={() => setAddDialog('stock-cash')}
+                  label="添加现金"
+                />
+              </>
+            )}
+          </div>
         </div>
       </div>
 
@@ -227,6 +268,64 @@ export function Dashboard() {
           error={stocks.error as Error | null}
         />
       )}
+
+      <Dialog
+        open={addDialog !== null}
+        onOpenChange={(open) => {
+          if (!open) setAddDialog(null);
+        }}
+      >
+        <DialogContent className="sm:max-w-2xl max-h-[85vh] overflow-y-auto">
+          {addDialog === 'wallet' && (
+            <>
+              <DialogHeader>
+                <DialogTitle>添加链上钱包</DialogTitle>
+              </DialogHeader>
+              <WalletManager embedded autoOpenForm />
+            </>
+          )}
+          {addDialog === 'stock-position' && (
+            <>
+              <DialogHeader>
+                <DialogTitle>
+                  添加股票持仓 · {isStockTab(activeTab) ? BROKER_LABEL[activeTab] : ''}
+                </DialogTitle>
+              </DialogHeader>
+              <StockPositionsManager
+                embedded
+                autoOpenForm
+                initialBroker={isStockTab(activeTab) ? activeTab : 'ths'}
+              />
+            </>
+          )}
+          {addDialog === 'stock-cash' && (
+            <>
+              <DialogHeader>
+                <DialogTitle>
+                  添加券商现金 · {isStockTab(activeTab) ? BROKER_LABEL[activeTab] : ''}
+                </DialogTitle>
+              </DialogHeader>
+              <CashBalancesManager
+                embedded
+                autoOpenForm
+                initialBroker={isStockTab(activeTab) ? activeTab : 'ths'}
+              />
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
+  );
+}
+
+function AddButton({ onClick, label }: { onClick: () => void; label: string }) {
+  return (
+    <button
+      onClick={onClick}
+      className="inline-flex items-center gap-1 whitespace-nowrap rounded-md px-2.5 py-1 text-xs font-medium text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors"
+    >
+      <Plus className="h-3.5 w-3.5" />
+      {label}
+    </button>
   );
 }

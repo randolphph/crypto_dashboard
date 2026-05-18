@@ -1,9 +1,11 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { Plus, Trash2, Pencil, Check, X } from 'lucide-react';
 import { usePrivacyFormat } from '@/hooks/usePrivacyFormat';
 import { useCustomAssetStore, type CustomAsset } from '@/stores/customAssetStore';
+import { usePortfolioHistoryStore } from '@/stores/portfolioHistoryStore';
+import { useCashFlowStore, netFlowInRange } from '@/stores/cashFlowStore';
 import { PortfolioChart } from './PortfolioChart';
 
 interface BreakdownItem {
@@ -40,6 +42,78 @@ const CATEGORY_COLORS: Record<string, string> = {
 
 function categoryColor(label: string, fallbackIdx: number): string {
   return CATEGORY_COLORS[label] ?? COLORS[fallbackIdx % COLORS.length];
+}
+
+// "今日" delta = current total vs. the snapshot closest to 24h ago,
+// adjusted for any cash deposits/withdrawals in the window so we measure
+// real performance (a $1k deposit isn't a $1k gain). If we don't have a
+// snapshot older than 24h yet, fall back to the oldest one we have and
+// label it with the actual age so the user knows the window is short.
+interface TodayDelta {
+  delta: number;
+  pct: number;
+  hours: number;
+  short: boolean;
+}
+
+function useTodayDelta(totalValue: number): TodayDelta | null {
+  const snapshots = usePortfolioHistoryStore((s) => s.snapshots);
+  const cashFlowEvents = useCashFlowStore((s) => s.events);
+  // Snapshots persist in localStorage; avoid hydration mismatch by gating
+  // on client mount before reading from the store.
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+  return useMemo(() => {
+    if (!mounted) return null;
+    if (totalValue <= 0 || snapshots.length === 0) return null;
+    const now = Date.now();
+    const cutoff = now - 24 * 60 * 60 * 1000;
+    const before = snapshots
+      .filter((s) => s.timestamp <= cutoff)
+      .sort((a, b) => b.timestamp - a.timestamp)[0];
+    const oldest = [...snapshots].sort((a, b) => a.timestamp - b.timestamp)[0];
+    const baseline = before ?? oldest;
+    if (!baseline || baseline.value <= 0) return null;
+    const hours = (now - baseline.timestamp) / (60 * 60 * 1000);
+    // Require at least 30 min of history to avoid showing wildly noisy
+    // sub-window deltas right after first login.
+    if (hours < 0.5) return null;
+    const raw = totalValue - baseline.value;
+    const net = netFlowInRange(cashFlowEvents, baseline.timestamp, now);
+    const delta = raw - net;
+    const pct = (delta / baseline.value) * 100;
+    return { delta, pct, hours, short: !before };
+  }, [mounted, snapshots, cashFlowEvents, totalValue]);
+}
+
+function TodayDeltaLine({ delta }: { delta: TodayDelta }) {
+  const { fmtUsd, hidden } = usePrivacyFormat();
+  const positive = delta.delta >= 0;
+  const label = delta.short
+    ? delta.hours < 1
+      ? `${Math.round(delta.hours * 60)} 分钟`
+      : `${Math.round(delta.hours)} 小时`
+    : '今日';
+  return (
+    <p
+      className={`text-sm font-medium tabular-nums ${
+        positive ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'
+      }`}
+    >
+      {hidden ? (
+        '******'
+      ) : (
+        <>
+          {positive ? '+' : ''}
+          {fmtUsd(delta.delta)} ({positive ? '+' : ''}
+          {delta.pct.toFixed(2)}%)
+        </>
+      )}
+      <span className="ml-1.5 text-xs font-normal text-muted-foreground">
+        {label}
+      </span>
+    </p>
+  );
 }
 
 function PieChart({
@@ -227,6 +301,8 @@ export function PortfolioSummary({
   const apiBreakdown = breakdown.filter((b) => !customLabels.has(b.label));
   const showCategoryStrip = categoryBreakdown.length > 0 && totalValue > 0;
 
+  const todayDelta = useTodayDelta(totalValue);
+
   return (
     <div className="rounded-xl border bg-card p-6 shadow-sm">
       <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-6">
@@ -240,6 +316,9 @@ export function PortfolioSummary({
               <p className="text-3xl font-bold tracking-tight">
                 {fmtUsd(totalValue)}
               </p>
+            )}
+            {!isLoading && todayDelta && (
+              <TodayDeltaLine delta={todayDelta} />
             )}
           </div>
 

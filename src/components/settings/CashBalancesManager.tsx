@@ -1,8 +1,9 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Plus, Trash2, Pencil, X } from 'lucide-react';
 import { useCashBalanceStore } from '@/stores/cashBalanceStore';
+import { cn } from '@/lib/utils';
 import {
   BROKER_LABEL,
   type CashBalance,
@@ -19,20 +20,36 @@ const DEFAULT_CURRENCY: Record<StockBroker, StockCurrency> = {
   ibkr: 'USD',
 };
 
-export function CashBalancesManager() {
+interface CashBalancesManagerProps {
+  embedded?: boolean;
+  autoOpenForm?: boolean;
+  initialBroker?: StockBroker;
+}
+
+export function CashBalancesManager({
+  embedded,
+  autoOpenForm,
+  initialBroker,
+}: CashBalancesManagerProps = {}) {
   const { balances, addBalance, removeBalance, updateBalance } =
     useCashBalanceStore();
-  const [showForm, setShowForm] = useState(false);
+  const [showForm, setShowForm] = useState(!!autoOpenForm);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [broker, setBroker] = useState<StockBroker>('ths');
-  const [currency, setCurrency] = useState<StockCurrency>('CNY');
+  const [broker, setBroker] = useState<StockBroker>(initialBroker ?? 'ths');
+  const [currency, setCurrency] = useState<StockCurrency>(
+    DEFAULT_CURRENCY[initialBroker ?? 'ths']
+  );
   const [amount, setAmount] = useState('');
   const [note, setNote] = useState('');
 
+  useEffect(() => {
+    if (autoOpenForm) setShowForm(true);
+  }, [autoOpenForm]);
+
   const resetForm = () => {
     setEditingId(null);
-    setBroker('ths');
-    setCurrency('CNY');
+    setBroker(initialBroker ?? 'ths');
+    setCurrency(DEFAULT_CURRENCY[initialBroker ?? 'ths']);
     setAmount('');
     setNote('');
     setShowForm(false);
@@ -74,20 +91,27 @@ export function CashBalancesManager() {
     items: balances.filter((x) => x.broker === b),
   }));
 
-  return (
-    <div className="rounded-xl border bg-card p-5 shadow-sm">
-      <div className="flex items-center justify-between mb-4">
-        <h2 className="font-semibold text-lg">券商现金</h2>
-        {!showForm && (
-          <button
-            onClick={() => setShowForm(true)}
-            className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:bg-primary/90"
-          >
-            <Plus className="h-4 w-4" />
-            添加现金
-          </button>
-        )}
-      </div>
+  const content = (
+    <>
+      {(!embedded || !showForm) && (
+        <div
+          className={cn(
+            'flex items-center mb-4',
+            embedded ? 'justify-end' : 'justify-between'
+          )}
+        >
+          {!embedded && <h2 className="font-semibold text-lg">券商现金</h2>}
+          {!showForm && (
+            <button
+              onClick={() => setShowForm(true)}
+              className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+            >
+              <Plus className="h-4 w-4" />
+              添加现金
+            </button>
+          )}
+        </div>
+      )}
 
       <div className="space-y-4 mb-4">
         {grouped.map((g) => (
@@ -219,6 +243,11 @@ export function CashBalancesManager() {
           </button>
         </div>
       )}
-    </div>
+    </>
+  );
+
+  if (embedded) return content;
+  return (
+    <div className="rounded-xl border bg-card p-5 shadow-sm">{content}</div>
   );
 }

@@ -1,10 +1,16 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Plus, Trash2, Pencil, X } from 'lucide-react';
 import { useWalletStore } from '@/stores/walletStore';
 import { truncateAddress } from '@/lib/format';
+import { cn } from '@/lib/utils';
 import type { Chain, EvmChain, WalletConfig } from '@/types/onchain';
+
+interface WalletManagerProps {
+  embedded?: boolean;
+  autoOpenForm?: boolean;
+}
 
 const EVM_CHAINS: { id: EvmChain; label: string }[] = [
   { id: 'ethereum', label: 'Ethereum' },
@@ -38,14 +44,18 @@ function getWalletType(chains: Chain[]): WalletType {
   return 'evm';
 }
 
-export function WalletManager() {
+export function WalletManager({ embedded, autoOpenForm }: WalletManagerProps = {}) {
   const { wallets, addWallet, removeWallet, updateWallet } = useWalletStore();
-  const [showForm, setShowForm] = useState(false);
+  const [showForm, setShowForm] = useState(!!autoOpenForm);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [name, setName] = useState('');
   const [address, setAddress] = useState('');
   const [walletType, setWalletType] = useState<WalletType>('evm');
   const [selectedEvmChains, setSelectedEvmChains] = useState<EvmChain[]>(['ethereum']);
+
+  useEffect(() => {
+    if (autoOpenForm) setShowForm(true);
+  }, [autoOpenForm]);
 
   const resetForm = () => {
     setName('');
@@ -107,20 +117,27 @@ export function WalletManager() {
     );
   };
 
-  return (
-    <div className="rounded-xl border bg-card p-5 shadow-sm">
-      <div className="flex items-center justify-between mb-4">
-        <h2 className="font-semibold text-lg">链上钱包</h2>
-        {!showForm && (
-          <button
-            onClick={() => setShowForm(true)}
-            className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:bg-primary/90"
-          >
-            <Plus className="h-4 w-4" />
-            添加钱包
-          </button>
-        )}
-      </div>
+  const content = (
+    <>
+      {(!embedded || !showForm) && (
+        <div
+          className={cn(
+            'flex items-center mb-4',
+            embedded ? 'justify-end' : 'justify-between'
+          )}
+        >
+          {!embedded && <h2 className="font-semibold text-lg">链上钱包</h2>}
+          {!showForm && (
+            <button
+              onClick={() => setShowForm(true)}
+              className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+            >
+              <Plus className="h-4 w-4" />
+              添加钱包
+            </button>
+          )}
+        </div>
+      )}
 
       {/* Wallet List */}
       {wallets.length > 0 && (
@@ -254,6 +271,11 @@ export function WalletManager() {
           </button>
         </div>
       )}
-    </div>
+    </>
+  );
+
+  if (embedded) return content;
+  return (
+    <div className="rounded-xl border bg-card p-5 shadow-sm">{content}</div>
   );
 }
