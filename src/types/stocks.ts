@@ -21,6 +21,8 @@ export const MARKET_CURRENCY: Record<StockMarket, StockCurrency> = {
   US: 'USD',
 };
 
+export type InstrumentKind = 'stock' | 'option';
+
 export interface StockPosition {
   id: string;
   broker: StockBroker;
@@ -29,6 +31,14 @@ export interface StockPosition {
   name?: string;
   shares: number;
   costBasis?: number;
+  // PnL provided directly by the broker API (in the position's local currency).
+  // When present, used instead of `(price - costBasis) * shares` to avoid
+  // discrepancies with the broker's own accounting (FIFO vs avg-cost, etc.).
+  apiPnl?: number;
+  // Contract size for derivatives. 1 for stocks; for HK options typically
+  // matches the underlying lot size (e.g., 500 for 0700).
+  multiplier?: number;
+  kind?: InstrumentKind;
 }
 
 export interface StockQuote {

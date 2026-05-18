@@ -9,6 +9,7 @@ import {
   fetchLongportCash,
 } from '@/lib/longport/positions';
 import type { LongportCreds } from '@/lib/longport/sign';
+import { fetchIbkrSnapshot, type IbkrCreds } from '@/lib/ibkr/flex';
 import type {
   StockPosition,
   StockBroker,
@@ -55,6 +56,13 @@ function readLongportCreds(request: Request): LongportCreds | null {
   return { appKey, appSecret, accessToken };
 }
 
+function readIbkrCreds(request: Request): IbkrCreds | null {
+  const flexToken = request.headers.get('x-ibkr-flex-token') || process.env.IBKR_FLEX_TOKEN;
+  const flexQueryId = request.headers.get('x-ibkr-flex-query-id') || process.env.IBKR_FLEX_QUERY_ID;
+  if (!flexToken || !flexQueryId) return null;
+  return { flexToken, flexQueryId };
+}
+
 export async function POST(request: Request) {
   let body: { positions?: StockPosition[]; cash?: CashBalance[] };
   try {
@@ -65,20 +73,29 @@ export async function POST(request: Request) {
   const manualPositions = Array.isArray(body.positions) ? body.positions : [];
   const manualCash = Array.isArray(body.cash) ? body.cash : [];
   const longportCreds = readLongportCreds(request);
+  const ibkrCreds = readIbkrCreds(request);
 
-  // Fetch LongPort API data in parallel with FX; capture errors so partial
-  // failures don't take down the entire response.
+  // Fetch broker API data in parallel; allSettled so a single broker failure
+  // doesn't take down the route.
   const lpPositionsTask: Promise<StockPosition[]> = longportCreds
     ? fetchLongportPositions(longportCreds)
     : Promise.resolve([]);
   const lpCashTask: Promise<CashBalance[]> = longportCreds
     ? fetchLongportCash(longportCreds)
     : Promise.resolve([]);
+  const ibkrTask: Promise<{
+    positions: StockPosition[];
+    cash: CashBalance[];
+    quotes: StockQuote[];
+  }> = ibkrCreds
+    ? fetchIbkrSnapshot(ibkrCreds)
+    : Promise.resolve({ positions: [], cash: [], quotes: [] });
 
   const [
     lpPositionsResult,
     lpCashResult,
-  ] = await Promise.allSettled([lpPositionsTask, lpCashTask]);
+    ibkrResult,
+  ] = await Promise.allSettled([lpPositionsTask, lpCashTask, ibkrTask]);
 
   const lpPositions: StockPosition[] =
     lpPositionsResult.status === 'fulfilled' ? lpPositionsResult.value : [];
@@ -95,20 +112,39 @@ export async function POST(request: Request) {
             : String(lpCashResult.reason))
         : undefined;
 
+  const ibkrPositions: StockPosition[] =
+    ibkrResult.status === 'fulfilled' ? ibkrResult.value.positions : [];
+  const ibkrCash: CashBalance[] =
+    ibkrResult.status === 'fulfilled' ? ibkrResult.value.cash : [];
+  const ibkrQuotes: StockQuote[] =
+    ibkrResult.status === 'fulfilled' ? ibkrResult.value.quotes : [];
+  const ibkrError: string | undefined =
+    ibkrResult.status === 'rejected'
+      ? (ibkrResult.reason instanceof Error
+          ? ibkrResult.reason.message
+          : String(ibkrResult.reason))
+      : undefined;
+
   const taggedManualPositions = manualPositions.map((p) => ({ p, source: 'manual' as DataSource }));
-  const taggedApiPositions = lpPositions.map((p) => ({ p, source: 'api' as DataSource }));
+  const taggedApiPositions = [
+    ...lpPositions.map((p) => ({ p, source: 'api' as DataSource })),
+    ...ibkrPositions.map((p) => ({ p, source: 'api' as DataSource })),
+  ];
   const allPositions = [...taggedManualPositions, ...taggedApiPositions];
 
   const taggedManualCash = manualCash.map((c) => ({ c, source: 'manual' as DataSource }));
-  const taggedApiCash = lpCash.map((c) => ({ c, source: 'api' as DataSource }));
+  const taggedApiCash = [
+    ...lpCash.map((c) => ({ c, source: 'api' as DataSource })),
+    ...ibkrCash.map((c) => ({ c, source: 'api' as DataSource })),
+  ];
   const allCash = [...taggedManualCash, ...taggedApiCash];
 
   if (allPositions.length === 0 && allCash.length === 0) {
-    const brokers = emptyBrokers().map((b) =>
-      b.broker === 'longport' && longportCreds
-        ? { ...b, apiError: longportError }
-        : b
-    );
+    const brokers = emptyBrokers().map((b) => {
+      if (b.broker === 'longport' && longportCreds) return { ...b, apiError: longportError };
+      if (b.broker === 'ibkr' && ibkrCreds) return { ...b, apiError: ibkrError };
+      return b;
+    });
     return Response.json({
       brokers,
       fx: { cnyUsd: 0, hkdUsd: 0 },
@@ -136,6 +172,11 @@ export async function POST(request: Request) {
   for (const q of [...aQuotes, ...hQuotes, ...uQuotes]) {
     quoteMap.set(quoteKey(q.market, q.symbol), q);
   }
+  // IBKR's mark price is the broker's authoritative number and covers OTC /
+  // foreign tickers Yahoo/Tencent miss — let it win when both sources have it.
+  for (const q of ibkrQuotes) {
+    quoteMap.set(quoteKey(q.market, q.symbol), q);
+  }
 
   const enrichedCash: EnrichedCashBalance[] = allCash.map(({ c, source }) => ({
     ...c,
@@ -147,17 +188,29 @@ export async function POST(request: Request) {
     const q = quoteMap.get(quoteKey(p.market, p.symbol));
     const price = q?.price ?? 0;
     const currency = q?.currency ?? marketCurrency(p.market);
-    const marketValue = price * p.shares;
+    const mult = p.multiplier ?? 1;
+    const marketValue = price * p.shares * mult;
     const rate = fxRateFor(currency, fx);
     const marketValueUsd = marketValue * rate;
+    // Prefer broker-supplied PnL (handles FIFO basis, corporate actions, etc.)
+    // and fall back to the simple `(price - cost) * shares * multiplier`
+    // calculation when the broker didn't provide one.
     const pnl =
-      p.costBasis !== undefined && p.costBasis !== null
-        ? (price - p.costBasis) * p.shares
-        : undefined;
+      p.apiPnl !== undefined
+        ? p.apiPnl
+        : p.costBasis !== undefined && p.costBasis !== null
+          ? (price - p.costBasis) * p.shares * mult
+          : undefined;
     const pnlUsd = pnl !== undefined ? pnl * rate : undefined;
+    // Use |shares| in the denominator so the percentage's sign tracks the
+    // PnL's sign for short positions (shorts have negative `shares`, which
+    // would otherwise flip pct's sign relative to pnl).
     const pnlPct =
-      p.costBasis !== undefined && p.costBasis > 0
-        ? ((price - p.costBasis) / p.costBasis) * 100
+      pnl !== undefined &&
+      p.costBasis !== undefined &&
+      p.costBasis > 0 &&
+      p.shares !== 0
+        ? (pnl / (p.costBasis * Math.abs(p.shares) * mult)) * 100
         : undefined;
     return {
       ...p,
@@ -188,7 +241,12 @@ export async function POST(request: Request) {
       cashUsdValue,
       totalUsdValue: positionsUsdValue + cashUsdValue,
       totalPnlUsd: items.reduce((s, p) => s + (p.pnlUsd ?? 0), 0),
-      apiError: broker === 'longport' && longportCreds ? longportError : undefined,
+      apiError:
+        broker === 'longport' && longportCreds
+          ? longportError
+          : broker === 'ibkr' && ibkrCreds
+            ? ibkrError
+            : undefined,
     };
   });
 

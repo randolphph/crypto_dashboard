@@ -111,6 +111,7 @@ export function ApiKeySettings() {
     store.longportAppSecret &&
     store.longportAccessToken
   );
+  const ibkrConfigured = !!(store.ibkrFlexToken && store.ibkrFlexQueryId);
 
   return (
     <div className="space-y-4">
@@ -186,6 +187,21 @@ export function ApiKeySettings() {
             label="Access Token"
             value={store.longportAccessToken}
             onChange={(v) => store.setKeys({ longportAccessToken: v })}
+          />
+        </Section>
+
+        <Section title="IBKR (Flex Query)" configured={ibkrConfigured}>
+          <SecretInput
+            label="Flex Token"
+            value={store.ibkrFlexToken}
+            onChange={(v) => store.setKeys({ ibkrFlexToken: v })}
+            placeholder="16 位 token，Configure Flex Web Service 处获取"
+          />
+          <SecretInput
+            label="Query ID"
+            value={store.ibkrFlexQueryId}
+            onChange={(v) => store.setKeys({ ibkrFlexQueryId: v })}
+            placeholder="Custom Flex Query 列表里的数字 ID"
           />
         </Section>
 

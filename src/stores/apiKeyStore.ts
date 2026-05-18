@@ -21,6 +21,9 @@ export interface ApiKeys {
   longportAppKey: string;
   longportAppSecret: string;
   longportAccessToken: string;
+  // IBKR Flex Query
+  ibkrFlexToken: string;
+  ibkrFlexQueryId: string;
 }
 
 interface ApiKeyState extends ApiKeys {
@@ -45,6 +48,8 @@ export const emptyKeys: ApiKeys = {
   longportAppKey: '',
   longportAppSecret: '',
   longportAccessToken: '',
+  ibkrFlexToken: '',
+  ibkrFlexQueryId: '',
 };
 
 export const API_KEY_FIELDS = Object.keys(emptyKeys) as (keyof ApiKeys)[];
@@ -79,6 +84,8 @@ export const useApiKeyStore = create<ApiKeyState>((set, get) => ({
     if (s.longportAppKey) h['x-longport-app-key'] = s.longportAppKey;
     if (s.longportAppSecret) h['x-longport-app-secret'] = s.longportAppSecret;
     if (s.longportAccessToken) h['x-longport-access-token'] = s.longportAccessToken;
+    if (s.ibkrFlexToken) h['x-ibkr-flex-token'] = s.ibkrFlexToken;
+    if (s.ibkrFlexQueryId) h['x-ibkr-flex-query-id'] = s.ibkrFlexQueryId;
     return h;
   },
 }));

@@ -63,7 +63,7 @@ function PnlCell({
       {hidden ? PRIVACY_MASK : (positive ? '+' : '') + formatCurrency(value, currency)}
       {pct !== undefined && !hidden && (
         <span className="ml-1 text-xs">
-          ({positive ? '+' : ''}
+          ({pct >= 0 ? '+' : ''}
           {pct.toFixed(2)}%)
         </span>
       )}
@@ -108,16 +108,32 @@ function PositionsTable({ positions }: { positions: EnrichedPosition[] }) {
         <tbody>
           {positions.map((p) => {
             const displayName = p.name || p.quoteName;
+            // US tickers (stocks + options) are self-descriptive — hide the
+            // company / contract name to keep the row compact. Other markets
+            // (HK numeric codes, A-shares) lead with the name and put the
+            // code on the subtitle line.
+            const isUs = p.market === 'US';
+            const primary = !isUs && displayName ? displayName : p.symbol;
+            const secondary = isUs
+              ? undefined
+              : displayName
+                ? p.symbol
+                : undefined;
             return (
               <tr key={p.id} className="border-b last:border-0">
                 <td className="py-2">
                   <div className="flex items-center gap-1.5">
-                    <span className="font-medium">{p.symbol}</span>
+                    <span className="font-medium">{primary}</span>
                     <SourceBadge source={p.source} />
+                    {p.kind === 'option' && (
+                      <span className="rounded-full bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-amber-700 dark:text-amber-400">
+                        期权
+                      </span>
+                    )}
                   </div>
-                  {displayName && (
+                  {secondary && (
                     <div className="text-xs text-muted-foreground">
-                      {displayName}
+                      {secondary}
                     </div>
                   )}
                   {p.quoteError && (
@@ -231,7 +247,7 @@ export function StockSection({
       </div>
       {data.apiError && (
         <div className="mb-4 rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive">
-          长桥 API 错误: {data.apiError}
+          {label} API 错误: {data.apiError}
         </div>
       )}
       {data.cash.length > 0 && (

@@ -13,9 +13,12 @@ export function useStockData() {
   const longportConfigured = useApiKeyStore(
     (s) => !!(s.longportAppKey && s.longportAppSecret && s.longportAccessToken)
   );
+  const ibkrConfigured = useApiKeyStore(
+    (s) => !!(s.ibkrFlexToken && s.ibkrFlexQueryId)
+  );
 
   return useQuery<StocksData>({
-    queryKey: ['stocks', positions, cash, longportConfigured],
+    queryKey: ['stocks', positions, cash, longportConfigured, ibkrConfigured],
     queryFn: async () => {
       const res = await fetch('/api/stocks', {
         method: 'POST',
@@ -29,6 +32,10 @@ export function useStockData() {
     },
     refetchOnMount: false,
     refetchInterval: refreshInterval > 0 ? refreshInterval * 1000 : false,
-    enabled: positions.length > 0 || cash.length > 0 || longportConfigured,
+    enabled:
+      positions.length > 0 ||
+      cash.length > 0 ||
+      longportConfigured ||
+      ibkrConfigured,
   });
 }
