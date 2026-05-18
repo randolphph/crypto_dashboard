@@ -7,10 +7,27 @@ import {
   BROKER_LABEL,
   MARKET_LABEL,
   type BrokerData,
+  type DataSource,
   type EnrichedCashBalance,
   type EnrichedPosition,
   type StockBroker,
 } from '@/types/stocks';
+
+function SourceBadge({ source }: { source: DataSource }) {
+  const isApi = source === 'api';
+  return (
+    <span
+      className={cn(
+        'rounded-full px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide',
+        isApi
+          ? 'bg-blue-500/10 text-blue-600 dark:text-blue-400'
+          : 'bg-secondary text-muted-foreground'
+      )}
+    >
+      {isApi ? 'API' : '手动'}
+    </span>
+  );
+}
 
 interface StockSectionProps {
   broker: StockBroker;
@@ -94,7 +111,10 @@ function PositionsTable({ positions }: { positions: EnrichedPosition[] }) {
             return (
               <tr key={p.id} className="border-b last:border-0">
                 <td className="py-2">
-                  <div className="font-medium">{p.symbol}</div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="font-medium">{p.symbol}</span>
+                    <SourceBadge source={p.source} />
+                  </div>
                   {displayName && (
                     <div className="text-xs text-muted-foreground">
                       {displayName}
@@ -209,6 +229,11 @@ export function StockSection({
           )}
         </div>
       </div>
+      {data.apiError && (
+        <div className="mb-4 rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive">
+          长桥 API 错误: {data.apiError}
+        </div>
+      )}
       {data.cash.length > 0 && (
         <CashTable cash={data.cash} totalUsd={data.cashUsdValue} />
       )}
@@ -239,6 +264,9 @@ function CashTable({
                 <td className="py-2">
                   <span className="rounded-full bg-secondary px-2 py-0.5 text-xs font-medium">
                     {c.currency}
+                  </span>
+                  <span className="ml-2">
+                    <SourceBadge source={c.source} />
                   </span>
                   {c.note && (
                     <span className="ml-2 text-xs text-muted-foreground">

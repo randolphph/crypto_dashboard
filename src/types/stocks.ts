@@ -1,6 +1,7 @@
 export type StockMarket = 'A' | 'HK' | 'US';
 export type StockBroker = 'ths' | 'longport' | 'ibkr';
 export type StockCurrency = 'CNY' | 'HKD' | 'USD';
+export type DataSource = 'manual' | 'api';
 
 export const BROKER_LABEL: Record<StockBroker, string> = {
   ths: 'A股 (同花顺)',
@@ -51,6 +52,7 @@ export interface EnrichedPosition extends StockPosition {
   changePct?: number;
   quoteName?: string;
   quoteError?: string;
+  source: DataSource;
 }
 
 export interface CashBalance {
@@ -63,6 +65,7 @@ export interface CashBalance {
 
 export interface EnrichedCashBalance extends CashBalance {
   amountUsd: number;
+  source: DataSource;
 }
 
 export interface BrokerData {
@@ -73,6 +76,7 @@ export interface BrokerData {
   cashUsdValue: number;
   totalUsdValue: number;
   totalPnlUsd: number;
+  apiError?: string;
 }
 
 export interface FxRates {

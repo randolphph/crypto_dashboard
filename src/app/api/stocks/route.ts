@@ -4,6 +4,11 @@ import {
   fetchUsQuotes,
 } from '@/lib/stocks/quotes';
 import { fetchFx } from '@/lib/stocks/fx';
+import {
+  fetchLongportPositions,
+  fetchLongportCash,
+} from '@/lib/longport/positions';
+import type { LongportCreds } from '@/lib/longport/sign';
 import type {
   StockPosition,
   StockBroker,
@@ -15,6 +20,7 @@ import type {
   CashBalance,
   EnrichedCashBalance,
   FxRates,
+  DataSource,
 } from '@/types/stocks';
 
 const BROKERS: StockBroker[] = ['ths', 'longport', 'ibkr'];
@@ -41,6 +47,14 @@ function fxRateFor(currency: StockCurrency, fx: FxRates): number {
   return 1;
 }
 
+function readLongportCreds(request: Request): LongportCreds | null {
+  const appKey = request.headers.get('x-longport-app-key') || process.env.LONGPORT_APP_KEY;
+  const appSecret = request.headers.get('x-longport-app-secret') || process.env.LONGPORT_APP_SECRET;
+  const accessToken = request.headers.get('x-longport-access-token') || process.env.LONGPORT_ACCESS_TOKEN;
+  if (!appKey || !appSecret || !accessToken) return null;
+  return { appKey, appSecret, accessToken };
+}
+
 export async function POST(request: Request) {
   let body: { positions?: StockPosition[]; cash?: CashBalance[] };
   try {
@@ -48,21 +62,64 @@ export async function POST(request: Request) {
   } catch {
     body = {};
   }
-  const positions = Array.isArray(body.positions) ? body.positions : [];
-  const cashEntries = Array.isArray(body.cash) ? body.cash : [];
+  const manualPositions = Array.isArray(body.positions) ? body.positions : [];
+  const manualCash = Array.isArray(body.cash) ? body.cash : [];
+  const longportCreds = readLongportCreds(request);
 
-  if (positions.length === 0 && cashEntries.length === 0) {
+  // Fetch LongPort API data in parallel with FX; capture errors so partial
+  // failures don't take down the entire response.
+  const lpPositionsTask: Promise<StockPosition[]> = longportCreds
+    ? fetchLongportPositions(longportCreds)
+    : Promise.resolve([]);
+  const lpCashTask: Promise<CashBalance[]> = longportCreds
+    ? fetchLongportCash(longportCreds)
+    : Promise.resolve([]);
+
+  const [
+    lpPositionsResult,
+    lpCashResult,
+  ] = await Promise.allSettled([lpPositionsTask, lpCashTask]);
+
+  const lpPositions: StockPosition[] =
+    lpPositionsResult.status === 'fulfilled' ? lpPositionsResult.value : [];
+  const lpCash: CashBalance[] =
+    lpCashResult.status === 'fulfilled' ? lpCashResult.value : [];
+  const longportError: string | undefined =
+    lpPositionsResult.status === 'rejected'
+      ? (lpPositionsResult.reason instanceof Error
+          ? lpPositionsResult.reason.message
+          : String(lpPositionsResult.reason))
+      : lpCashResult.status === 'rejected'
+        ? (lpCashResult.reason instanceof Error
+            ? lpCashResult.reason.message
+            : String(lpCashResult.reason))
+        : undefined;
+
+  const taggedManualPositions = manualPositions.map((p) => ({ p, source: 'manual' as DataSource }));
+  const taggedApiPositions = lpPositions.map((p) => ({ p, source: 'api' as DataSource }));
+  const allPositions = [...taggedManualPositions, ...taggedApiPositions];
+
+  const taggedManualCash = manualCash.map((c) => ({ c, source: 'manual' as DataSource }));
+  const taggedApiCash = lpCash.map((c) => ({ c, source: 'api' as DataSource }));
+  const allCash = [...taggedManualCash, ...taggedApiCash];
+
+  if (allPositions.length === 0 && allCash.length === 0) {
+    const brokers = emptyBrokers().map((b) =>
+      b.broker === 'longport' && longportCreds
+        ? { ...b, apiError: longportError }
+        : b
+    );
     return Response.json({
-      brokers: emptyBrokers(),
+      brokers,
       fx: { cnyUsd: 0, hkdUsd: 0 },
       lastUpdated: new Date().toISOString(),
     });
   }
 
   const uniq = (xs: string[]) => [...new Set(xs.map((s) => s.trim()))].filter(Boolean);
-  const aSymbols = uniq(positions.filter((p) => p.market === 'A').map((p) => p.symbol));
-  const hSymbols = uniq(positions.filter((p) => p.market === 'HK').map((p) => p.symbol));
-  const uSymbols = uniq(positions.filter((p) => p.market === 'US').map((p) => p.symbol));
+  const aSymbols = uniq(allPositions.filter(({ p }) => p.market === 'A').map(({ p }) => p.symbol));
+  const hSymbols = uniq(allPositions.filter(({ p }) => p.market === 'HK').map(({ p }) => p.symbol));
+  const uSymbols = uniq(allPositions.filter(({ p }) => p.market === 'US').map(({ p }) => p.symbol));
 
   const [aQuotes, hQuotes, uQuotes, fxResult] = await Promise.all([
     fetchAShareQuotes(aSymbols),
@@ -80,12 +137,13 @@ export async function POST(request: Request) {
     quoteMap.set(quoteKey(q.market, q.symbol), q);
   }
 
-  const enrichedCash: EnrichedCashBalance[] = cashEntries.map((c) => ({
+  const enrichedCash: EnrichedCashBalance[] = allCash.map(({ c, source }) => ({
     ...c,
     amountUsd: c.amount * fxRateFor(c.currency, fx),
+    source,
   }));
 
-  const enriched: EnrichedPosition[] = positions.map((p) => {
+  const enriched: EnrichedPosition[] = allPositions.map(({ p, source }) => {
     const q = quoteMap.get(quoteKey(p.market, p.symbol));
     const price = q?.price ?? 0;
     const currency = q?.currency ?? marketCurrency(p.market);
@@ -113,6 +171,7 @@ export async function POST(request: Request) {
       changePct: q?.changePct,
       quoteName: q?.name,
       quoteError: q?.error,
+      source,
     };
   });
 
@@ -129,6 +188,7 @@ export async function POST(request: Request) {
       cashUsdValue,
       totalUsdValue: positionsUsdValue + cashUsdValue,
       totalPnlUsd: items.reduce((s, p) => s + (p.pnlUsd ?? 0), 0),
+      apiError: broker === 'longport' && longportCreds ? longportError : undefined,
     };
   });
 

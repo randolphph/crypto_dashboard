@@ -106,6 +106,11 @@ export function ApiKeySettings() {
     store.okxWeb3Passphrase &&
     store.okxWeb3ProjectId
   );
+  const longportConfigured = !!(
+    store.longportAppKey &&
+    store.longportAppSecret &&
+    store.longportAccessToken
+  );
 
   return (
     <div className="space-y-4">
@@ -163,6 +168,24 @@ export function ApiKeySettings() {
             label="Client Secret"
             value={store.deribitClientSecret}
             onChange={(v) => store.setKeys({ deribitClientSecret: v })}
+          />
+        </Section>
+
+        <Section title="长桥 (LongPort)" configured={longportConfigured}>
+          <SecretInput
+            label="App Key"
+            value={store.longportAppKey}
+            onChange={(v) => store.setKeys({ longportAppKey: v })}
+          />
+          <SecretInput
+            label="App Secret"
+            value={store.longportAppSecret}
+            onChange={(v) => store.setKeys({ longportAppSecret: v })}
+          />
+          <SecretInput
+            label="Access Token"
+            value={store.longportAccessToken}
+            onChange={(v) => store.setKeys({ longportAccessToken: v })}
           />
         </Section>
 

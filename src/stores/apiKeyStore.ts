@@ -18,6 +18,10 @@ export interface ApiKeys {
   okxWeb3ApiSecret: string;
   okxWeb3Passphrase: string;
   okxWeb3ProjectId: string;
+  // LongPort
+  longportAppKey: string;
+  longportAppSecret: string;
+  longportAccessToken: string;
 }
 
 interface ApiKeyState extends ApiKeys {
@@ -39,6 +43,9 @@ const emptyKeys: ApiKeys = {
   okxWeb3ApiSecret: '',
   okxWeb3Passphrase: '',
   okxWeb3ProjectId: '',
+  longportAppKey: '',
+  longportAppSecret: '',
+  longportAccessToken: '',
 };
 
 export const useApiKeyStore = create<ApiKeyState>()(
@@ -62,6 +69,9 @@ export const useApiKeyStore = create<ApiKeyState>()(
         if (s.okxWeb3ApiSecret) h['x-okx-web3-api-secret'] = s.okxWeb3ApiSecret;
         if (s.okxWeb3Passphrase) h['x-okx-web3-passphrase'] = s.okxWeb3Passphrase;
         if (s.okxWeb3ProjectId) h['x-okx-web3-project-id'] = s.okxWeb3ProjectId;
+        if (s.longportAppKey) h['x-longport-app-key'] = s.longportAppKey;
+        if (s.longportAppSecret) h['x-longport-app-secret'] = s.longportAppSecret;
+        if (s.longportAccessToken) h['x-longport-access-token'] = s.longportAccessToken;
         return h;
       },
     }),
