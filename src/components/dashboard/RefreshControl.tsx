@@ -5,6 +5,40 @@ import { useQueryClient, useIsFetching } from '@tanstack/react-query';
 import { useState, useEffect } from 'react';
 import { useDashboardStore } from '@/stores/dashboardStore';
 
+// Render a relative time like "2 分钟前" / "昨日 14:23". The previous
+// implementation stored the formatted clock time string, which made it
+// impossible to tell whether "14:23" meant today or yesterday after the
+// page sat idle across midnight.
+function formatRelative(ts: number, now: number): string {
+  const seconds = Math.floor((now - ts) / 1000);
+  if (seconds < 5) return '刚刚';
+  if (seconds < 60) return `${seconds} 秒前`;
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes} 分钟前`;
+  const hours = Math.floor(minutes / 60);
+  // Same calendar day → "N 小时前"; otherwise show the day boundary.
+  const refDate = new Date(ts);
+  const nowDate = new Date(now);
+  const sameDay =
+    refDate.getFullYear() === nowDate.getFullYear() &&
+    refDate.getMonth() === nowDate.getMonth() &&
+    refDate.getDate() === nowDate.getDate();
+  if (sameDay) return `${hours} 小时前`;
+  const yesterday = new Date(nowDate);
+  yesterday.setDate(nowDate.getDate() - 1);
+  const isYesterday =
+    refDate.getFullYear() === yesterday.getFullYear() &&
+    refDate.getMonth() === yesterday.getMonth() &&
+    refDate.getDate() === yesterday.getDate();
+  const hhmm = refDate.toLocaleTimeString([], {
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+  if (isYesterday) return `昨日 ${hhmm}`;
+  return refDate.toLocaleDateString([], { month: 'short', day: 'numeric' }) +
+    ` ${hhmm}`;
+}
+
 export function RefreshControl() {
   const queryClient = useQueryClient();
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -12,27 +46,42 @@ export function RefreshControl() {
   const setLastRefreshed = useDashboardStore((s) => s.setLastRefreshed);
   const isFetching = useIsFetching();
 
+  // Tick state so the relative label stays fresh even while no fetch fires.
+  // Updates once a minute — enough granularity for "N 分钟前" without
+  // burning re-renders.
+  const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
-    setLastRefreshed(new Date().toLocaleTimeString());
+    const id = setInterval(() => setNow(Date.now()), 60_000);
+    return () => clearInterval(id);
+  }, []);
+
+  useEffect(() => {
+    setLastRefreshed(Date.now());
   }, [setLastRefreshed]);
 
-  // Update last refreshed time when background refetch completes
+  // Update last-refreshed timestamp when background refetch completes
   useEffect(() => {
     if (isFetching === 0) {
-      setLastRefreshed(new Date().toLocaleTimeString());
+      setLastRefreshed(Date.now());
+      setNow(Date.now());
     }
   }, [isFetching, setLastRefreshed]);
 
   const handleRefresh = async () => {
     setIsRefreshing(true);
     await queryClient.invalidateQueries();
-    setLastRefreshed(new Date().toLocaleTimeString());
+    setLastRefreshed(Date.now());
+    setNow(Date.now());
     setIsRefreshing(false);
   };
 
   return (
     <div className="flex items-center gap-2 text-sm text-muted-foreground">
-      {lastRefreshed && <span>上次刷新: {lastRefreshed}</span>}
+      {lastRefreshed && (
+        <span title={new Date(lastRefreshed).toLocaleString()}>
+          上次刷新: {formatRelative(lastRefreshed, now)}
+        </span>
+      )}
       <button
         onClick={handleRefresh}
         disabled={isRefreshing}
