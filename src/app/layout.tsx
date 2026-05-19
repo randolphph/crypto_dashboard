@@ -5,6 +5,7 @@ import { QueryProvider } from '@/lib/queryClient';
 import { Header } from '@/components/layout/Header';
 import { VaultBootstrap } from '@/components/auth/VaultBootstrap';
 import { VaultGate } from '@/components/auth/VaultGate';
+import { CashToastContainer } from '@/components/ui/cash-toast';
 import './globals.css';
 
 const geistSans = Geist({
@@ -41,6 +42,7 @@ export default function RootLayout({
             <main className="flex-1 px-6 py-6">
               <VaultGate>{children}</VaultGate>
             </main>
+            <CashToastContainer />
           </QueryProvider>
         </ThemeProvider>
       </body>

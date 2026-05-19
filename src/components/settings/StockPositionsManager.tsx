@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { Plus, Trash2, Pencil, X, ArrowLeftRight } from 'lucide-react';
 import { useStockPositionStore } from '@/stores/stockPositionStore';
 import { useCashBalanceStore } from '@/stores/cashBalanceStore';
+import { useCashToastStore } from '@/stores/cashToastStore';
 import { cn } from '@/lib/utils';
 import {
   BROKER_LABEL,
@@ -44,6 +45,7 @@ export function StockPositionsManager({
   const { positions, addPosition, removePosition, updatePosition } =
     useStockPositionStore();
   const { balances, addBalance, updateBalance } = useCashBalanceStore();
+  const pushCashToast = useCashToastStore((s) => s.push);
   const [showForm, setShowForm] = useState(!!autoOpenForm);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [broker, setBroker] = useState<StockBroker>(initialBroker ?? 'ths');
@@ -103,9 +105,46 @@ export function StockPositionsManager({
     };
 
     if (editingId) {
+      const old = positions.find((p) => p.id === editingId);
       updatePosition(editingId, payload);
+      if (old) {
+        // Treat edit as "reverse the original buy, then apply the new one" so
+        // share/cost corrections net out and broker/market changes move cash
+        // between currencies cleanly.
+        const oldImpact = positionCashImpact(old);
+        const newImpact = positionCashImpact(payload);
+        const sameSlot =
+          old.broker === payload.broker && old.market === payload.market;
+        if (sameSlot) {
+          adjustCash(
+            payload.broker,
+            MARKET_CURRENCY[payload.market],
+            oldImpact - newImpact,
+            `修改 ${payload.symbol}`
+          );
+        } else {
+          adjustCash(
+            old.broker,
+            MARKET_CURRENCY[old.market],
+            +oldImpact,
+            `迁出 ${old.symbol}`
+          );
+          adjustCash(
+            payload.broker,
+            MARKET_CURRENCY[payload.market],
+            -newImpact,
+            `迁入 ${payload.symbol}`
+          );
+        }
+      }
     } else {
       addPosition({ id: crypto.randomUUID(), ...payload });
+      adjustCash(
+        payload.broker,
+        MARKET_CURRENCY[payload.market],
+        -positionCashImpact(payload),
+        `买入 ${payload.symbol}`
+      );
     }
     resetForm();
   };
@@ -134,8 +173,10 @@ export function StockPositionsManager({
   const adjustCash = (
     targetBroker: StockBroker,
     currency: StockCurrency,
-    delta: number
+    delta: number,
+    reason?: string
   ) => {
+    if (delta === 0) return;
     const existing = balances.find(
       (b) => b.broker === targetBroker && b.currency === currency
     );
@@ -149,6 +190,26 @@ export function StockPositionsManager({
         amount: delta,
       });
     }
+    pushCashToast({ broker: targetBroker, currency, delta, reason });
+  };
+
+  const positionCashImpact = (p: {
+    shares: number;
+    costBasis?: number;
+    multiplier?: number;
+  }): number => {
+    if (p.costBasis === undefined) return 0;
+    return p.shares * p.costBasis * (p.multiplier ?? 1);
+  };
+
+  const handleDelete = (p: StockPosition) => {
+    removePosition(p.id);
+    adjustCash(
+      p.broker,
+      MARKET_CURRENCY[p.market],
+      +positionCashImpact(p),
+      `清仓 ${p.symbol}`
+    );
   };
 
   const handleTrade = (p: StockPosition) => {
@@ -176,7 +237,12 @@ export function StockPositionsManager({
           ? (p.costBasis * p.shares + priceNum * sharesNum) / newShares
           : undefined;
       updatePosition(p.id, { shares: newShares, costBasis: newCost });
-      adjustCash(p.broker, currency, -cashDelta);
+      adjustCash(
+        p.broker,
+        currency,
+        -cashDelta,
+        `买入 ${p.symbol} ${sharesNum} 股`
+      );
     } else {
       if (sharesNum > p.shares) {
         setTradeError(`持仓仅 ${p.shares} 股`);
@@ -188,7 +254,12 @@ export function StockPositionsManager({
       } else {
         updatePosition(p.id, { shares: newShares });
       }
-      adjustCash(p.broker, currency, +cashDelta);
+      adjustCash(
+        p.broker,
+        currency,
+        +cashDelta,
+        `卖出 ${p.symbol} ${sharesNum} 股`
+      );
     }
     cancelTrade();
   };
@@ -279,7 +350,7 @@ export function StockPositionsManager({
                           <Pencil className="h-4 w-4" />
                         </button>
                         <button
-                          onClick={() => removePosition(p.id)}
+                          onClick={() => handleDelete(p)}
                           className="rounded-md p-1.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
                         >
                           <Trash2 className="h-4 w-4" />
