@@ -11,6 +11,12 @@ function toDateInput(ms: number): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
 
+function toTimeInput(ms: number): string {
+  const d = new Date(ms);
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
 export function CashFlowSettings() {
   const events = useCashFlowStore((s) => s.events);
   const addEvent = useCashFlowStore((s) => s.addEvent);
@@ -19,6 +25,7 @@ export function CashFlowSettings() {
 
   const [type, setType] = useState<CashFlowType>('withdraw');
   const [date, setDate] = useState(toDateInput(Date.now()));
+  const [time, setTime] = useState(toTimeInput(Date.now()));
   const [amount, setAmount] = useState('');
   const [note, setNote] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -26,7 +33,7 @@ export function CashFlowSettings() {
   const handleAdd = () => {
     const amt = Number(amount);
     if (!Number.isFinite(amt) || amt <= 0) return;
-    const ts = new Date(`${date}T12:00:00`).getTime();
+    const ts = new Date(`${date}T${time}:00`).getTime();
     if (!Number.isFinite(ts)) return;
     addEvent({ timestamp: ts, type, amount: amt, note: note.trim() || undefined });
     setAmount('');
@@ -116,7 +123,7 @@ export function CashFlowSettings() {
         并把「区间涨跌」拆分为原始变化和扣除净流入/流出的真实盈亏。
       </p>
 
-      <div className="mb-4 grid grid-cols-1 gap-2 sm:grid-cols-[110px_140px_140px_1fr_auto]">
+      <div className="mb-4 grid grid-cols-1 gap-2 sm:grid-cols-[100px_140px_110px_130px_1fr_auto]">
         <select
           value={type}
           onChange={(e) => setType(e.target.value as CashFlowType)}
@@ -129,6 +136,12 @@ export function CashFlowSettings() {
           type="date"
           value={date}
           onChange={(e) => setDate(e.target.value)}
+          className="rounded-lg border bg-background px-3 py-2 text-sm"
+        />
+        <input
+          type="time"
+          value={time}
+          onChange={(e) => setTime(e.target.value)}
           className="rounded-lg border bg-background px-3 py-2 text-sm"
         />
         <input
@@ -190,7 +203,13 @@ export function CashFlowSettings() {
                         {e.type === 'withdraw' ? '提现' : '充值'} {formatUsd(e.amount)}
                       </span>
                       <span className="text-xs text-muted-foreground">
-                        {new Date(e.timestamp).toLocaleDateString()}
+                        {new Date(e.timestamp).toLocaleString([], {
+                          year: 'numeric',
+                          month: 'numeric',
+                          day: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })}
                       </span>
                     </div>
                     {e.note && (
