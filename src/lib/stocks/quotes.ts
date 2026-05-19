@@ -1,4 +1,5 @@
 import 'server-only';
+import { redis } from '@/lib/cache/upstash';
 import type { StockQuote } from '@/types/stocks';
 
 function decodeBuffer(buf: ArrayBuffer, fallback = 'utf-8'): string {
@@ -10,6 +11,47 @@ function decodeBuffer(buf: ArrayBuffer, fallback = 'utf-8'): string {
     } catch {
       return new TextDecoder(fallback).decode(buf);
     }
+  }
+}
+
+// A-share quotes change minute-by-minute during trading. 60s is fresh enough
+// while still letting most refreshes hit cache and skip the upstream entirely.
+// Store the row 24h so stale-on-error fallback has something to return when
+// both Sina and Tencent are 403/down.
+const QUOTE_FRESH_TTL_MS = 60_000;
+const QUOTE_STORE_TTL_S = 24 * 60 * 60;
+
+interface QuoteCacheEntry {
+  quote: StockQuote;
+  ts: number;
+}
+
+async function readQuoteCacheBatch(
+  market: 'a',
+  symbols: string[]
+): Promise<(QuoteCacheEntry | null)[]> {
+  if (!redis || symbols.length === 0) return symbols.map(() => null);
+  const keys = symbols.map((s) => `quote:${market}:${s}`);
+  try {
+    const results = (await redis.mget(...keys)) as (QuoteCacheEntry | null)[];
+    return results.map((r) => r ?? null);
+  } catch {
+    return symbols.map(() => null);
+  }
+}
+
+async function writeQuoteCache(
+  market: 'a',
+  symbol: string,
+  entry: QuoteCacheEntry
+): Promise<void> {
+  if (!redis) return;
+  try {
+    await redis.set(`quote:${market}:${symbol}`, entry, {
+      ex: QUOTE_STORE_TTL_S,
+    });
+  } catch {
+    // Caching is best-effort; never let a cache write break the request.
   }
 }
 
@@ -27,7 +69,9 @@ function hkCode(symbol: string): string {
   return `hk${s.padStart(5, '0')}`;
 }
 
-export async function fetchAShareQuotes(symbols: string[]): Promise<StockQuote[]> {
+async function fetchAShareFromSina(
+  symbols: string[]
+): Promise<StockQuote[]> {
   if (symbols.length === 0) return [];
   const codes = symbols.map(aShareCode);
   const url = `https://hq.sinajs.cn/list=${codes.join(',')}`;
@@ -108,6 +152,159 @@ export async function fetchAShareQuotes(symbols: string[]): Promise<StockQuote[]
       currency: 'CNY' as const,
       changePct,
     };
+  });
+}
+
+// Tencent accepts the same sh/sz/bj prefixes as Sina for A-shares, and its
+// edge nodes have a different IP-rate-limiting policy — useful as a fallback
+// when Sina starts returning 403 to Vercel egress IPs.
+async function fetchAShareFromTencent(
+  symbols: string[]
+): Promise<StockQuote[]> {
+  if (symbols.length === 0) return [];
+  const codes = symbols.map(aShareCode);
+  const url = `https://qt.gtimg.cn/q=${codes.join(',')}`;
+  let text: string;
+  try {
+    const res = await fetch(url, {
+      headers: { 'User-Agent': 'Mozilla/5.0' },
+      cache: 'no-store',
+    });
+    if (!res.ok) {
+      return symbols.map((s) => ({
+        symbol: s,
+        market: 'A' as const,
+        price: 0,
+        currency: 'CNY' as const,
+        error: `tencent http ${res.status}`,
+      }));
+    }
+    text = decodeBuffer(await res.arrayBuffer());
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : 'fetch error';
+    return symbols.map((s) => ({
+      symbol: s,
+      market: 'A' as const,
+      price: 0,
+      currency: 'CNY' as const,
+      error: msg,
+    }));
+  }
+
+  return codes.map((code, i) => {
+    const line = text.split('\n').find((l) => l.includes(`v_${code}`));
+    if (!line) {
+      return {
+        symbol: symbols[i],
+        market: 'A' as const,
+        price: 0,
+        currency: 'CNY' as const,
+        error: 'tencent quote not found',
+      };
+    }
+    const m = line.match(/"([^"]*)"/);
+    if (!m || !m[1]) {
+      return {
+        symbol: symbols[i],
+        market: 'A' as const,
+        price: 0,
+        currency: 'CNY' as const,
+        error: 'tencent empty quote',
+      };
+    }
+    const fields = m[1].split('~');
+    // Tencent generic format: 0=market, 1=name, 2=code, 3=price, 4=prevClose
+    const name = fields[1];
+    const price = parseFloat(fields[3]);
+    const prevClose = parseFloat(fields[4]);
+    if (!Number.isFinite(price) || price === 0) {
+      return {
+        symbol: symbols[i],
+        market: 'A' as const,
+        price: 0,
+        currency: 'CNY' as const,
+        name,
+        error: 'tencent no current price',
+      };
+    }
+    const changePct =
+      Number.isFinite(prevClose) && prevClose > 0
+        ? ((price - prevClose) / prevClose) * 100
+        : undefined;
+    return {
+      symbol: symbols[i],
+      market: 'A' as const,
+      name,
+      price,
+      currency: 'CNY' as const,
+      changePct,
+    };
+  });
+}
+
+function isQuoteOk(q: StockQuote | undefined): q is StockQuote {
+  return !!q && !q.error && q.price > 0;
+}
+
+export async function fetchAShareQuotes(
+  symbols: string[]
+): Promise<StockQuote[]> {
+  if (symbols.length === 0) return [];
+
+  const cached = await readQuoteCacheBatch('a', symbols);
+  const now = Date.now();
+
+  // 1. Any symbol whose cache row is fresh (< 60s) skips upstream entirely.
+  const needRefresh: string[] = [];
+  for (let i = 0; i < symbols.length; i++) {
+    const c = cached[i];
+    if (!c || now - c.ts >= QUOTE_FRESH_TTL_MS) {
+      needRefresh.push(symbols[i]);
+    }
+  }
+
+  // 2. Refresh stale ones from Sina; fall back to Tencent for those Sina
+  // refuses to serve (typical when Vercel egress IPs hit a 403).
+  const freshMap = new Map<string, StockQuote>();
+  if (needRefresh.length > 0) {
+    const sina = await fetchAShareFromSina(needRefresh);
+    for (const q of sina) freshMap.set(q.symbol, q);
+
+    const sinaFailed = sina
+      .filter((q) => !!q.error || q.price === 0)
+      .map((q) => q.symbol);
+    if (sinaFailed.length > 0) {
+      const tencent = await fetchAShareFromTencent(sinaFailed);
+      for (const q of tencent) {
+        if (isQuoteOk(q)) freshMap.set(q.symbol, q);
+      }
+    }
+
+    // 3. Cache fresh successes (best-effort, parallel).
+    await Promise.all(
+      [...freshMap.values()]
+        .filter(isQuoteOk)
+        .map((q) => writeQuoteCache('a', q.symbol, { quote: q, ts: now }))
+    );
+  }
+
+  // 4. Merge: cached-fresh > newly-fetched > stale-cache > newly-fetched
+  // (even if errored, so the original error message surfaces).
+  return symbols.map((s, i) => {
+    const c = cached[i];
+    if (c && now - c.ts < QUOTE_FRESH_TTL_MS) return c.quote;
+    const fresh = freshMap.get(s);
+    if (isQuoteOk(fresh)) return fresh;
+    if (c) return c.quote;
+    return (
+      fresh ?? {
+        symbol: s,
+        market: 'A' as const,
+        price: 0,
+        currency: 'CNY' as const,
+        error: 'no data',
+      }
+    );
   });
 }
 

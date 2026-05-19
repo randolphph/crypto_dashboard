@@ -1,5 +1,5 @@
 import 'server-only';
-import { Redis } from '@upstash/redis';
+import { redis } from '@/lib/cache/upstash';
 import type {
   StockPosition,
   StockMarket,
@@ -34,16 +34,6 @@ interface CacheEntry {
   data: IbkrSnapshot;
   ts: number;
 }
-
-// Vercel's marketplace Upstash integration injects KV_REST_API_* names (legacy
-// Vercel KV scheme); pure-Upstash deployments use UPSTASH_REDIS_REST_*. Accept
-// either so this works in both setups.
-const redisUrl =
-  process.env.KV_REST_API_URL ?? process.env.UPSTASH_REDIS_REST_URL;
-const redisToken =
-  process.env.KV_REST_API_TOKEN ?? process.env.UPSTASH_REDIS_REST_TOKEN;
-const redis =
-  redisUrl && redisToken ? new Redis({ url: redisUrl, token: redisToken }) : null;
 
 // In-memory fallback for local dev when no Upstash creds are configured.
 const memCache = new Map<string, CacheEntry>();
