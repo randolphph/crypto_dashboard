@@ -1,4 +1,5 @@
 import 'server-only';
+import { Redis } from '@upstash/redis';
 import type {
   StockPosition,
   StockMarket,
@@ -14,6 +15,9 @@ const GET_URL = `${FLEX_BASE}/FlexStatementService.GetStatement`;
 const POLL_MAX_MS = 8000;
 const POLL_INTERVAL_MS = 1500;
 const CACHE_TTL_MS = 60 * 60 * 1000;
+// Keep the row around longer than the freshness window so stale-on-error
+// fallback still has something to return if IBKR rate-limits a refresh.
+const STORE_TTL_S = 24 * 60 * 60;
 
 export interface IbkrCreds {
   flexToken: string;
@@ -31,10 +35,33 @@ interface CacheEntry {
   ts: number;
 }
 
-// Per-warm-instance cache. Vercel cold starts will lose this, but within a
-// warm function consecutive requests reuse the snapshot — critical since the
-// Flex statement endpoint is rate-limited per query.
-const cache = new Map<string, CacheEntry>();
+// Vercel's marketplace Upstash integration injects KV_REST_API_* names (legacy
+// Vercel KV scheme); pure-Upstash deployments use UPSTASH_REDIS_REST_*. Accept
+// either so this works in both setups.
+const redisUrl =
+  process.env.KV_REST_API_URL ?? process.env.UPSTASH_REDIS_REST_URL;
+const redisToken =
+  process.env.KV_REST_API_TOKEN ?? process.env.UPSTASH_REDIS_REST_TOKEN;
+const redis =
+  redisUrl && redisToken ? new Redis({ url: redisUrl, token: redisToken }) : null;
+
+// In-memory fallback for local dev when no Upstash creds are configured.
+const memCache = new Map<string, CacheEntry>();
+
+async function readCache(key: string): Promise<CacheEntry | null> {
+  if (redis) {
+    return (await redis.get<CacheEntry>(key)) ?? null;
+  }
+  return memCache.get(key) ?? null;
+}
+
+async function writeCache(key: string, entry: CacheEntry): Promise<void> {
+  if (redis) {
+    await redis.set(key, entry, { ex: STORE_TTL_S });
+  } else {
+    memCache.set(key, entry);
+  }
+}
 
 export class IbkrError extends Error {
   constructor(public code: string, message: string) {
@@ -223,7 +250,7 @@ export async function fetchIbkrSnapshot(
   creds: IbkrCreds
 ): Promise<IbkrSnapshot> {
   const key = cacheKey(creds);
-  const cached = cache.get(key);
+  const cached = await readCache(key);
   if (cached && Date.now() - cached.ts < CACHE_TTL_MS) {
     return cached.data;
   }
@@ -231,7 +258,7 @@ export async function fetchIbkrSnapshot(
     const ref = await sendRequest(creds);
     const xml = await getStatement(creds, ref);
     const data = parseFlexStatement(xml);
-    cache.set(key, { data, ts: Date.now() });
+    await writeCache(key, { data, ts: Date.now() });
     return data;
   } catch (e) {
     // Fall back to last good cache rather than failing the whole route.
