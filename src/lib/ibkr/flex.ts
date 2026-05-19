@@ -13,7 +13,7 @@ const GET_URL = `${FLEX_BASE}/FlexStatementService.GetStatement`;
 
 const POLL_MAX_MS = 8000;
 const POLL_INTERVAL_MS = 1500;
-const CACHE_TTL_MS = 5 * 60 * 1000;
+const CACHE_TTL_MS = 60 * 60 * 1000;
 
 export interface IbkrCreds {
   flexToken: string;
@@ -70,7 +70,7 @@ async function sendRequest(creds: IbkrCreds): Promise<string> {
   if (status !== 'Success') {
     const errMsg = extractTagInner(xml, 'ErrorMessage') ?? 'unknown error';
     const errCode = extractTagInner(xml, 'ErrorCode') ?? 'unknown';
-    throw new IbkrError(errCode, `SendRequest failed: ${errMsg}`);
+    throw new IbkrError(errCode, `SendRequest failed: [${errCode}] ${errMsg}`);
   }
   const ref = extractTagInner(xml, 'ReferenceCode');
   if (!ref) throw new IbkrError('NO_REF', 'SendRequest missing ReferenceCode');
@@ -99,7 +99,7 @@ async function getStatement(
     const errMsg = extractTagInner(xml, 'ErrorMessage');
     if (errMsg && !xml.includes('<FlexQueryResponse')) {
       const errCode = extractTagInner(xml, 'ErrorCode') ?? 'unknown';
-      throw new IbkrError(errCode, errMsg);
+      throw new IbkrError(errCode, `[${errCode}] ${errMsg}`);
     }
     return xml;
   }
