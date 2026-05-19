@@ -243,11 +243,11 @@ export function Dashboard() {
               <>
                 <AddButton
                   onClick={() => setAddDialog('stock-position')}
-                  label="添加持仓"
+                  label="编辑持仓"
                 />
                 <AddButton
                   onClick={() => setAddDialog('stock-cash')}
-                  label="添加现金"
+                  label="编辑现金"
                 />
               </>
             )}

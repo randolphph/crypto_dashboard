@@ -1,13 +1,16 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Plus, Trash2, Pencil, X } from 'lucide-react';
+import { Plus, Trash2, Pencil, X, ArrowLeftRight } from 'lucide-react';
 import { useStockPositionStore } from '@/stores/stockPositionStore';
+import { useCashBalanceStore } from '@/stores/cashBalanceStore';
 import { cn } from '@/lib/utils';
 import {
   BROKER_LABEL,
+  MARKET_CURRENCY,
   MARKET_LABEL,
   type StockBroker,
+  type StockCurrency,
   type StockMarket,
   type StockPosition,
 } from '@/types/stocks';
@@ -40,6 +43,7 @@ export function StockPositionsManager({
 }: StockPositionsManagerProps = {}) {
   const { positions, addPosition, removePosition, updatePosition } =
     useStockPositionStore();
+  const { balances, addBalance, updateBalance } = useCashBalanceStore();
   const [showForm, setShowForm] = useState(!!autoOpenForm);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [broker, setBroker] = useState<StockBroker>(initialBroker ?? 'ths');
@@ -50,6 +54,12 @@ export function StockPositionsManager({
   const [name, setName] = useState('');
   const [shares, setShares] = useState('');
   const [costBasis, setCostBasis] = useState('');
+
+  const [tradingId, setTradingId] = useState<string | null>(null);
+  const [tradeAction, setTradeAction] = useState<'buy' | 'sell'>('buy');
+  const [tradeShares, setTradeShares] = useState('');
+  const [tradePrice, setTradePrice] = useState('');
+  const [tradeError, setTradeError] = useState<string | null>(null);
 
   useEffect(() => {
     if (autoOpenForm) setShowForm(true);
@@ -106,6 +116,83 @@ export function StockPositionsManager({
     if (!editingId) setMarket(DEFAULT_MARKET[b]);
   };
 
+  const startTrade = (id: string, action: 'buy' | 'sell') => {
+    setTradingId(id);
+    setTradeAction(action);
+    setTradeShares('');
+    setTradePrice('');
+    setTradeError(null);
+  };
+
+  const cancelTrade = () => {
+    setTradingId(null);
+    setTradeShares('');
+    setTradePrice('');
+    setTradeError(null);
+  };
+
+  const adjustCash = (
+    targetBroker: StockBroker,
+    currency: StockCurrency,
+    delta: number
+  ) => {
+    const existing = balances.find(
+      (b) => b.broker === targetBroker && b.currency === currency
+    );
+    if (existing) {
+      updateBalance(existing.id, { amount: existing.amount + delta });
+    } else {
+      addBalance({
+        id: crypto.randomUUID(),
+        broker: targetBroker,
+        currency,
+        amount: delta,
+      });
+    }
+  };
+
+  const handleTrade = (p: StockPosition) => {
+    setTradeError(null);
+    const sharesNum = parseFloat(tradeShares);
+    const priceNum = parseFloat(tradePrice);
+    if (!Number.isFinite(sharesNum) || sharesNum <= 0) {
+      setTradeError('数量需大于 0');
+      return;
+    }
+    if (!Number.isFinite(priceNum) || priceNum <= 0) {
+      setTradeError('价格需大于 0');
+      return;
+    }
+    const mult = p.multiplier ?? 1;
+    const cashDelta = sharesNum * priceNum * mult;
+    const currency = MARKET_CURRENCY[p.market];
+
+    if (tradeAction === 'buy') {
+      const newShares = p.shares + sharesNum;
+      // Weighted average cost basis. If the prior tranche had no cost recorded,
+      // we don't fabricate one — keep it undefined so PnL stays "unknown".
+      const newCost =
+        p.costBasis !== undefined
+          ? (p.costBasis * p.shares + priceNum * sharesNum) / newShares
+          : undefined;
+      updatePosition(p.id, { shares: newShares, costBasis: newCost });
+      adjustCash(p.broker, currency, -cashDelta);
+    } else {
+      if (sharesNum > p.shares) {
+        setTradeError(`持仓仅 ${p.shares} 股`);
+        return;
+      }
+      const newShares = p.shares - sharesNum;
+      if (newShares <= 0) {
+        removePosition(p.id);
+      } else {
+        updatePosition(p.id, { shares: newShares });
+      }
+      adjustCash(p.broker, currency, +cashDelta);
+    }
+    cancelTrade();
+  };
+
   const grouped = BROKERS.map((b) => ({
     broker: b,
     items: positions.filter((p) => p.broker === b),
@@ -147,40 +234,125 @@ export function StockPositionsManager({
                 {g.items.map((p) => (
                   <div
                     key={p.id}
-                    className="flex items-center justify-between rounded-lg border p-3"
+                    className="rounded-lg border p-3"
                   >
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <span className="font-medium">{p.symbol}</span>
-                        <span className="rounded-full bg-secondary px-2 py-0.5 text-xs font-medium">
-                          {MARKET_LABEL[p.market]}
-                        </span>
-                        {p.name && (
-                          <span className="text-xs text-muted-foreground">
-                            {p.name}
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium">{p.symbol}</span>
+                          <span className="rounded-full bg-secondary px-2 py-0.5 text-xs font-medium">
+                            {MARKET_LABEL[p.market]}
                           </span>
-                        )}
+                          {p.name && (
+                            <span className="text-xs text-muted-foreground">
+                              {p.name}
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          {p.shares.toLocaleString()} 股
+                          {p.costBasis !== undefined &&
+                            ` · 成本 ${p.costBasis}`}
+                        </p>
                       </div>
-                      <p className="text-xs text-muted-foreground mt-0.5">
-                        {p.shares.toLocaleString()} 股
-                        {p.costBasis !== undefined &&
-                          ` · 成本 ${p.costBasis}`}
-                      </p>
+                      <div className="flex items-center gap-1">
+                        <button
+                          onClick={() =>
+                            tradingId === p.id
+                              ? cancelTrade()
+                              : startTrade(p.id, 'buy')
+                          }
+                          className={cn(
+                            'rounded-md p-1.5 hover:bg-accent hover:text-foreground',
+                            tradingId === p.id
+                              ? 'text-foreground bg-accent'
+                              : 'text-muted-foreground'
+                          )}
+                          title="买入 / 卖出"
+                        >
+                          <ArrowLeftRight className="h-4 w-4" />
+                        </button>
+                        <button
+                          onClick={() => handleEdit(p)}
+                          className="rounded-md p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground"
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </button>
+                        <button
+                          onClick={() => removePosition(p.id)}
+                          className="rounded-md p-1.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </div>
                     </div>
-                    <div className="flex items-center gap-1">
-                      <button
-                        onClick={() => handleEdit(p)}
-                        className="rounded-md p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground"
-                      >
-                        <Pencil className="h-4 w-4" />
-                      </button>
-                      <button
-                        onClick={() => removePosition(p.id)}
-                        className="rounded-md p-1.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
-                    </div>
+
+                    {tradingId === p.id && (
+                      <div className="mt-3 space-y-2 rounded-md border bg-muted/30 p-3">
+                        <div className="flex gap-1">
+                          <button
+                            onClick={() => setTradeAction('buy')}
+                            className={cn(
+                              'flex-1 rounded-md px-2 py-1 text-xs font-medium transition-colors',
+                              tradeAction === 'buy'
+                                ? 'bg-green-500/15 text-green-600'
+                                : 'text-muted-foreground hover:bg-secondary'
+                            )}
+                          >
+                            买入
+                          </button>
+                          <button
+                            onClick={() => setTradeAction('sell')}
+                            className={cn(
+                              'flex-1 rounded-md px-2 py-1 text-xs font-medium transition-colors',
+                              tradeAction === 'sell'
+                                ? 'bg-red-500/15 text-red-600'
+                                : 'text-muted-foreground hover:bg-secondary'
+                            )}
+                          >
+                            卖出
+                          </button>
+                        </div>
+                        <div className="grid grid-cols-2 gap-2">
+                          <input
+                            type="number"
+                            value={tradeShares}
+                            onChange={(e) => setTradeShares(e.target.value)}
+                            placeholder="数量"
+                            min={0}
+                            step="any"
+                            className="rounded-md border bg-background px-2 py-1.5 text-sm"
+                          />
+                          <input
+                            type="number"
+                            value={tradePrice}
+                            onChange={(e) => setTradePrice(e.target.value)}
+                            placeholder={`价格 (${MARKET_CURRENCY[p.market]})`}
+                            min={0}
+                            step="any"
+                            className="rounded-md border bg-background px-2 py-1.5 text-sm"
+                          />
+                        </div>
+                        {tradeError && (
+                          <p className="text-xs text-red-500">{tradeError}</p>
+                        )}
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => handleTrade(p)}
+                            disabled={!tradeShares.trim() || !tradePrice.trim()}
+                            className="flex-1 rounded-md bg-primary py-1.5 text-xs font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+                          >
+                            确认{tradeAction === 'buy' ? '买入' : '卖出'}
+                          </button>
+                          <button
+                            onClick={cancelTrade}
+                            className="rounded-md border px-3 py-1.5 text-xs text-muted-foreground hover:bg-secondary"
+                          >
+                            取消
+                          </button>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
