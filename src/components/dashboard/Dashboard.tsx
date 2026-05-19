@@ -161,7 +161,7 @@ export function Dashboard() {
     const currTotal = customAssets.reduce((s, a) => s + a.value, 0);
     if (prevTotal !== currTotal) {
       queryClient.invalidateQueries();
-      setLastRefreshed(new Date().toLocaleTimeString());
+      setLastRefreshed(Date.now());
     }
   }, [customAssets, queryClient, setLastRefreshed]);
 
