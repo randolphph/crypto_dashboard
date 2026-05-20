@@ -24,6 +24,10 @@ export const useCashBalanceStore = create<State>()(
           ),
         })),
     }),
-    { name: 'crypto-dashboard-cash-balances' }
+    {
+      name: 'crypto-dashboard-cash-balances',
+      version: 1,
+      migrate: (state) => state as State,
+    }
   )
 );

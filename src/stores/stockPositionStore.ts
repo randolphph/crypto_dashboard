@@ -24,6 +24,10 @@ export const useStockPositionStore = create<State>()(
           ),
         })),
     }),
-    { name: 'crypto-dashboard-stock-positions' }
+    {
+      name: 'crypto-dashboard-stock-positions',
+      version: 1,
+      migrate: (state) => state as State,
+    }
   )
 );

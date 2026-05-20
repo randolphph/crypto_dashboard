@@ -29,6 +29,10 @@ export const useCustomAssetStore = create<CustomAssetStoreState>()(
           ),
         })),
     }),
-    { name: 'crypto-dashboard-custom-assets' }
+    {
+      name: 'crypto-dashboard-custom-assets',
+      version: 1,
+      migrate: (state) => state as CustomAssetStoreState,
+    }
   )
 );

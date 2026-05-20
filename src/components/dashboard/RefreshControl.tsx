@@ -1,8 +1,8 @@
 'use client';
 
-import { RefreshCw } from 'lucide-react';
+import { AlertTriangle, RefreshCw } from 'lucide-react';
 import { useQueryClient, useIsFetching } from '@tanstack/react-query';
-import { useState, useEffect } from 'react';
+import { useCallback, useEffect, useState, useSyncExternalStore } from 'react';
 import { useDashboardStore } from '@/stores/dashboardStore';
 
 // Render a relative time like "2 分钟前" / "昨日 14:23". The previous
@@ -39,12 +39,45 @@ function formatRelative(ts: number, now: number): string {
     ` ${hhmm}`;
 }
 
+// Watch React Query's cache for queries whose latest refetch failed but still
+// have data from a previous successful fetch — that's the "displaying stale
+// cache" case the user should be warned about. Returns the oldest such
+// dataUpdatedAt so the warning reflects the most stale source.
+//
+// Uses useSyncExternalStore so React handles the subscription correctly.
+// A plain useEffect + setState would re-enter setState during another
+// component's render — useQuery() registers an observer on the cache, which
+// synchronously fires our listener, which then setState's into RefreshControl
+// while FxBadge (or whoever) is mid-render.
+function useStaleCacheInfo() {
+  const queryClient = useQueryClient();
+
+  const subscribe = useCallback(
+    (onChange: () => void) => queryClient.getQueryCache().subscribe(onChange),
+    [queryClient]
+  );
+
+  // getSnapshot must return a stable value when nothing changed (React uses
+  // Object.is), so we return a number | null rather than a fresh object.
+  const getSnapshot = useCallback(() => {
+    const errored = queryClient
+      .getQueryCache()
+      .getAll()
+      .filter((q) => q.state.status === 'error' && q.state.data !== undefined);
+    if (errored.length === 0) return null;
+    return Math.min(...errored.map((q) => q.state.dataUpdatedAt));
+  }, [queryClient]);
+
+  return useSyncExternalStore(subscribe, getSnapshot, () => null);
+}
+
 export function RefreshControl() {
   const queryClient = useQueryClient();
   const [isRefreshing, setIsRefreshing] = useState(false);
   const lastRefreshed = useDashboardStore((s) => s.lastRefreshed);
   const setLastRefreshed = useDashboardStore((s) => s.setLastRefreshed);
   const isFetching = useIsFetching();
+  const staleSince = useStaleCacheInfo();
 
   // Tick state so the relative label stays fresh even while no fetch fires.
   // Updates once a minute — enough granularity for "N 分钟前" without
@@ -77,6 +110,15 @@ export function RefreshControl() {
 
   return (
     <div className="flex items-center gap-2 text-sm text-muted-foreground">
+      {staleSince !== null && (
+        <span
+          className="inline-flex items-center gap-1 text-amber-600 dark:text-amber-400"
+          title={`最近一次刷新失败，仍显示 ${new Date(staleSince).toLocaleString()} 抓取的数据`}
+        >
+          <AlertTriangle className="h-3.5 w-3.5" />
+          数据为 {formatRelative(staleSince, now)}缓存
+        </span>
+      )}
       {lastRefreshed && (
         <span title={new Date(lastRefreshed).toLocaleString()}>
           上次刷新: {formatRelative(lastRefreshed, now)}

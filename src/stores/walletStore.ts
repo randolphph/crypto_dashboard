@@ -28,6 +28,8 @@ export const useWalletStore = create<WalletStoreState>()(
     }),
     {
       name: 'crypto-dashboard-wallets',
+      version: 1,
+      migrate: (state) => state as WalletStoreState,
     }
   )
 );

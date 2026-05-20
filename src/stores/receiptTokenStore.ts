@@ -54,6 +54,8 @@ export const useReceiptTokenStore = create<ReceiptTokenStoreState>()(
     }),
     {
       name: 'crypto-dashboard-receipt-token-addresses',
+      version: 1,
+      migrate: (state) => state as ReceiptTokenStoreState,
     }
   )
 );

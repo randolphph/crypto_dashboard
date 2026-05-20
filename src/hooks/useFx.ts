@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
+import { readApiError } from '@/lib/fetchError';
 import type { FxRates } from '@/types/stocks';
 
 interface FxResponse extends FxRates {
@@ -11,7 +12,7 @@ export function useFx() {
     queryKey: ['fx'],
     queryFn: async () => {
       const res = await fetch('/api/fx');
-      if (!res.ok) throw new Error('fx fetch failed');
+      if (!res.ok) throw await readApiError(res, '汇率');
       return res.json();
     },
     refetchOnMount: false,

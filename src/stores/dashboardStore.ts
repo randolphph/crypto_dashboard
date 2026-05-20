@@ -21,6 +21,8 @@ export const useDashboardStore = create<DashboardState>()(
     }),
     {
       name: 'crypto-dashboard-settings',
+      version: 1,
+      migrate: (state) => state as DashboardState,
       partialize: (state) => ({
         refreshInterval: state.refreshInterval,
       }),

@@ -3,6 +3,7 @@ import { useWalletStore } from '@/stores/walletStore';
 import { useDashboardStore } from '@/stores/dashboardStore';
 import { useApiKeyStore } from '@/stores/apiKeyStore';
 import { useReceiptTokenStore } from '@/stores/receiptTokenStore';
+import { readApiError } from '@/lib/fetchError';
 
 export function useOnchainData() {
   const wallets = useWalletStore((s) => s.wallets);
@@ -22,7 +23,7 @@ export function useOnchainData() {
         body: JSON.stringify({ wallets, receiptTokenAddresses }),
       });
       if (!res.ok) {
-        throw new Error('Failed to fetch on-chain data');
+        throw await readApiError(res, '链上数据');
       }
       return res.json();
     },

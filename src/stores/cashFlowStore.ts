@@ -51,7 +51,11 @@ export const useCashFlowStore = create<CashFlowState>()(
         }),
       clearAll: () => set({ events: [] }),
     }),
-    { name: 'crypto-dashboard-cash-flow' }
+    {
+      name: 'crypto-dashboard-cash-flow',
+      version: 1,
+      migrate: (state) => state as CashFlowState,
+    }
   )
 );
 

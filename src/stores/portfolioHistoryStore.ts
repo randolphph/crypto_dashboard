@@ -44,6 +44,10 @@ export const usePortfolioHistoryStore = create<PortfolioHistoryState>()(
           };
         }),
     }),
-    { name: 'crypto-dashboard-portfolio-history' }
+    {
+      name: 'crypto-dashboard-portfolio-history',
+      version: 1,
+      migrate: (state) => state as PortfolioHistoryState,
+    }
   )
 );

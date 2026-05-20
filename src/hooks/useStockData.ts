@@ -3,6 +3,7 @@ import { useStockPositionStore } from '@/stores/stockPositionStore';
 import { useCashBalanceStore } from '@/stores/cashBalanceStore';
 import { useDashboardStore } from '@/stores/dashboardStore';
 import { useApiKeyStore } from '@/stores/apiKeyStore';
+import { readApiError } from '@/lib/fetchError';
 import type { StocksData } from '@/types/stocks';
 
 export function useStockData() {
@@ -26,7 +27,7 @@ export function useStockData() {
         body: JSON.stringify({ positions, cash }),
       });
       if (!res.ok) {
-        throw new Error('Failed to fetch stock data');
+        throw await readApiError(res, '股票数据');
       }
       return res.json();
     },
