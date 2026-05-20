@@ -1,5 +1,7 @@
 'use client';
 
+import { useMemo, useState } from 'react';
+import { ChevronDown, ChevronUp, ChevronsUpDown } from 'lucide-react';
 import { usePrivacyFormat, PRIVACY_MASK } from '@/hooks/usePrivacyFormat';
 import { formatCurrency } from '@/lib/format';
 import { cn } from '@/lib/utils';
@@ -89,8 +91,67 @@ function ChangeCell({ pct }: { pct?: number }) {
   );
 }
 
+type SortKey = 'changePct' | 'marketValueUsd' | 'pnlUsd';
+type SortDir = 'desc' | 'asc';
+
 function PositionsTable({ positions }: { positions: EnrichedPosition[] }) {
   const { fmtUsd, hidden } = usePrivacyFormat();
+  const [sortKey, setSortKey] = useState<SortKey | null>(null);
+  const [sortDir, setSortDir] = useState<SortDir>('desc');
+
+  const sorted = useMemo(() => {
+    if (!sortKey) return positions;
+    const arr = [...positions];
+    arr.sort((a, b) => {
+      const av = a[sortKey];
+      const bv = b[sortKey];
+      // Pin rows missing this metric to the bottom regardless of direction —
+      // ranking "unknown" against a number isn't meaningful.
+      if (av === undefined && bv === undefined) return 0;
+      if (av === undefined) return 1;
+      if (bv === undefined) return -1;
+      return sortDir === 'desc' ? bv - av : av - bv;
+    });
+    return arr;
+  }, [positions, sortKey, sortDir]);
+
+  const toggleSort = (key: SortKey) => {
+    if (sortKey !== key) {
+      setSortKey(key);
+      setSortDir('desc');
+    } else if (sortDir === 'desc') {
+      setSortDir('asc');
+    } else {
+      setSortKey(null);
+    }
+  };
+
+  const SortHeader = ({ label, k }: { label: string; k: SortKey }) => {
+    const active = sortKey === k;
+    return (
+      <th className="pb-2 text-right font-medium">
+        <button
+          onClick={() => toggleSort(k)}
+          className={cn(
+            'inline-flex items-center gap-1 hover:text-foreground',
+            active && 'text-foreground'
+          )}
+        >
+          {label}
+          {active ? (
+            sortDir === 'desc' ? (
+              <ChevronDown className="h-3 w-3" />
+            ) : (
+              <ChevronUp className="h-3 w-3" />
+            )
+          ) : (
+            <ChevronsUpDown className="h-3 w-3 opacity-40" />
+          )}
+        </button>
+      </th>
+    );
+  };
+
   return (
     <div className="overflow-x-auto">
       <table className="w-full text-sm">
@@ -100,13 +161,13 @@ function PositionsTable({ positions }: { positions: EnrichedPosition[] }) {
             <th className="pb-2 font-medium">市场</th>
             <th className="pb-2 text-right font-medium">数量</th>
             <th className="pb-2 text-right font-medium">现价</th>
-            <th className="pb-2 text-right font-medium">涨跌</th>
-            <th className="pb-2 text-right font-medium">市值 (USD)</th>
-            <th className="pb-2 text-right font-medium">盈亏</th>
+            <SortHeader label="涨跌" k="changePct" />
+            <SortHeader label="市值 (USD)" k="marketValueUsd" />
+            <SortHeader label="盈亏" k="pnlUsd" />
           </tr>
         </thead>
         <tbody>
-          {positions.map((p) => {
+          {sorted.map((p) => {
             const displayName = p.name || p.quoteName;
             // US tickers (stocks + options) are self-descriptive — hide the
             // company / contract name to keep the row compact. Other markets
