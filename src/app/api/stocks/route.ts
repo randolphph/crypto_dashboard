@@ -174,8 +174,16 @@ export async function POST(request: Request) {
   }
   // IBKR's mark price is the broker's authoritative number and covers OTC /
   // foreign tickers Yahoo/Tencent miss — let it win when both sources have it.
+  // But Flex doesn't return intraday change, so preserve changePct (and name
+  // as fallback) from the public quote when we have one.
   for (const q of ibkrQuotes) {
-    quoteMap.set(quoteKey(q.market, q.symbol), q);
+    const key = quoteKey(q.market, q.symbol);
+    const existing = quoteMap.get(key);
+    quoteMap.set(key, {
+      ...q,
+      changePct: q.changePct ?? existing?.changePct,
+      name: q.name ?? existing?.name,
+    });
   }
 
   const enrichedCash: EnrichedCashBalance[] = allCash.map(({ c, source }) => ({
