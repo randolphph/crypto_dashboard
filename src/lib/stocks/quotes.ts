@@ -57,8 +57,11 @@ async function writeQuoteCache(
 
 function aShareCode(symbol: string): string {
   const s = symbol.replace(/^(sh|sz|bj)/i, '').trim();
-  if (/^(60|68|9)/.test(s)) return `sh${s}`;
-  if (/^(00|30|20)/.test(s)) return `sz${s}`;
+  // SSE: 60x stocks, 68x STAR, 9xx B-shares, 5xx funds/ETFs/LOFs.
+  // SZSE: 00x/30x stocks, 20x B-shares, 15x/16x/18x funds/ETFs.
+  // BSE: 43/83/87/88/92.
+  if (/^(60|68|9|5)/.test(s)) return `sh${s}`;
+  if (/^(00|30|20|15|16|18)/.test(s)) return `sz${s}`;
   if (/^(43|83|87|88|92)/.test(s)) return `bj${s}`;
   if (/^[68]/.test(s)) return `sh${s}`;
   return `sz${s}`;
