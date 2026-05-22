@@ -21,7 +21,7 @@ function decodeBuffer(buf: ArrayBuffer, fallback = 'utf-8'): string {
 const QUOTE_FRESH_TTL_MS = 60_000;
 const QUOTE_STORE_TTL_S = 24 * 60 * 60;
 
-type CacheMarket = 'a' | 'hk' | 'us';
+type CacheMarket = 'a' | 'hk' | 'us' | 'kr';
 
 interface QuoteCacheEntry {
   quote: StockQuote;
@@ -64,6 +64,7 @@ const CACHE_MARKET_META: Record<
   a: { market: 'A', currency: 'CNY' },
   hk: { market: 'HK', currency: 'HKD' },
   us: { market: 'US', currency: 'USD' },
+  kr: { market: 'KR', currency: 'KRW' },
 };
 
 // Two-stage cache wrapper: serve fresh rows from Upstash, fetch the rest, then
@@ -523,10 +524,43 @@ async function fetchUsFresh(symbols: string[]): Promise<StockQuote[]> {
   return Promise.all(symbols.map(fetchUsQuote));
 }
 
+// Yahoo serves KRX with `.KS` for KOSPI and `.KQ` for KOSDAQ. IBKR Flex emits
+// the bare 6-digit symbol without exchange hints, so try KOSPI first and fall
+// back to KOSDAQ. Both fail → IBKR's markPrice from Flex will still anchor the
+// value; only changePct goes missing.
+async function fetchKrQuote(symbol: string): Promise<StockQuote> {
+  for (const suffix of ['.KS', '.KQ']) {
+    const yahoo = await fetchYahooQuote(`${symbol}${suffix}`);
+    if (yahoo) {
+      return {
+        ...yahoo,
+        symbol,
+        market: 'KR',
+        currency: 'KRW',
+      };
+    }
+  }
+  return {
+    symbol,
+    market: 'KR',
+    price: 0,
+    currency: 'KRW',
+    error: 'yahoo no KR quote',
+  };
+}
+
+async function fetchKrFresh(symbols: string[]): Promise<StockQuote[]> {
+  return Promise.all(symbols.map(fetchKrQuote));
+}
+
 export async function fetchHkQuotes(symbols: string[]): Promise<StockQuote[]> {
   return withQuoteCache('hk', symbols, fetchHkFresh);
 }
 
 export async function fetchUsQuotes(symbols: string[]): Promise<StockQuote[]> {
   return withQuoteCache('us', symbols, fetchUsFresh);
+}
+
+export async function fetchKrQuotes(symbols: string[]): Promise<StockQuote[]> {
+  return withQuoteCache('kr', symbols, fetchKrFresh);
 }

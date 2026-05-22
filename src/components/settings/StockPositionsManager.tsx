@@ -17,7 +17,7 @@ import {
 } from '@/types/stocks';
 
 const BROKERS: StockBroker[] = ['ths', 'longport', 'ibkr'];
-const MARKETS: StockMarket[] = ['A', 'HK', 'US'];
+const MARKETS: StockMarket[] = ['A', 'HK', 'US', 'KR'];
 
 const DEFAULT_MARKET: Record<StockBroker, StockMarket> = {
   ths: 'A',
@@ -34,6 +34,7 @@ interface StockPositionsManagerProps {
 function PlaceholderForMarket(market: StockMarket): string {
   if (market === 'A') return '例如 600519';
   if (market === 'HK') return '例如 0700';
+  if (market === 'KR') return '例如 005930';
   return '例如 AAPL';
 }
 
@@ -514,7 +515,7 @@ export function StockPositionsManager({
             </div>
             <div>
               <label className="text-sm font-medium">
-                成本价 (每股，{market === 'A' ? 'CNY' : market === 'HK' ? 'HKD' : 'USD'})
+                成本价 (每股，{MARKET_CURRENCY[market]})
               </label>
               <input
                 type="number"

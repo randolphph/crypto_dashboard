@@ -1,6 +1,7 @@
 import {
   fetchAShareQuotes,
   fetchHkQuotes,
+  fetchKrQuotes,
   fetchUsQuotes,
 } from '@/lib/stocks/quotes';
 import { fetchFx } from '@/lib/stocks/fx';
@@ -45,6 +46,7 @@ function emptyBrokers(): BrokerData[] {
 function fxRateFor(currency: StockCurrency, fx: FxRates): number {
   if (currency === 'CNY') return fx.cnyUsd;
   if (currency === 'HKD') return fx.hkdUsd;
+  if (currency === 'KRW') return fx.krwUsd;
   return 1;
 }
 
@@ -147,7 +149,7 @@ export async function POST(request: Request) {
     });
     return Response.json({
       brokers,
-      fx: { cnyUsd: 0, hkdUsd: 0 },
+      fx: { cnyUsd: 0, hkdUsd: 0, krwUsd: 0 },
       lastUpdated: new Date().toISOString(),
     });
   }
@@ -156,20 +158,28 @@ export async function POST(request: Request) {
   const aSymbols = uniq(allPositions.filter(({ p }) => p.market === 'A').map(({ p }) => p.symbol));
   const hSymbols = uniq(allPositions.filter(({ p }) => p.market === 'HK').map(({ p }) => p.symbol));
   const uSymbols = uniq(allPositions.filter(({ p }) => p.market === 'US').map(({ p }) => p.symbol));
+  const kSymbols = uniq(allPositions.filter(({ p }) => p.market === 'KR').map(({ p }) => p.symbol));
 
-  const [aQuotes, hQuotes, uQuotes, fxResult] = await Promise.all([
+  const [aQuotes, hQuotes, uQuotes, kQuotes, fxResult] = await Promise.all([
     fetchAShareQuotes(aSymbols),
     fetchHkQuotes(hSymbols),
     fetchUsQuotes(uSymbols),
+    fetchKrQuotes(kSymbols),
     fetchFx().catch((): null => null),
   ]);
 
-  const fx = fxResult ?? { cnyUsd: 0, hkdUsd: 0 };
+  const fx = fxResult ?? { cnyUsd: 0, hkdUsd: 0, krwUsd: 0 };
   const marketCurrency = (market: StockMarket): StockCurrency =>
-    market === 'A' ? 'CNY' : market === 'HK' ? 'HKD' : 'USD';
+    market === 'A'
+      ? 'CNY'
+      : market === 'HK'
+        ? 'HKD'
+        : market === 'KR'
+          ? 'KRW'
+          : 'USD';
 
   const quoteMap = new Map<string, StockQuote>();
-  for (const q of [...aQuotes, ...hQuotes, ...uQuotes]) {
+  for (const q of [...aQuotes, ...hQuotes, ...uQuotes, ...kQuotes]) {
     quoteMap.set(quoteKey(q.market, q.symbol), q);
   }
   // IBKR's mark price is the broker's authoritative number and covers OTC /

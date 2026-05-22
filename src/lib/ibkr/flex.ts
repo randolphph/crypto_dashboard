@@ -129,6 +129,7 @@ function currencyToMarket(currency: string): StockMarket | null {
   // onshore CNY/RMB indicates an A-share.
   if (c === 'HKD' || c === 'CNH') return 'HK';
   if (c === 'CNY' || c === 'RMB') return 'A';
+  if (c === 'KRW') return 'KR';
   return null;
 }
 
@@ -137,6 +138,7 @@ function mapCurrency(c: string): StockCurrency | null {
   if (u === 'CNY' || u === 'CNH' || u === 'RMB') return 'CNY';
   if (u === 'HKD') return 'HKD';
   if (u === 'USD') return 'USD';
+  if (u === 'KRW') return 'KRW';
   return null;
 }
 

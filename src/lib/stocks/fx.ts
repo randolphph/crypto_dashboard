@@ -15,13 +15,20 @@ export async function fetchFx(): Promise<FxRates> {
       const rates = data?.usd;
       const cnyPerUsd = Number(rates?.cny);
       const hkdPerUsd = Number(rates?.hkd);
+      const krwPerUsd = Number(rates?.krw);
       if (
         Number.isFinite(cnyPerUsd) &&
         cnyPerUsd > 0 &&
         Number.isFinite(hkdPerUsd) &&
-        hkdPerUsd > 0
+        hkdPerUsd > 0 &&
+        Number.isFinite(krwPerUsd) &&
+        krwPerUsd > 0
       ) {
-        return { cnyUsd: 1 / cnyPerUsd, hkdUsd: 1 / hkdPerUsd };
+        return {
+          cnyUsd: 1 / cnyPerUsd,
+          hkdUsd: 1 / hkdPerUsd,
+          krwUsd: 1 / krwPerUsd,
+        };
       }
     } catch {
       // try next

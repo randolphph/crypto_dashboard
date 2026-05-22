@@ -1,6 +1,6 @@
-export type StockMarket = 'A' | 'HK' | 'US';
+export type StockMarket = 'A' | 'HK' | 'US' | 'KR';
 export type StockBroker = 'ths' | 'longport' | 'ibkr';
-export type StockCurrency = 'CNY' | 'HKD' | 'USD';
+export type StockCurrency = 'CNY' | 'HKD' | 'USD' | 'KRW';
 export type DataSource = 'manual' | 'api';
 
 export const BROKER_LABEL: Record<StockBroker, string> = {
@@ -13,12 +13,14 @@ export const MARKET_LABEL: Record<StockMarket, string> = {
   A: 'A股',
   HK: '港股',
   US: '美股',
+  KR: '韩股',
 };
 
 export const MARKET_CURRENCY: Record<StockMarket, StockCurrency> = {
   A: 'CNY',
   HK: 'HKD',
   US: 'USD',
+  KR: 'KRW',
 };
 
 export type InstrumentKind = 'stock' | 'option';
@@ -92,6 +94,7 @@ export interface BrokerData {
 export interface FxRates {
   cnyUsd: number;
   hkdUsd: number;
+  krwUsd: number;
 }
 
 export interface StocksData {

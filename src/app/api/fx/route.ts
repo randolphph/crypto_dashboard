@@ -12,6 +12,7 @@ export async function GET() {
       {
         cnyUsd: 0,
         hkdUsd: 0,
+        krwUsd: 0,
         error: e instanceof Error ? e.message : 'fx unavailable',
         lastUpdated: new Date().toISOString(),
       },

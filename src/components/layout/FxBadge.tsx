@@ -18,6 +18,7 @@ export function FxBadge() {
 
   const usdCny = 1 / source.cnyUsd;
   const usdHkd = 1 / source.hkdUsd;
+  const usdKrw = source.krwUsd > 0 ? 1 / source.krwUsd : null;
 
   return (
     <div className="hidden md:flex items-center gap-3 text-xs text-muted-foreground tabular-nums">
@@ -29,6 +30,12 @@ export function FxBadge() {
         <FlagIcon code="hk" alt="HKD" />
         HKD <span className="text-foreground font-medium">{usdHkd.toFixed(2)}</span>
       </span>
+      {usdKrw !== null && (
+        <span className="flex items-center gap-1.5">
+          <FlagIcon code="kr" alt="KRW" />
+          KRW <span className="text-foreground font-medium">{usdKrw.toFixed(0)}</span>
+        </span>
+      )}
     </div>
   );
 }
