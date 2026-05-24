@@ -24,9 +24,6 @@ import { useStockData } from '@/hooks/useStockData';
 import { useSnapshotPush } from '@/hooks/useSnapshotPush';
 import { buildSnapshot } from '@/lib/portfolio/snapshot';
 import { useVaultStore } from '@/stores/vaultStore';
-import { computeCapTotals, evaluateCaps } from '@/lib/portfolio/caps';
-import { RegimeBadge } from './RegimeBadge';
-import { PositionCapAlerts } from './PositionCapAlerts';
 import { useCustomAssetStore } from '@/stores/customAssetStore';
 import { usePortfolioHistoryStore } from '@/stores/portfolioHistoryStore';
 import { useDashboardStore } from '@/stores/dashboardStore';
@@ -248,17 +245,6 @@ export function Dashboard() {
       : null;
   useSnapshotPush(snapshotPayload, { enabled: snapshotReady });
 
-  // Position-cap monitoring: aggregate BTC / ETH / alts / stables across all
-  // crypto sources and flag the user when allocations breach the targets
-  // derived from the trading-philosophy framework (regime-aware sizing).
-  const capTotals = computeCapTotals({
-    binance: binance.data,
-    okx: okx.data,
-    deribit: deribit.data,
-    onchain: onchain.data,
-  });
-  const capStatuses = evaluateCaps(capTotals);
-
   return (
     <div className="space-y-6">
       <PortfolioSummary
@@ -267,11 +253,6 @@ export function Dashboard() {
         categoryBreakdown={categoryBreakdown}
         isLoading={isLoading}
       />
-
-      <div className="grid gap-4 lg:grid-cols-2">
-        <RegimeBadge />
-        <PositionCapAlerts totals={capTotals} statuses={capStatuses} />
-      </div>
 
       {/* Metric strip — small click-through cards for sidecar metrics that
           aren't part of the user's own portfolio (mNAV, future: BTC dominance,
