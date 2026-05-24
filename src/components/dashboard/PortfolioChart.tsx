@@ -17,6 +17,11 @@ import {
   type PortfolioSnapshot,
 } from '@/stores/portfolioHistoryStore';
 import { useCashFlowStore, netFlowInRange, type CashFlowEvent } from '@/stores/cashFlowStore';
+import {
+  useTradeStore,
+  bucketTradesByDay,
+  type TradeDayBucket,
+} from '@/stores/tradeStore';
 import { usePrivacyFormat } from '@/hooks/usePrivacyFormat';
 
 const RANGES = [
@@ -36,7 +41,12 @@ interface DayBucket {
   net: number; // signed: deposit positive, withdraw negative
 }
 
-type ChartPoint = { timestamp: number; value: number; bucket?: DayBucket };
+type ChartPoint = {
+  timestamp: number;
+  value: number;
+  bucket?: DayBucket;
+  tradeBucket?: TradeDayBucket;
+};
 
 function dateKey(ts: number): string {
   const d = new Date(ts);
@@ -83,6 +93,7 @@ export function PortfolioChart() {
   const removeSnapshot = usePortfolioHistoryStore((s) => s.removeSnapshot);
   const importSnapshots = usePortfolioHistoryStore((s) => s.importSnapshots);
   const cashFlowEvents = useCashFlowStore((s) => s.events);
+  const trades = useTradeStore((s) => s.trades);
   const { fmtUsd, hidden } = usePrivacyFormat();
   const [range, setRange] = useState<RangeId>('week');
   const [selected, setSelected] = useState<PortfolioSnapshot | null>(null);
@@ -149,36 +160,53 @@ export function PortfolioChart() {
 
     const lo = base[0].timestamp;
     const hi = base[base.length - 1].timestamp;
-    const buckets = bucketByDay(
+    const cashBuckets = bucketByDay(
       cashFlowEvents.filter((e) => e.timestamp >= lo && e.timestamp <= hi)
     );
-    if (buckets.length === 0) return base;
+    const tradeBuckets = bucketTradesByDay(
+      trades.filter((t) => t.timestamp >= lo && t.timestamp <= hi)
+    );
+    if (cashBuckets.length === 0 && tradeBuckets.length === 0) return base;
 
-    const augmented: ChartPoint[] = [...base];
-    for (const bucket of buckets) {
+    // Interpolate a value on the snapshot curve for a given ts so bucket
+    // markers land on the line rather than at 0.
+    const valueAt = (ts: number): number => {
       let before: ChartPoint | null = null;
       let after: ChartPoint | null = null;
       for (const p of base) {
-        if (p.timestamp <= bucket.timestamp) before = p;
+        if (p.timestamp <= ts) before = p;
         else {
           after = p;
           break;
         }
       }
-      let value = 0;
       if (before && after) {
-        const t = (bucket.timestamp - before.timestamp) / (after.timestamp - before.timestamp);
-        value = before.value + (after.value - before.value) * t;
-      } else if (before) {
-        value = before.value;
-      } else if (after) {
-        value = after.value;
+        const t = (ts - before.timestamp) / (after.timestamp - before.timestamp);
+        return before.value + (after.value - before.value) * t;
       }
-      augmented.push({ timestamp: bucket.timestamp, value, bucket });
+      if (before) return before.value;
+      if (after) return after.value;
+      return 0;
+    };
+
+    const augmented: ChartPoint[] = [...base];
+    for (const bucket of cashBuckets) {
+      augmented.push({
+        timestamp: bucket.timestamp,
+        value: valueAt(bucket.timestamp),
+        bucket,
+      });
+    }
+    for (const tb of tradeBuckets) {
+      augmented.push({
+        timestamp: tb.timestamp,
+        value: valueAt(tb.timestamp),
+        tradeBucket: tb,
+      });
     }
     augmented.sort((a, b) => a.timestamp - b.timestamp);
     return augmented;
-  }, [snapshots, range, cashFlowEvents]);
+  }, [snapshots, range, cashFlowEvents, trades]);
 
   if (!mounted) {
     return (
@@ -224,6 +252,9 @@ export function PortfolioChart() {
   );
   const visibleBuckets = bucketByDay(visibleEvents);
   const hasFlow = visibleEvents.length > 0;
+  const visibleTradeBuckets = bucketTradesByDay(
+    trades.filter((t) => t.timestamp >= rangeStart && t.timestamp <= rangeEnd)
+  );
 
   // Compute Y-axis domain with padding
   const values = data.map((d) => d.value);
@@ -409,6 +440,52 @@ export function PortfolioChart() {
                     </div>
                   );
                 }
+                if (point.tradeBucket) {
+                  const tb = point.tradeBucket;
+                  const netBuy = tb.netUsd >= 0;
+                  const netColor =
+                    Math.abs(tb.netUsd) < 1
+                      ? '#9ca3af'
+                      : netBuy
+                        ? '#10b981'
+                        : '#ef4444';
+                  return (
+                    <div className="rounded-md border bg-popover px-3 py-2 text-sm shadow-md max-w-[280px]">
+                      <p className="text-muted-foreground text-xs">
+                        {new Date(tb.timestamp).toLocaleDateString()} ·{' '}
+                        {tb.totalCount} 笔交易（买 {tb.buyCount} / 卖 {tb.sellCount}）
+                      </p>
+                      <p className="font-semibold" style={{ color: netColor }}>
+                        净 {netBuy ? '+' : ''}
+                        {fmtUsd(tb.netUsd)}
+                      </p>
+                      <div className="mt-1.5 space-y-0.5">
+                        {tb.trades.map((t) => {
+                          const isBuy = t.direction === 'buy';
+                          return (
+                            <div
+                              key={t.id}
+                              className="text-xs flex items-baseline gap-1.5"
+                              style={{ color: isBuy ? '#10b981' : '#ef4444' }}
+                            >
+                              <span>{isBuy ? '↑ 买' : '↓ 卖'}</span>
+                              <span className="text-foreground font-medium">
+                                {t.symbol}
+                              </span>
+                              <span className="text-muted-foreground">
+                                {t.quantity} × {t.price} {t.currency}
+                              </span>
+                              <span className="ml-auto tabular-nums">
+                                {isBuy ? '+' : '-'}
+                                {fmtUsd(t.usdValue)}
+                              </span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                }
                 return (
                   <div className="rounded-md border bg-popover px-3 py-2 text-sm shadow-md">
                     <p className="text-muted-foreground">
@@ -448,7 +525,7 @@ export function PortfolioChart() {
                 b.events.length > 1 ? `${sign}$${amountLabel} (${b.events.length})` : `${sign}$${amountLabel}`;
               return (
                 <ReferenceLine
-                  key={dateKey(b.timestamp)}
+                  key={`cash-${dateKey(b.timestamp)}`}
                   x={b.timestamp}
                   stroke={color}
                   strokeDasharray="3 3"
@@ -456,6 +533,35 @@ export function PortfolioChart() {
                   label={{
                     value: tag,
                     position: 'top',
+                    fontSize: 10,
+                    fill: color,
+                  }}
+                />
+              );
+            })}
+            {visibleTradeBuckets.map((tb) => {
+              const balanced = Math.abs(tb.netUsd) < 1;
+              const netBuy = tb.netUsd >= 0;
+              const color = balanced
+                ? '#9ca3af'
+                : netBuy
+                  ? '#10b981'
+                  : '#ef4444';
+              // Distinguish trade lines from cash-flow lines: dotted instead
+              // of dashed, label sits at the BOTTOM of the chart, no $ amount
+              // (just direction arrow + count) to keep visual quiet.
+              const arrow = balanced ? '·' : netBuy ? '↑' : '↓';
+              const tag = `${arrow}${tb.totalCount}`;
+              return (
+                <ReferenceLine
+                  key={`trade-${dateKey(tb.timestamp)}`}
+                  x={tb.timestamp}
+                  stroke={color}
+                  strokeDasharray="1 4"
+                  strokeOpacity={0.6}
+                  label={{
+                    value: tag,
+                    position: 'bottom',
                     fontSize: 10,
                     fill: color,
                   }}
