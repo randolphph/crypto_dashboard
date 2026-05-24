@@ -11,6 +11,7 @@ import { PortfolioChart } from './PortfolioChart';
 interface BreakdownItem {
   label: string;
   value: number;
+  details?: BreakdownItem[];
 }
 
 interface PortfolioSummaryProps {
@@ -120,10 +121,14 @@ function PieChart({
   breakdown,
   totalValue,
   colorFor,
+  activeLabel,
+  onHover,
 }: {
   breakdown: BreakdownItem[];
   totalValue: number;
   colorFor: (label: string, idx: number) => string;
+  activeLabel?: string | null;
+  onHover?: (label: string | null) => void;
 }) {
   const { hidden } = usePrivacyFormat();
   const items = breakdown.filter((b) => b.value > 0);
@@ -133,6 +138,7 @@ function PieChart({
   const cx = size / 2;
   const cy = size / 2;
   const r = 56;
+  const hasActive = activeLabel != null;
 
   let cumulative = 0;
   const slices = items.map((item, i) => {
@@ -141,10 +147,27 @@ function PieChart({
     cumulative += fraction;
     const endAngle = cumulative * 2 * Math.PI - Math.PI / 2;
     const fill = colorFor(item.label, i);
+    const drillable = !!item.details?.length;
+    const dim = hasActive && activeLabel !== item.label ? 0.3 : 1;
+    const onMouseEnter = drillable && onHover
+      ? () => onHover(item.label)
+      : undefined;
+    const onMouseLeave = drillable && onHover
+      ? () => onHover(null)
+      : undefined;
 
     if (fraction >= 0.9999) {
       return (
-        <circle key={item.label} cx={cx} cy={cy} r={r} fill={fill} />
+        <circle
+          key={item.label}
+          cx={cx}
+          cy={cy}
+          r={r}
+          fill={fill}
+          opacity={dim}
+          onMouseEnter={onMouseEnter}
+          onMouseLeave={onMouseLeave}
+        />
       );
     }
 
@@ -156,7 +179,16 @@ function PieChart({
 
     const d = `M ${cx} ${cy} L ${x1} ${y1} A ${r} ${r} 0 ${largeArc} 1 ${x2} ${y2} Z`;
 
-    return <path key={item.label} d={d} fill={fill} />;
+    return (
+      <path
+        key={item.label}
+        d={d}
+        fill={fill}
+        opacity={dim}
+        onMouseEnter={onMouseEnter}
+        onMouseLeave={onMouseLeave}
+      />
+    );
   });
 
   const maskR = r / 2;
@@ -195,18 +227,85 @@ function PieChart({
         </g>
       </svg>
       <div className="flex flex-col gap-1.5">
-        {items.map((item, i) => (
-          <div key={item.label} className="flex items-center gap-2 text-sm">
-            <span
-              className="inline-block h-3 w-3 rounded-sm"
-              style={{ backgroundColor: colorFor(item.label, i) }}
-            />
-            <span className="text-muted-foreground">{item.label}</span>
-            <span className="font-medium tabular-nums">
-              {hidden ? '**%' : `${((item.value / totalValue) * 100).toFixed(1)}%`}
-            </span>
-          </div>
-        ))}
+        {items.map((item, i) => {
+          const drillable = !!item.details?.length;
+          const isActive = activeLabel === item.label;
+          const dim = hasActive && !isActive;
+          return (
+            <div
+              key={item.label}
+              onMouseEnter={() => drillable && onHover?.(item.label)}
+              onMouseLeave={() => drillable && onHover?.(null)}
+              className={`flex items-center gap-2 text-sm -mx-1 px-1 rounded-sm transition-opacity ${
+                drillable ? 'hover:bg-secondary/60' : ''
+              } ${dim ? 'opacity-50' : ''}`}
+            >
+              <span
+                className="inline-block h-3 w-3 rounded-sm shrink-0"
+                style={{ backgroundColor: colorFor(item.label, i) }}
+              />
+              <span className="text-muted-foreground">{item.label}</span>
+              <span className="font-medium tabular-nums">
+                {hidden ? '**%' : `${((item.value / totalValue) * 100).toFixed(1)}%`}
+              </span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function CategoryTooltip({
+  category,
+  color,
+}: {
+  category: BreakdownItem;
+  color: string;
+}) {
+  const { fmtUsd, hidden } = usePrivacyFormat();
+  const details = (category.details ?? []).filter((d) => d.value > 0);
+  if (details.length === 0) return null;
+  const categoryTotal = category.value;
+
+  return (
+    <div
+      // right-full anchors the tooltip's right edge to the pie container's
+      // left edge. pointer-events:none keeps the cursor "ownership" with the
+      // slice so moving toward the tooltip doesn't fire mouseLeave on it.
+      role="tooltip"
+      className="absolute right-full top-1/2 -translate-y-1/2 mr-3 z-10 w-60 rounded-lg border bg-popover shadow-lg p-3 pointer-events-none"
+    >
+      <div className="flex items-center gap-2 mb-2">
+        <span
+          className="inline-block h-2.5 w-2.5 rounded-sm shrink-0"
+          style={{ backgroundColor: color }}
+        />
+        <span className="text-sm font-medium truncate">{category.label}</span>
+        <span className="text-xs text-muted-foreground tabular-nums">
+          {fmtUsd(categoryTotal)}
+        </span>
+      </div>
+      <div className="flex flex-col gap-1">
+        {details.map((d) => {
+          const pct = categoryTotal > 0 ? (d.value / categoryTotal) * 100 : 0;
+          return (
+            <div
+              key={d.label}
+              className="flex items-center justify-between gap-2 text-xs"
+            >
+              <span className="text-muted-foreground truncate">{d.label}</span>
+              <div className="flex items-baseline gap-1.5 shrink-0 tabular-nums">
+                <span className="font-medium text-foreground">
+                  {fmtUsd(d.value)}
+                </span>
+                <span className="text-[10px] text-muted-foreground">
+                  {hidden ? '**%' : `${pct.toFixed(1)}%`}
+                </span>
+              </div>
+            </div>
+          );
+        })}
       </div>
     </div>
   );
@@ -295,11 +394,16 @@ export function PortfolioSummary({
   const { fmtUsd, hidden } = usePrivacyFormat();
   const [adding, setAdding] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [hoveredCategory, setHoveredCategory] = useState<string | null>(null);
 
   // Split breakdown into API items and custom items
   const customLabels = new Set(assets.map((a) => a.name));
   const apiBreakdown = breakdown.filter((b) => !customLabels.has(b.label));
   const showCategoryStrip = categoryBreakdown.length > 0 && totalValue > 0;
+
+  const hoveredDetail = hoveredCategory
+    ? categoryBreakdown.find((c) => c.label === hoveredCategory)
+    : null;
 
   const todayDelta = useTodayDelta(totalValue);
 
@@ -322,15 +426,28 @@ export function PortfolioSummary({
             )}
           </div>
 
-          {/* Category strip — the "where are my eggs" answer in one row. */}
+          {/* Category strip — the "where are my eggs" answer in one row.
+              Items with `details` reveal a hover tooltip beside the pie. */}
           {showCategoryStrip && (
             <div className="mt-4 flex flex-wrap gap-x-6 gap-y-2">
               {categoryBreakdown.map((item, i) => {
                 const pct = (item.value / totalValue) * 100;
+                const drillable = !!item.details?.length;
+                const isActive = hoveredCategory === item.label;
+                const dim = hoveredCategory != null && !isActive;
                 return (
-                  <div key={item.label} className="flex items-center gap-2">
+                  <div
+                    key={item.label}
+                    onMouseEnter={() =>
+                      drillable && setHoveredCategory(item.label)
+                    }
+                    onMouseLeave={() => setHoveredCategory(null)}
+                    className={`flex items-center gap-2 -mx-1 px-1 rounded-sm transition-opacity ${
+                      drillable ? 'hover:bg-secondary/60' : ''
+                    } ${dim ? 'opacity-50' : ''}`}
+                  >
                     <span
-                      className="inline-block h-2.5 w-2.5 rounded-sm"
+                      className="inline-block h-2.5 w-2.5 rounded-sm shrink-0"
                       style={{ backgroundColor: categoryColor(item.label, i) }}
                     />
                     <div className="flex items-baseline gap-1.5">
@@ -349,13 +466,24 @@ export function PortfolioSummary({
           )}
         </div>
 
-        {/* Right: category pie (cleaner — 2-4 slices) */}
+        {/* Right: category pie + floating drill-down tooltip on its left.
+            `relative` here anchors the tooltip's `right-full` positioning. */}
         {!isLoading && categoryBreakdown.length > 0 && (
-          <PieChart
-            breakdown={categoryBreakdown}
-            totalValue={totalValue}
-            colorFor={categoryColor}
-          />
+          <div className="relative">
+            {hoveredDetail && (
+              <CategoryTooltip
+                category={hoveredDetail}
+                color={categoryColor(hoveredDetail.label, 0)}
+              />
+            )}
+            <PieChart
+              breakdown={categoryBreakdown}
+              totalValue={totalValue}
+              colorFor={categoryColor}
+              activeLabel={hoveredCategory}
+              onHover={setHoveredCategory}
+            />
+          </div>
         )}
       </div>
 

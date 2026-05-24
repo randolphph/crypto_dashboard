@@ -139,22 +139,37 @@ export async function fetchDeribitAccountSummary(
   };
 }
 
+// Currencies we query account summaries / positions for. USDC and USDT were
+// added so users with stablecoin-margined options aren't silently dropped from
+// the totals (Deribit returns the requested currency's slice of cross-portfolio
+// margin; if the account doesn't use that currency, the call still succeeds
+// with all-zero fields).
+const DERIBIT_CURRENCIES = ['BTC', 'ETH', 'USDC', 'USDT'] as const;
+
 export async function fetchDeribitData(
   clientIdOverride?: string,
   clientSecretOverride?: string
 ) {
   const token = await authenticate(clientIdOverride, clientSecretOverride);
 
-  const [btcPositions, ethPositions, btcSummary, ethSummary] =
-    await Promise.all([
-      fetchDeribitPositions(token, 'BTC'),
-      fetchDeribitPositions(token, 'ETH'),
-      fetchDeribitAccountSummary(token, 'BTC'),
-      fetchDeribitAccountSummary(token, 'ETH'),
-    ]);
+  // allSettled: a currency unsupported by the account (or by Deribit itself)
+  // shouldn't take down the whole route.
+  const positionResults = await Promise.allSettled(
+    DERIBIT_CURRENCIES.map((c) => fetchDeribitPositions(token, c))
+  );
+  const summaryResults = await Promise.allSettled(
+    DERIBIT_CURRENCIES.map((c) => fetchDeribitAccountSummary(token, c))
+  );
 
-  return {
-    positions: [...btcPositions, ...ethPositions],
-    accountSummaries: [btcSummary, ethSummary],
-  };
+  const positions = positionResults.flatMap((r) =>
+    r.status === 'fulfilled' ? r.value : []
+  );
+  const accountSummaries = summaryResults
+    .filter(
+      (r): r is PromiseFulfilledResult<DeribitAccountSummary> =>
+        r.status === 'fulfilled'
+    )
+    .map((r) => r.value);
+
+  return { positions, accountSummaries };
 }

@@ -142,11 +142,46 @@ export function Dashboard() {
     binCat.cash + okxCat.cash + onCat.cash + stockCashValue;
   const otherValue = customAssets.reduce((s, a) => s + a.value, 0);
 
+  // Detail breakdowns power the click-to-drill-down on the pie chart and
+  // category strip. Each detail row should answer "where does this part of
+  // 加密/现金/股票/其它 actually come from?" at the source / broker level.
+  const cryptoDetails = [
+    { label: 'Binance', value: binCat.crypto },
+    { label: 'OKX', value: okxCat.crypto },
+    { label: 'Deribit', value: derCat.crypto },
+    { label: '链上', value: onCat.crypto },
+  ].filter((d) => d.value > 0);
+
+  const cashDetails = [
+    { label: 'Binance', value: binCat.cash },
+    { label: 'OKX', value: okxCat.cash },
+    { label: 'Deribit', value: derCat.cash },
+    { label: '链上', value: onCat.cash },
+    ...stockBrokers
+      .filter((b) => b.cashUsdValue > 0)
+      .map((b) => ({
+        label: `${BROKER_LABEL[b.broker]} 现金`,
+        value: b.cashUsdValue,
+      })),
+  ].filter((d) => d.value > 0);
+
+  const stocksDetails = stockBrokers
+    .filter((b) => b.positionsUsdValue > 0)
+    .map((b) => ({
+      label: BROKER_LABEL[b.broker],
+      value: b.positionsUsdValue,
+    }));
+
+  const otherDetails = customAssets.map((a) => ({
+    label: a.name,
+    value: a.value,
+  }));
+
   const categoryBreakdown = [
-    { label: '加密', value: cryptoValue },
-    { label: '股票', value: stocksValue },
-    { label: '现金', value: cashValue },
-    { label: '其它', value: otherValue },
+    { label: '加密', value: cryptoValue, details: cryptoDetails },
+    { label: '股票', value: stocksValue, details: stocksDetails },
+    { label: '现金', value: cashValue, details: cashDetails },
+    { label: '其它', value: otherValue, details: otherDetails },
   ].filter((c) => c.value > 0);
 
   const totalValue = breakdown.reduce((sum, item) => sum + item.value, 0);
