@@ -21,6 +21,9 @@ import {
 import { useExchangeData } from '@/hooks/useExchangeData';
 import { useOnchainData } from '@/hooks/useOnchainData';
 import { useStockData } from '@/hooks/useStockData';
+import { useSnapshotPush } from '@/hooks/useSnapshotPush';
+import { buildSnapshot } from '@/lib/portfolio/snapshot';
+import { useVaultStore } from '@/stores/vaultStore';
 import { useCustomAssetStore } from '@/stores/customAssetStore';
 import { usePortfolioHistoryStore } from '@/stores/portfolioHistoryStore';
 import { useDashboardStore } from '@/stores/dashboardStore';
@@ -177,6 +180,36 @@ export function Dashboard() {
   useEffect(() => {
     recordSnapshot();
   }, [recordSnapshot]);
+
+  // Push a detailed per-position snapshot to the home-server backend for
+  // later AI analysis. Backend partitions all rows by `wallet`, so the same
+  // dashboard run from prod vs local dev (different wallets) won't collide.
+  // No wallet → no push (e.g., still on the unlock screen).
+  const walletAddress = useVaultStore((s) => s.address);
+  const snapshotReady =
+    !isLoading && !hasError && totalValue > 0 && !!walletAddress;
+  const snapshotPayload =
+    snapshotReady && walletAddress
+      ? buildSnapshot({
+          wallet: walletAddress,
+          binance: binance.data,
+          okx: okx.data,
+          deribit: deribit.data,
+          onchain: onchain.data,
+          stocks: stocks.data,
+          portfolio: {
+            totalUsd: totalValue,
+            cryptoUsd: cryptoValue,
+            stocksUsd: stocksValue,
+            cashUsd: cashValue,
+            otherUsd: otherValue,
+            fxCnyUsd: stocks.data?.fx.cnyUsd,
+            fxHkdUsd: stocks.data?.fx.hkdUsd,
+            fxKrwUsd: stocks.data?.fx.krwUsd,
+          },
+        })
+      : null;
+  useSnapshotPush(snapshotPayload, { enabled: snapshotReady });
 
   return (
     <div className="space-y-6">

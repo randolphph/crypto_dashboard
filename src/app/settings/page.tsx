@@ -4,6 +4,7 @@ import { RefreshSettings } from '@/components/settings/RefreshSettings';
 import { ApiKeySettings } from '@/components/settings/ApiKeySettings';
 import { ReceiptTokenSettings } from '@/components/settings/ReceiptTokenSettings';
 import { CashFlowSettings } from '@/components/settings/CashFlowSettings';
+import { SnapshotExport } from '@/components/settings/SnapshotExport';
 
 export default function SettingsPage() {
   return (
@@ -16,6 +17,7 @@ export default function SettingsPage() {
       <ApiKeySettings />
       <RefreshSettings />
       <CashFlowSettings />
+      <SnapshotExport />
       <ReceiptTokenSettings />
     </div>
   );
