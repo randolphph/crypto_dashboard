@@ -84,7 +84,7 @@ export function PortfolioChart() {
   const importSnapshots = usePortfolioHistoryStore((s) => s.importSnapshots);
   const cashFlowEvents = useCashFlowStore((s) => s.events);
   const { fmtUsd, hidden } = usePrivacyFormat();
-  const [range, setRange] = useState<RangeId>('day');
+  const [range, setRange] = useState<RangeId>('week');
   const [selected, setSelected] = useState<PortfolioSnapshot | null>(null);
   const [mounted, setMounted] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
