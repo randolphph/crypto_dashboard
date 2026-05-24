@@ -114,11 +114,10 @@ function flattenDeribit(data: DeribitDataLike | undefined): PositionSnapshot[] {
   if (!data) return [];
   const out: PositionSnapshot[] = [];
   for (const b of data.balances ?? []) {
-    const stable = STABLECOINS.has(b.asset.toUpperCase());
     out.push({
       source: 'deribit',
       symbol: b.asset,
-      kind: stable ? 'cash' : 'crypto',
+      kind: 'crypto',
       qty: b.amount,
       priceLocal: asPrice(b.amount, b.usdValue),
       currency: 'USD',

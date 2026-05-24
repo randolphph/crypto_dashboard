@@ -139,7 +139,7 @@ export function Dashboard() {
   const cryptoValue =
     binCat.crypto + okxCat.crypto + derCat.crypto + onCat.crypto;
   const cashValue =
-    binCat.cash + okxCat.cash + derCat.cash + onCat.cash + stockCashValue;
+    binCat.cash + okxCat.cash + onCat.cash + stockCashValue;
   const otherValue = customAssets.reduce((s, a) => s + a.value, 0);
 
   // Detail breakdowns power the click-to-drill-down on the pie chart and
@@ -155,7 +155,6 @@ export function Dashboard() {
   const cashDetails = [
     { label: 'Binance', value: binCat.cash },
     { label: 'OKX', value: okxCat.cash },
-    { label: 'Deribit', value: derCat.cash },
     { label: '链上', value: onCat.cash },
     ...stockBrokers
       .filter((b) => b.cashUsdValue > 0)

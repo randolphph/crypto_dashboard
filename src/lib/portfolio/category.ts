@@ -47,17 +47,9 @@ interface OkxDataShape {
   balances?: AssetBalanceShape[];
 }
 
-interface DeribitAccountSummaryShape {
-  currency: string;
-  balance: number;
-  options_value: number;
-}
-
 interface DeribitDataShape {
   configured?: boolean;
   totalUsdValue?: number;
-  accountSummaries?: DeribitAccountSummaryShape[];
-  prices?: Record<string, number>;
 }
 
 interface OnchainWalletShape {
@@ -105,31 +97,10 @@ export function classifyOkx(data: OkxDataShape | undefined): CashCryptoSplit {
 
 export function classifyDeribit(data: DeribitDataShape | undefined): CashCryptoSplit {
   if (!data || data.configured === false) return empty();
-  const summaries = data.accountSummaries ?? [];
-  // Fallback for old payloads that only had aggregate totalUsdValue.
-  if (summaries.length === 0) {
-    return { cash: 0, crypto: data.totalUsdValue ?? 0 };
-  }
-
-  // Per-currency decomposition:
-  //   balance × price  → cash if stable (USDC/USDT principal), crypto otherwise
-  //                      (BTC/ETH sitting in the account is still crypto)
-  //   options_value × price → always crypto exposure (options track underlying)
-  // cash + crypto sums to total_equity_usd by Deribit's equity = balance + options_value.
-  const prices = data.prices ?? {};
-  const out = empty();
-  for (const s of summaries) {
-    const price = prices[s.currency] ?? 0;
-    const balanceUsd = s.balance * price;
-    const optionsUsd = s.options_value * price;
-    if (isStable(s.currency)) {
-      out.cash += balanceUsd;
-    } else {
-      out.crypto += balanceUsd;
-    }
-    out.crypto += optionsUsd;
-  }
-  return out;
+  // Deribit equity is collateralized cross-portfolio margin; treat the whole
+  // balance (including USDT/USDC margin and short option liabilities) as crypto
+  // exposure. Simpler and avoids negative slices when shorts are deep ITM.
+  return { cash: 0, crypto: data.totalUsdValue ?? 0 };
 }
 
 export function classifyOnchain(
