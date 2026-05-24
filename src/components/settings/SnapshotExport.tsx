@@ -72,7 +72,7 @@ export function SnapshotExport() {
       <div>
         <h2 className="font-semibold text-lg">快照导出</h2>
         <p className="text-sm text-muted-foreground mt-1">
-          每次刷新会自动推送一份归一化的持仓快照到后端（≥5 分钟去重）。
+          每次刷新会自动推送一份归一化的持仓快照到后端（≥4 小时去重）。
           导出 CSV 可直接粘贴给 LLM 做投资分析。
         </p>
       </div>
