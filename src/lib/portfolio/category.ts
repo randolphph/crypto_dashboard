@@ -58,7 +58,13 @@ interface OnchainWalletShape {
 }
 
 function isStable(asset: string): boolean {
-  return STABLECOINS.has(asset.toUpperCase());
+  const upper = asset.toUpperCase();
+  if (STABLECOINS.has(upper)) return true;
+  // Binance Simple Earn receipt tokens (LDUSDT, LDUSDC, …) show up in the
+  // spot balance endpoint with an "LD" prefix but still represent the same
+  // underlying stablecoin — they should be classified as cash, not crypto.
+  if (upper.startsWith('LD') && STABLECOINS.has(upper.slice(2))) return true;
+  return false;
 }
 
 function empty(): CashCryptoSplit {

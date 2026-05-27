@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useId } from 'react';
 import { Plus, Trash2, Pencil, Check, X } from 'lucide-react';
 import { usePrivacyFormat } from '@/hooks/usePrivacyFormat';
 import { useCustomAssetStore, type CustomAsset } from '@/stores/customAssetStore';
@@ -18,6 +18,7 @@ interface PortfolioSummaryProps {
   totalValue: number;
   breakdown: BreakdownItem[];
   categoryBreakdown: BreakdownItem[];
+  positionBreakdown: BreakdownItem[];
   isLoading: boolean;
 }
 
@@ -43,6 +44,23 @@ const CATEGORY_COLORS: Record<string, string> = {
 
 function categoryColor(label: string, fallbackIdx: number): string {
   return CATEGORY_COLORS[label] ?? COLORS[fallbackIdx % COLORS.length];
+}
+
+// Direction-aware palette: greens for longs, reds for shorts, neutral hues
+// for spot. Picked so the eye can tell at a glance whether exposure is net
+// long or net short before reading any labels.
+const POSITION_COLORS: Record<string, string> = {
+  加密现货: '#f59e0b', // amber — matches the 加密 category color
+  做多合约: '#10b981', // emerald
+  做空合约: '#ef4444', // red
+  做多期权: '#06b6d4', // cyan
+  做空期权: '#ec4899', // pink
+  股票现货: '#3b82f6', // blue — matches the 股票 category color
+  股票空仓: '#8b5cf6', // violet
+};
+
+function positionColor(label: string, fallbackIdx: number): string {
+  return POSITION_COLORS[label] ?? COLORS[fallbackIdx % COLORS.length];
 }
 
 // "今日" delta = current total vs. the snapshot closest to 24h ago,
@@ -131,6 +149,9 @@ function PieChart({
   onHover?: (label: string | null) => void;
 }) {
   const { hidden } = usePrivacyFormat();
+  // Each PieChart instance gets its own SVG mask id so two pies on the same
+  // page (category + position) don't fight over the same animation mask.
+  const maskId = useId();
   const items = breakdown.filter((b) => b.value > 0);
   if (items.length === 0 || totalValue <= 0) return null;
 
@@ -198,7 +219,7 @@ function PieChart({
     <div className="flex items-center gap-4">
       <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
         <defs>
-          <mask id="pie-sweep-mask">
+          <mask id={maskId}>
             <circle
               cx={cx}
               cy={cy}
@@ -222,7 +243,7 @@ function PieChart({
             </circle>
           </mask>
         </defs>
-        <g mask="url(#pie-sweep-mask)">
+        <g mask={`url(#${maskId})`}>
           {slices}
         </g>
       </svg>
@@ -270,11 +291,12 @@ function CategoryTooltip({
 
   return (
     <div
-      // right-full anchors the tooltip's right edge to the pie container's
-      // left edge. pointer-events:none keeps the cursor "ownership" with the
-      // slice so moving toward the tooltip doesn't fire mouseLeave on it.
+      // Bottom-center placement: with two pies side-by-side, a left-anchored
+      // tooltip would collide with the neighboring pie. pointer-events:none
+      // keeps the cursor "ownership" with the slice so moving toward the
+      // tooltip doesn't fire mouseLeave on it.
       role="tooltip"
-      className="absolute right-full top-1/2 -translate-y-1/2 mr-3 z-10 w-60 rounded-lg border bg-popover shadow-lg p-3 pointer-events-none"
+      className="absolute top-full left-1/2 -translate-x-1/2 mt-3 z-10 w-60 rounded-lg border bg-popover shadow-lg p-3 pointer-events-none"
     >
       <div className="flex items-center gap-2 mb-2">
         <span
@@ -388,6 +410,7 @@ export function PortfolioSummary({
   totalValue,
   breakdown,
   categoryBreakdown,
+  positionBreakdown,
   isLoading,
 }: PortfolioSummaryProps) {
   const { assets, addAsset, removeAsset, updateAsset } = useCustomAssetStore();
@@ -395,14 +418,22 @@ export function PortfolioSummary({
   const [adding, setAdding] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [hoveredCategory, setHoveredCategory] = useState<string | null>(null);
+  const [hoveredPosition, setHoveredPosition] = useState<string | null>(null);
 
   // Split breakdown into API items and custom items
   const customLabels = new Set(assets.map((a) => a.name));
   const apiBreakdown = breakdown.filter((b) => !customLabels.has(b.label));
   const showCategoryStrip = categoryBreakdown.length > 0 && totalValue > 0;
+  // Position pie has its own total — slices are sized relative to the sum of
+  // non-cash exposure, not the global portfolio total, so percentages add to
+  // 100% within the pie regardless of how much cash sits on the side.
+  const positionTotal = positionBreakdown.reduce((s, p) => s + p.value, 0);
 
   const hoveredDetail = hoveredCategory
     ? categoryBreakdown.find((c) => c.label === hoveredCategory)
+    : null;
+  const hoveredPositionDetail = hoveredPosition
+    ? positionBreakdown.find((p) => p.label === hoveredPosition)
     : null;
 
   const todayDelta = useTodayDelta(totalValue);
@@ -466,6 +497,32 @@ export function PortfolioSummary({
           )}
         </div>
 
+        {/* Position pie — non-cash exposure broken down by direction. Sits
+            to the left of the category pie so the eye reads "what kinds of
+            positions do I have" before the higher-level category split.
+            Each bucket carries `details` so hovering reveals where the
+            exposure actually lives (which exchange, which symbol). */}
+        {!isLoading && positionBreakdown.length > 0 && positionTotal > 0 && (
+          <div className="relative">
+            {hoveredPositionDetail && (
+              <CategoryTooltip
+                category={hoveredPositionDetail}
+                color={positionColor(hoveredPositionDetail.label, 0)}
+              />
+            )}
+            <p className="mb-2 text-[10px] font-medium uppercase tracking-wider text-muted-foreground/70">
+              仓位构成
+            </p>
+            <PieChart
+              breakdown={positionBreakdown}
+              totalValue={positionTotal}
+              colorFor={positionColor}
+              activeLabel={hoveredPosition}
+              onHover={setHoveredPosition}
+            />
+          </div>
+        )}
+
         {/* Right: category pie + floating drill-down tooltip on its left.
             `relative` here anchors the tooltip's `right-full` positioning. */}
         {!isLoading && categoryBreakdown.length > 0 && (
@@ -476,6 +533,9 @@ export function PortfolioSummary({
                 color={categoryColor(hoveredDetail.label, 0)}
               />
             )}
+            <p className="mb-2 text-[10px] font-medium uppercase tracking-wider text-muted-foreground/70">
+              资产分布
+            </p>
             <PieChart
               breakdown={categoryBreakdown}
               totalValue={totalValue}

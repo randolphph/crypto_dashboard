@@ -63,6 +63,15 @@ const STABLECOINS = new Set([
 
 const BINANCE_CASH_ACCOUNTS = new Set(['现货', '理财', '资金账户']);
 
+// Binance Simple Earn receipt tokens (LDUSDT, LDUSDC, …) represent the
+// underlying stablecoin and should be classified the same way.
+function isStable(asset: string): boolean {
+  const upper = asset.toUpperCase();
+  if (STABLECOINS.has(upper)) return true;
+  if (upper.startsWith('LD') && STABLECOINS.has(upper.slice(2))) return true;
+  return false;
+}
+
 function asPrice(amount: number, usdValue: number): number | undefined {
   if (!Number.isFinite(amount) || amount === 0) return undefined;
   return usdValue / amount;
@@ -74,7 +83,7 @@ function flattenBinance(data: BinanceAllDataLike | undefined): PositionSnapshot[
   for (const acct of data.accounts) {
     for (const b of acct.balances ?? []) {
       if (b.dedupedToDefi) continue;
-      const stable = STABLECOINS.has(b.asset.toUpperCase());
+      const stable = isStable(b.asset);
       const isCashAccount = BINANCE_CASH_ACCOUNTS.has(acct.label);
       const kind = stable && isCashAccount ? 'cash' : 'crypto';
       out.push({
@@ -97,7 +106,7 @@ function flattenOkx(data: OkxDataLike | undefined): PositionSnapshot[] {
   return data.balances
     .filter((b) => !b.dedupedToDefi)
     .map<PositionSnapshot>((b) => {
-      const stable = STABLECOINS.has(b.asset.toUpperCase());
+      const stable = isStable(b.asset);
       return {
         source: 'okx',
         symbol: b.asset,
