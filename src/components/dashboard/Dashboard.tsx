@@ -4,7 +4,6 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { Plus } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { PortfolioSummary } from './PortfolioSummary';
-import { MnavSummaryCard } from './MnavSummaryCard';
 import { ExchangeSection } from './ExchangeSection';
 import { DeribitSection } from './DeribitSection';
 import { OnchainSection } from './OnchainSection';
@@ -266,15 +265,6 @@ export function Dashboard() {
         positionBreakdown={positionBreakdown}
         isLoading={isLoading}
       />
-
-      {/* Metric strip — small click-through cards for sidecar metrics that
-          aren't part of the user's own portfolio (mNAV, future: BTC dominance,
-          fear & greed, etc.). Keeps the dense summary card uncluttered.
-          Flex-wrap so new cards just append; each card caps at ~md width on
-          desktop, full-width on mobile. */}
-      <div className="flex flex-wrap gap-3">
-        <MnavSummaryCard />
-      </div>
 
       {/* Tabs grouped by asset category. Mobile keeps everything on one
           scrollable row; on wider screens a subtle group label is shown above

@@ -7,7 +7,6 @@
 ### 加密资产
 - **中心化交易所** — Binance（现货 + 合约 + 理财 + 资金账户）、OKX（含 Web3 链上钱包）、Deribit（期权）
 - **链上钱包** — Ethereum / Solana 地址追踪，OKX Web3 API 解析多链余额
-- **MSTR mNAV** — MSTR / BTC mNAV 曲线（来自独立后端服务，见下文）
 
 ### 股票
 - **多市场** — A 股、港股、美股、韩股（KOSPI / KOSDAQ）
@@ -82,7 +81,7 @@ npm run build && npm start
 | 变量 | 用途 |
 |---|---|
 | `UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN` | Upstash REST 缓存（也兼容 `KV_REST_API_URL` / `KV_REST_API_TOKEN` Vercel KV 命名） |
-| `MNAV_API_BASE` / `MNAV_API_TOKEN` | MSTR mNAV 后端（见下文部署架构） |
+| `MNAV_API_BASE` / `MNAV_API_TOKEN` | 家用后端 API（快照推送 / 导出，见下文部署架构） |
 
 > 凭据也可以走「钱包加密保险箱」流程从浏览器端注入——见设置页的"API Keys"卡片。
 
@@ -92,11 +91,11 @@ npm run build && npm start
 ┌────────────────────────────────┐        ┌───────────────────────────┐
 │   Frontend (Vercel-style)      │        │   Mac mini @ home         │
 │   ──────────────────────       │        │   ──────────────────      │
-│   Next.js 16 RSC + API routes  │ HTTPS  │   MSTR mNAV server        │
+│   Next.js 16 RSC + API routes  │ HTTPS  │   Snapshot / data server  │
 │   Upstash Redis (cache)        │◄──────►│   Bun + SQLite + launchd  │
-│   /api/mnav → upstream proxy   │        │   exposed via             │
+│   /api/snapshot → upstream     │        │   exposed via             │
 └────────────────────────────────┘        │   Cloudflare Tunnel       │
-                                          │   (mnav.randata.xyz)      │
+                                          │   (randata.xyz)           │
                                           └───────────────────────────┘
 ```
 
@@ -110,21 +109,19 @@ src/
 │   ├── api/
 │   │   ├── exchanges/        # Binance / OKX / Deribit 代理
 │   │   ├── fx/               # 汇率
-│   │   ├── mnav/             # MSTR mNAV 后端代理
 │   │   ├── onchain/          # 链上余额聚合
 │   │   ├── prices/           # 加密币价
 │   │   └── stocks/           # 三家券商持仓 + 行情 + FX 汇总
-│   ├── mnav/                 # mNAV 详情页
 │   ├── settings/             # 设置页（API Keys / 持仓 / 现金 / 钱包）
 │   └── page.tsx              # Dashboard 首页
 ├── components/
 │   ├── auth/                 # 钱包加密保险箱（Vault）
 │   ├── common/               # 主题切换等
-│   ├── dashboard/            # Portfolio / Stock / mNAV 等看板
+│   ├── dashboard/            # Portfolio / Stock 等看板
 │   ├── layout/               # Header / FxBadge / Theme
 │   ├── settings/             # 凭据 / 持仓 / 现金管理
 │   └── ui/                   # shadcn/ui 基础组件
-├── hooks/                    # 自定义 Hooks（useStockData, useMnav, useFx, ...）
+├── hooks/                    # 自定义 Hooks（useStockData, useFx, ...）
 ├── lib/
 │   ├── auth/                 # Vault 加密 / 钱包签名
 │   ├── cache/                # Upstash 客户端
