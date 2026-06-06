@@ -20,7 +20,7 @@ import {
 import { useExchangeData } from '@/hooks/useExchangeData';
 import { useOnchainData } from '@/hooks/useOnchainData';
 import { useStockData } from '@/hooks/useStockData';
-import { useSnapshotPush } from '@/hooks/useSnapshotPush';
+import { useSnapshotPersist } from '@/hooks/useSnapshotPersist';
 import { buildSnapshot } from '@/lib/portfolio/snapshot';
 import { useVaultStore } from '@/stores/vaultStore';
 import { useCustomAssetStore } from '@/stores/customAssetStore';
@@ -254,7 +254,16 @@ export function Dashboard() {
           },
         })
       : null;
-  useSnapshotPush(snapshotPayload, { enabled: snapshotReady });
+  useSnapshotPersist(snapshotPayload, { enabled: snapshotReady });
+
+  // Mirror the latest payload into dashboardStore so the manual-snapshot
+  // button on the settings page can reach it without re-fetching everything.
+  const setLatestSnapshotPayload = useDashboardStore(
+    (s) => s.setLatestSnapshotPayload
+  );
+  useEffect(() => {
+    setLatestSnapshotPayload(snapshotPayload);
+  }, [snapshotPayload, setLatestSnapshotPayload]);
 
   return (
     <div className="space-y-6">
