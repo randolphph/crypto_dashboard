@@ -124,6 +124,16 @@ function getCredentials(
   return { apiKey, apiSecret };
 }
 
+// Simple Earn receipt tokens (LDUSDT, LDUSDC, LDBTC, …) are returned by
+// /api/v3/account as if they were spot balances, but the underlying assets
+// are either already in the 理财 sub-account (via /simple-earn/* endpoints)
+// or pledged as futures collateral. Counting them in 现货 too double-counts
+// the same money. We drop them at the source so all downstream aggregators
+// (category split, snapshot, positions) see a clean spot.
+function isSimpleEarnReceipt(asset: string): boolean {
+  return /^LD[A-Z0-9]{2,}$/.test(asset.toUpperCase());
+}
+
 async function fetchSpotBalances(
   apiKey: string,
   apiSecret: string
@@ -136,6 +146,7 @@ async function fetchSpotBalances(
   )) as SpotAccountResponse;
 
   return data.balances
+    .filter((b) => !isSimpleEarnReceipt(b.asset))
     .map((b) => ({
       asset: b.asset,
       amount: parseFloat(b.free) + parseFloat(b.locked),
