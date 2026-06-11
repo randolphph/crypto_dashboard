@@ -21,9 +21,21 @@ interface BinanceSubAccountLike {
   balances: AssetBalanceLike[];
 }
 
+interface BinanceFuturesPositionLike {
+  symbol: string;
+  positionAmt: string; // signed: positive = long, negative = short
+  entryPrice: string;
+  markPrice: string;
+  unRealizedProfit: string;
+  leverage: string;
+  positionSide?: string;
+  notional?: string;
+}
+
 interface BinanceAllDataLike {
   configured?: boolean;
   accounts?: BinanceSubAccountLike[];
+  futuresPositions?: BinanceFuturesPositionLike[];
 }
 
 interface OkxDataLike {
@@ -78,9 +90,9 @@ function asPrice(amount: number, usdValue: number): number | undefined {
 }
 
 function flattenBinance(data: BinanceAllDataLike | undefined): PositionSnapshot[] {
-  if (!data?.accounts) return [];
+  if (!data) return [];
   const out: PositionSnapshot[] = [];
-  for (const acct of data.accounts) {
+  for (const acct of data.accounts ?? []) {
     for (const b of acct.balances ?? []) {
       if (b.dedupedToDefi) continue;
       const stable = isStable(b.asset);
@@ -92,11 +104,39 @@ function flattenBinance(data: BinanceAllDataLike | undefined): PositionSnapshot[
         symbol: b.asset,
         kind,
         qty: b.amount,
+        side: kind === 'crypto' ? 'long' : undefined,
         priceLocal: asPrice(b.amount, b.usdValue),
         currency: 'USD',
         valueUsd: b.usdValue,
       });
     }
+  }
+  // Binance futures perp positions — previously dropped from the snapshot
+  // because flattenBinance only iterated `accounts`. Now surfaced as
+  // crypto_perp with signed qty for the AI export.
+  for (const p of data.futuresPositions ?? []) {
+    const qty = parseFloat(p.positionAmt);
+    if (!Number.isFinite(qty) || qty === 0) continue;
+    const markPrice = parseFloat(p.markPrice);
+    const entry = parseFloat(p.entryPrice);
+    const pnl = parseFloat(p.unRealizedProfit);
+    const lev = parseFloat(p.leverage);
+    const notional = Math.abs(qty) * markPrice;
+    out.push({
+      source: 'binance',
+      account: 'U本位合约',
+      symbol: p.symbol,
+      kind: 'crypto_perp',
+      qty: Math.abs(qty),
+      side: qty >= 0 ? 'long' : 'short',
+      entryPrice: Number.isFinite(entry) ? entry : undefined,
+      priceLocal: Number.isFinite(markPrice) ? markPrice : undefined,
+      markPrice: Number.isFinite(markPrice) ? markPrice : undefined,
+      leverage: Number.isFinite(lev) ? lev : undefined,
+      currency: 'USD',
+      valueUsd: notional,
+      pnlUsd: Number.isFinite(pnl) ? pnl : undefined,
+    });
   }
   return out;
 }
@@ -119,6 +159,46 @@ function flattenOkx(data: OkxDataLike | undefined): PositionSnapshot[] {
     });
 }
 
+// Deribit instrument names follow `BTC-25SEP25-50000-P` (option) or
+// `BTC-25SEP25` / `BTC-PERPETUAL` (future). Returns whatever fields are
+// recoverable; missing fields are simply omitted from the snapshot.
+function parseDeribitInstrument(name: string): {
+  underlying: string;
+  expiry?: string;
+  strike?: number;
+  optionType?: 'put' | 'call';
+  isPerp: boolean;
+} {
+  const parts = name.split('-');
+  const underlying = parts[0];
+  const isPerp = parts[1] === 'PERPETUAL';
+  let expiry: string | undefined;
+  let strike: number | undefined;
+  let optionType: 'put' | 'call' | undefined;
+  if (parts.length >= 2 && !isPerp) {
+    // `25SEP25` → 2025-09-25 (DDMMMYY).
+    const m = parts[1].match(/^(\d{1,2})([A-Z]{3})(\d{2})$/);
+    if (m) {
+      const months: Record<string, string> = {
+        JAN: '01', FEB: '02', MAR: '03', APR: '04', MAY: '05', JUN: '06',
+        JUL: '07', AUG: '08', SEP: '09', OCT: '10', NOV: '11', DEC: '12',
+      };
+      const mm = months[m[2]];
+      if (mm) {
+        const day = m[1].padStart(2, '0');
+        expiry = `20${m[3]}-${mm}-${day}`;
+      }
+    }
+  }
+  if (parts.length === 4) {
+    const s = parseFloat(parts[2]);
+    if (Number.isFinite(s)) strike = s;
+    if (parts[3] === 'P') optionType = 'put';
+    else if (parts[3] === 'C') optionType = 'call';
+  }
+  return { underlying, expiry, strike, optionType, isPerp };
+}
+
 function flattenDeribit(data: DeribitDataLike | undefined): PositionSnapshot[] {
   if (!data) return [];
   const out: PositionSnapshot[] = [];
@@ -128,30 +208,38 @@ function flattenDeribit(data: DeribitDataLike | undefined): PositionSnapshot[] {
       symbol: b.asset,
       kind: 'crypto',
       qty: b.amount,
+      side: 'long',
       priceLocal: asPrice(b.amount, b.usdValue),
       currency: 'USD',
       valueUsd: b.usdValue,
     });
   }
   for (const p of data.positions ?? []) {
-    // Deribit options' size is in contracts (USD-notional for BTC inverse, etc.)
-    // Use mark_price as priceLocal and the floating PnL the exchange reports.
-    const underlying = p.instrument_name.split('-')[0];
-    const underlyingPrice = data.prices?.[underlying];
+    const meta = parseDeribitInstrument(p.instrument_name);
+    const underlyingPrice = data.prices?.[meta.underlying];
+    const absSize = Math.abs(p.size);
     const valueUsd =
       underlyingPrice !== undefined
-        ? p.mark_price * Math.abs(p.size) * underlyingPrice
+        ? p.mark_price * absSize * underlyingPrice
         : 0;
+    const isOption = p.kind === 'option';
     out.push({
       source: 'deribit',
       symbol: p.instrument_name,
-      kind: p.kind === 'option' ? 'option' : 'crypto',
-      qty: p.direction === 'sell' ? -p.size : p.size,
+      kind: isOption ? 'option' : 'crypto_perp',
+      qty: absSize,
+      side: p.direction === 'sell' ? 'short' : 'long',
+      entryPrice: p.average_price,
       priceLocal: p.mark_price,
-      currency: underlying,
-      valueLocal: p.mark_price * Math.abs(p.size),
+      markPrice: p.mark_price,
+      currency: meta.underlying,
+      valueLocal: p.mark_price * absSize,
       valueUsd,
       pnlLocal: p.floating_profit_loss,
+      underlying: meta.underlying,
+      optionType: meta.optionType,
+      strike: meta.strike,
+      expiry: meta.expiry,
     });
   }
   return out;
@@ -193,17 +281,54 @@ function flattenOnchain(wallets: WalletBalance[] | undefined): PositionSnapshot[
   return out;
 }
 
+// IBKR positions encode option metadata in the id field:
+//   ibkr:pos:<symbol>:<strike>:<expiry>:<putCall>:<currency>
+// `flattenStocks` parses this so the snapshot exposes structured strike /
+// expiry / type instead of opaque symbols. Other brokers don't use this scheme
+// and just produce id strings that won't match — the parser returns nothing
+// and the option fields stay undefined.
+function parseIbkrOptionId(id: string): {
+  strike?: number;
+  expiry?: string;
+  optionType?: 'put' | 'call';
+} {
+  if (!id.startsWith('ibkr:pos:')) return {};
+  const parts = id.split(':');
+  // [0]=ibkr [1]=pos [2]=symbol [3]=strike [4]=expiry [5]=putCall [6]=currency
+  if (parts.length < 7) return {};
+  const strikeRaw = parts[3];
+  const expiryRaw = parts[4];
+  const pcRaw = parts[5];
+  const strike = strikeRaw ? parseFloat(strikeRaw) : NaN;
+  // IBKR Flex expiry is YYYYMMDD. Normalise to YYYY-MM-DD.
+  let expiry: string | undefined;
+  if (/^\d{8}$/.test(expiryRaw)) {
+    expiry = `${expiryRaw.slice(0, 4)}-${expiryRaw.slice(4, 6)}-${expiryRaw.slice(6, 8)}`;
+  } else if (expiryRaw) {
+    expiry = expiryRaw;
+  }
+  return {
+    strike: Number.isFinite(strike) ? strike : undefined,
+    expiry,
+    optionType: pcRaw === 'P' ? 'put' : pcRaw === 'C' ? 'call' : undefined,
+  };
+}
+
 function flattenStocks(data: StocksData | undefined): PositionSnapshot[] {
   if (!data) return [];
   const out: PositionSnapshot[] = [];
   for (const broker of data.brokers) {
     for (const p of broker.positions) {
+      const isOption = p.kind === 'option';
+      const opt = isOption ? parseIbkrOptionId(p.id) : {};
       out.push({
         source: broker.broker,
         symbol: p.symbol,
-        kind: p.kind === 'option' ? 'option' : 'stock',
+        kind: isOption ? 'option' : 'stock',
         market: p.market,
-        qty: p.shares,
+        qty: Math.abs(p.shares),
+        side: p.shares >= 0 ? 'long' : 'short',
+        entryPrice: p.costBasis,
         priceLocal: p.price,
         currency: p.currency,
         valueLocal: p.marketValue,
@@ -211,6 +336,8 @@ function flattenStocks(data: StocksData | undefined): PositionSnapshot[] {
         pnlLocal: p.pnl,
         pnlUsd: p.pnlUsd,
         changePct: p.changePct,
+        underlying: isOption ? p.symbol : undefined,
+        ...opt,
       });
     }
     for (const c of broker.cash) {

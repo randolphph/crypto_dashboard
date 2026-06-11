@@ -8,10 +8,11 @@ export type SnapshotSource =
   | 'ibkr';
 
 export type SnapshotKind =
-  | 'crypto'
+  | 'crypto'         // non-stable spot or stake
+  | 'crypto_perp'    // futures / perp position
   | 'stock'
   | 'option'
-  | 'token'
+  | 'token'          // on-chain token (incl. stables)
   | 'cash'
   | 'defi';
 
@@ -22,6 +23,12 @@ export interface PositionSnapshot {
   kind: SnapshotKind;
   market?: string;
   qty: number;
+  // Explicit direction for AI consumers. Spot balances omit this (implicitly
+  // long); positions with directional risk (stocks, futures, options) set it.
+  side?: 'long' | 'short';
+  // Cost basis / average entry. Set when the upstream API gives it
+  // (IBKR costBasis, Binance futures entryPrice, Deribit average_price).
+  entryPrice?: number;
   priceLocal?: number;
   currency: string;
   valueLocal?: number;
@@ -29,6 +36,14 @@ export interface PositionSnapshot {
   pnlLocal?: number;
   pnlUsd?: number;
   changePct?: number;
+  // Derivatives-only metadata. Populated for options (put/call + strike +
+  // expiry) and for perps (markPrice + leverage).
+  optionType?: 'put' | 'call';
+  strike?: number;
+  expiry?: string; // ISO yyyy-mm-dd
+  underlying?: string;
+  markPrice?: number;
+  leverage?: number;
   raw?: unknown;
 }
 
@@ -38,6 +53,10 @@ export interface PortfolioSummarySnapshot {
   stocksUsd?: number;
   cashUsd?: number;
   otherUsd?: number;
+  // Authoritative Deribit account equity from the API. Used by the AI export
+  // because summing flattened positions over/undercounts depending on which
+  // shorts are open at snapshot time.
+  deribitTotalUsd?: number;
   fxCnyUsd?: number;
   fxHkdUsd?: number;
   fxKrwUsd?: number;

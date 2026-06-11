@@ -248,6 +248,7 @@ export function Dashboard() {
             stocksUsd: stocksValue,
             cashUsd: cashValue,
             otherUsd: otherValue,
+            deribitTotalUsd: deribit.data?.totalUsdValue,
             fxCnyUsd: stocks.data?.fx.cnyUsd,
             fxHkdUsd: stocks.data?.fx.hkdUsd,
             fxKrwUsd: stocks.data?.fx.krwUsd,
