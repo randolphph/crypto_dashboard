@@ -139,7 +139,7 @@ export function SnapshotExport() {
   const handleManualSnapshot = async () => {
     if (!latestPayload) {
       setError(
-        '暂无可用快照数据。请先打开总览页让数据加载完整后再回来手动快照。'
+        '暂无可用快照数据。请先打开资产看板让数据加载完整后再回来手动快照。'
       );
       return;
     }
@@ -172,7 +172,7 @@ export function SnapshotExport() {
           disabled={!wallet || !latestPayload || manualBusy}
           title={
             !latestPayload
-              ? '请先打开总览页加载完数据'
+              ? '请先打开资产看板加载完数据'
               : '立即写入一条快照（不受 12h 节流限制）'
           }
           className="shrink-0 inline-flex items-center gap-1.5 rounded-md border bg-primary text-primary-foreground px-3 py-1.5 text-sm hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"

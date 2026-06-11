@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { BarChart3, Settings } from 'lucide-react';
+import { BarChart3, Sparkles, Settings } from 'lucide-react';
 import { ThemeToggle } from '@/components/common/ThemeToggle';
 import { PrivacyToggle } from '@/components/common/PrivacyToggle';
 import { RefreshControl } from '@/components/dashboard/RefreshControl';
@@ -11,7 +11,8 @@ import { WalletStatus } from '@/components/auth/WalletStatus';
 import { cn } from '@/lib/utils';
 
 const navItems = [
-  { href: '/', label: '总览', icon: BarChart3 },
+  { href: '/', label: '资产看板', icon: BarChart3 },
+  { href: '/strategy', label: 'AI 策略', icon: Sparkles },
   { href: '/settings', label: '设置', icon: Settings },
 ];
 
