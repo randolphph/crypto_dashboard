@@ -1,5 +1,7 @@
 import {
   upsertTable,
+  deleteTable,
+  deleteAllTables,
   isStrategyConfigured,
   listTables,
 } from '@/lib/strategy/serverStore';
@@ -222,4 +224,38 @@ export async function POST(request: Request) {
     },
     { status: 201 }
   );
+}
+
+// Deletion is intentionally unauthenticated to match the GET/SSE posture —
+// the dashboard URL is the soft gate. Reads and writes from the browser go
+// here freely; POST (AI push from outside) is the only path that requires
+// the bearer token. If the dashboard URL is ever made public, tighten this.
+export async function DELETE(request: Request) {
+  if (!isStrategyConfigured()) {
+    return Response.json(
+      { ok: false, error: 'redis not configured' },
+      { status: 500 }
+    );
+  }
+  const { searchParams } = new URL(request.url);
+  const all = searchParams.get('all');
+  if (all === '1' || all === 'true') {
+    await deleteAllTables();
+    return Response.json({ ok: true, deleted: 'all' });
+  }
+  const key = searchParams.get('key');
+  if (!key) {
+    return Response.json(
+      { ok: false, error: 'missing ?key=… or ?all=1' },
+      { status: 400 }
+    );
+  }
+  if (!KEY_RE.test(key)) {
+    return Response.json(
+      { ok: false, error: 'invalid key format' },
+      { status: 400 }
+    );
+  }
+  const removed = await deleteTable(key);
+  return Response.json({ ok: true, key, removed });
 }

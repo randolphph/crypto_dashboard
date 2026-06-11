@@ -118,8 +118,19 @@ export function StrategyView() {
     }
   };
 
-  const handleClearAll = () => {
+  const handleClearAll = async () => {
     if (!confirm(`确认清空全部 ${tables.length} 张策略表？此操作不可撤销。`)) return;
+    // Server-side clear first so a refresh doesn't resurrect keyed tables.
+    // We swallow errors but warn — the local clear still runs so the UI is
+    // never "stuck" with a dialog the user wanted to confirm.
+    try {
+      const res = await fetch('/api/strategy?all=1', { method: 'DELETE' });
+      if (!res.ok && res.status !== 500) {
+        console.warn('[strategy] DELETE all failed:', res.status);
+      }
+    } catch (e) {
+      console.warn('[strategy] DELETE all error:', e);
+    }
     clearAll();
   };
 
@@ -238,8 +249,28 @@ function StrategyTableSection({ table }: { table: StrategyTable }) {
   const removeRow = useStrategyStore((s) => s.removeRow);
   const removeTable = useStrategyStore((s) => s.removeTable);
 
-  const handleDelete = () => {
+  const handleDelete = async () => {
     if (!confirm('确认删除此策略表？')) return;
+    // Keyed tables live on the server; tell it to forget first so the next
+    // SSE snapshot doesn't put the table back. Unkeyed tables (locally
+    // imported via paste/file) only exist client-side, skip the network.
+    if (table.key) {
+      try {
+        const res = await fetch(
+          `/api/strategy?key=${encodeURIComponent(table.key)}`,
+          { method: 'DELETE' }
+        );
+        if (!res.ok) {
+          alert(`服务端删除失败 (${res.status})，本地未删除。请重试。`);
+          return;
+        }
+      } catch (e) {
+        alert(
+          `服务端删除失败：${e instanceof Error ? e.message : String(e)}。本地未删除。`
+        );
+        return;
+      }
+    }
     removeTable(table.id);
   };
 

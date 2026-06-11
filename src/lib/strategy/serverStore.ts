@@ -78,3 +78,20 @@ export async function upsertTable(
   await redis.incr(VERSION_KEY);
   return table;
 }
+
+// Removes one entry by key. Returns the number of fields actually removed
+// (0 if the key didn't exist) so the caller can 404 if it cares.
+export async function deleteTable(key: string): Promise<number> {
+  if (!redis) throw new Error('Redis not configured');
+  const removed = await redis.hdel(TABLES_HASH_KEY, key);
+  if (removed > 0) await redis.incr(VERSION_KEY);
+  return removed;
+}
+
+// Wipes every keyed entry. Used by the dashboard's "清空全部" button when
+// the user wants to start fresh across all keys at once.
+export async function deleteAllTables(): Promise<void> {
+  if (!redis) throw new Error('Redis not configured');
+  await redis.del(TABLES_HASH_KEY);
+  await redis.incr(VERSION_KEY);
+}

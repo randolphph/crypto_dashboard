@@ -94,16 +94,23 @@ export const useStrategyStore = create<StrategyStoreState>()(
         })),
       ingestServerTables: (server) =>
         set((s) => {
-          // Two paths:
-          //   - keyed tables (the new AI-push flow): identity is `key`.
-          //     Replace any local table with the same key; if importedAt
-          //     unchanged, no-op so we don't churn the UI on every reconnect.
-          //     Refreshed tables bubble to the top.
-          //   - unkeyed tables (legacy / unusual): dedupe by id via
-          //     seenServerIds so locally-deleted ones don't resurrect.
+          // Server-truth model for KEYED tables: the snapshot is the full
+          // authoritative set. Locally we:
+          //   1) Drop any keyed local table whose key is no longer on the
+          //      server (handles delete-on-another-device → here).
+          //   2) Replace any keyed local table whose importedAt differs.
+          //   3) Insert any keyed server table we didn't have.
+          // UNKEYED tables (locally-imported paste/file) are untouched, and
+          // legacy unkeyed server tables fall back to id-dedupe via
+          // seenServerIds so user-deleted ones don't resurrect.
           const seen = new Set(s.seenServerIds);
-          let next = s.tables;
-          let mutated = false;
+          const incomingKeys = new Set<string>();
+          for (const t of server) if (t.key) incomingKeys.add(t.key);
+
+          let next = s.tables.filter(
+            (t) => !t.key || incomingKeys.has(t.key)
+          );
+          let mutated = next.length !== s.tables.length;
 
           // Walk oldest-first so the newest table ends up at index 0 after
           // successive prepends.
