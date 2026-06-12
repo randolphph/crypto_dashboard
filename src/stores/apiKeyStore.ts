@@ -24,6 +24,8 @@ export interface ApiKeys {
   // IBKR Flex Query
   ibkrFlexToken: string;
   ibkrFlexQueryId: string;
+  // DeepSeek (AI chat)
+  deepseekApiKey: string;
 }
 
 interface ApiKeyState extends ApiKeys {
@@ -50,6 +52,7 @@ export const emptyKeys: ApiKeys = {
   longportAccessToken: '',
   ibkrFlexToken: '',
   ibkrFlexQueryId: '',
+  deepseekApiKey: '',
 };
 
 export const API_KEY_FIELDS = Object.keys(emptyKeys) as (keyof ApiKeys)[];

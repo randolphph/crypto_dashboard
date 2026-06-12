@@ -6,6 +6,7 @@ import { Header } from '@/components/layout/Header';
 import { VaultBootstrap } from '@/components/auth/VaultBootstrap';
 import { VaultGate } from '@/components/auth/VaultGate';
 import { CashToastContainer } from '@/components/ui/cash-toast';
+import { ChatPanel } from '@/components/ai/ChatPanel';
 import './globals.css';
 
 const geistSans = Geist({
@@ -43,6 +44,7 @@ export default function RootLayout({
               <VaultGate>{children}</VaultGate>
             </main>
             <CashToastContainer />
+            <ChatPanel />
           </QueryProvider>
         </ThemeProvider>
       </body>

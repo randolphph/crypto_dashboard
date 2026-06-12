@@ -112,6 +112,7 @@ export function ApiKeySettings() {
     store.longportAccessToken
   );
   const ibkrConfigured = !!(store.ibkrFlexToken && store.ibkrFlexQueryId);
+  const deepseekConfigured = !!store.deepseekApiKey;
 
   return (
     <div className="space-y-4">
@@ -203,6 +204,18 @@ export function ApiKeySettings() {
             onChange={(v) => store.setKeys({ ibkrFlexQueryId: v })}
             placeholder="Custom Flex Query 列表里的数字 ID"
           />
+        </Section>
+
+        <Section title="DeepSeek (AI 助手)" configured={deepseekConfigured}>
+          <SecretInput
+            label="API Key"
+            value={store.deepseekApiKey}
+            onChange={(v) => store.setKeys({ deepseekApiKey: v })}
+            placeholder="sk-… ， platform.deepseek.com/api_keys"
+          />
+          <p className="text-xs text-muted-foreground">
+            前端直接调用 DeepSeek。Key 仅保存在浏览器内存，刷新需重新输入。
+          </p>
         </Section>
 
         <Section title="OKX Web3 (链上查询)" configured={okxWeb3Configured}>
