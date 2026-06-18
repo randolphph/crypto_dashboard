@@ -53,8 +53,7 @@ const POSITION_COLORS: Record<string, string> = {
   加密现货: '#f59e0b', // amber — matches the 加密 category color
   做多合约: '#10b981', // emerald
   做空合约: '#ef4444', // red
-  做多期权: '#06b6d4', // cyan
-  做空期权: '#ec4899', // pink
+  交易期权: '#06b6d4', // cyan
   股票现货: '#3b82f6', // blue — matches the 股票 category color
   股票空仓: '#8b5cf6', // violet
 };

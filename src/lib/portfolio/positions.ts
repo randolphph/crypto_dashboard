@@ -275,14 +275,9 @@ export function buildPositionBreakdown(
       details: sortDetails(futures.shortDetails),
     },
     {
-      label: '做多期权',
-      value: options.long,
-      details: sortDetails(options.longDetails),
-    },
-    {
-      label: '做空期权',
-      value: options.short,
-      details: sortDetails(options.shortDetails),
+      label: '交易期权',
+      value: options.long + options.short,
+      details: sortDetails([...options.longDetails, ...options.shortDetails]),
     },
     {
       label: '股票现货',
