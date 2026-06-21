@@ -6,13 +6,14 @@ import { useApiKeyStore } from '@/stores/apiKeyStore';
 import { useVaultStore } from '@/stores/vaultStore';
 import { useDashboardStore } from '@/stores/dashboardStore';
 import { usePortfolioHistoryStore } from '@/stores/portfolioHistoryStore';
+import { useCashFlowStore } from '@/stores/cashFlowStore';
 import { buildChatContext } from '@/lib/ai/context';
 import { streamDeepseek, type ChatMessage } from '@/lib/ai/deepseek';
 import { Markdown } from '@/components/common/Markdown';
 
 const SUGGESTIONS = [
   '我现在加密、股票、现金的比例分别是多少？',
-  '过去 30 天净值变化情况如何？',
+  '过去 30 天的真实盈亏是多少（扣掉充提）？',
   '我持仓最集中的三个标的是什么？分别多少 USD？',
   '帮我看一下期权头寸的风险敞口。',
 ];
@@ -36,6 +37,7 @@ export function ChatPanel() {
   const apiKey = useApiKeyStore((s) => s.deepseekApiKey);
   const latest = useDashboardStore((s) => s.latestSnapshotPayload);
   const history = usePortfolioHistoryStore((s) => s.snapshots);
+  const cashFlows = useCashFlowStore((s) => s.events);
 
   const [open, setOpen] = useState(false);
   const [input, setInput] = useState('');
@@ -79,6 +81,7 @@ export function ChatPanel() {
         wallet,
         latest,
         history,
+        cashFlows,
       });
 
       // Keep the last N pairs of recent dialogue (exclude the brand-new

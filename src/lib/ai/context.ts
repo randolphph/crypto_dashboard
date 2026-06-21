@@ -2,6 +2,8 @@
 
 import type { SnapshotPayload } from '@/types/snapshot';
 import type { PortfolioSnapshot } from '@/stores/portfolioHistoryStore';
+import type { CashFlowEvent } from '@/stores/cashFlowStore';
+import { netFlowInRange } from '@/stores/cashFlowStore';
 import { getSnapshots } from '@/lib/snapshot/store';
 import {
   snapshotToAiJson,
@@ -12,13 +14,19 @@ export interface ChatContextOptions {
   wallet: string | null;
   latest: SnapshotPayload | null;
   history: PortfolioSnapshot[];
+  cashFlows: CashFlowEvent[];
   // Cap on historical IndexedDB snapshots included. Each is summarised
   // (totalUsd + category buckets + per-underlying net) — not the full
   // markdown — so 30-ish is comfortable inside DeepSeek's 64K window.
   maxHistoricalSnapshots?: number;
+  // Cap on cash-flow events appended verbatim. The most-recent N are kept;
+  // anything older is rolled into a single aggregate line so the count stays
+  // bounded.
+  maxCashFlowEvents?: number;
 }
 
 const DEFAULT_HISTORICAL = 30;
+const DEFAULT_CASHFLOW_EVENTS = 100;
 
 function fmtUsd(n: number | null | undefined): string {
   if (n == null || !Number.isFinite(n)) return '—';
@@ -125,6 +133,80 @@ function summariseHistorical(s: SnapshotPayload): string {
     .join(' · ');
 }
 
+// Cash-flow events compress well — small fixed schema, no nested structure.
+// We render them as a markdown table with the most-recent N inline. Anything
+// trimmed off the top gets summarised as a single aggregate line so totals
+// still match the user's records.
+function renderCashFlows(
+  events: CashFlowEvent[],
+  cap: number
+): { section: string; included: number; total: number } {
+  if (events.length === 0) {
+    return { section: '', included: 0, total: 0 };
+  }
+  const sorted = [...events].sort((a, b) => a.timestamp - b.timestamp);
+  const now = Date.now();
+  const day = 24 * 60 * 60 * 1000;
+
+  const net7d = netFlowInRange(sorted, now - 7 * day, now);
+  const net30d = netFlowInRange(sorted, now - 30 * day, now);
+  const net90d = netFlowInRange(sorted, now - 90 * day, now);
+
+  let totalDeposit = 0;
+  let totalWithdraw = 0;
+  for (const e of sorted) {
+    if (e.type === 'deposit') totalDeposit += e.amount;
+    else totalWithdraw += e.amount;
+  }
+  const netAll = totalDeposit - totalWithdraw;
+
+  // Keep the most recent N. If more exist, fold the older ones into a single
+  // aggregate row at the top of the table so the AI still sees the total
+  // contribution from history rather than a silently truncated picture.
+  const trimmedCount = Math.max(0, sorted.length - cap);
+  const recent = sorted.slice(-cap);
+
+  let trimmedAgg = '';
+  if (trimmedCount > 0) {
+    const trimmed = sorted.slice(0, trimmedCount);
+    let dep = 0;
+    let wd = 0;
+    for (const e of trimmed) {
+      if (e.type === 'deposit') dep += e.amount;
+      else wd += e.amount;
+    }
+    const firstDate = fmtDate(trimmed[0].timestamp);
+    const lastDate = fmtDate(trimmed[trimmed.length - 1].timestamp);
+    trimmedAgg = `_早期 ${trimmedCount} 条已聚合（${firstDate} ~ ${lastDate}）：充值 ${fmtUsd(dep)}，提现 ${fmtUsd(wd)}，净 ${fmtUsd(dep - wd)}_`;
+  }
+
+  const tableRows = recent
+    .map((e) => {
+      const action = e.type === 'deposit' ? '充值' : '提现';
+      const signed = e.type === 'deposit' ? e.amount : -e.amount;
+      return `| ${fmtDate(e.timestamp)} | ${action} | ${fmtUsd(signed)} | ${(e.note ?? '').replace(/\|/g, '\\|')} |`;
+    })
+    .join('\n');
+
+  const summary = [
+    `**充提汇总**：充值合计 ${fmtUsd(totalDeposit)}，提现合计 ${fmtUsd(totalWithdraw)}，净流入 ${fmtUsd(netAll)}。`,
+    `**滚动净流入**：7 天 ${fmtUsd(net7d)} · 30 天 ${fmtUsd(net30d)} · 90 天 ${fmtUsd(net90d)}。`,
+    '说明：净值变化 ≈ 真实盈亏 + 净流入。计算"业绩"时应减去同时段净流入，避免把存款误读为收益。',
+  ].join('\n');
+
+  const lines = [summary];
+  if (trimmedAgg) lines.push(trimmedAgg);
+  lines.push('| 日期 | 类型 | 金额 (USD) | 备注 |');
+  lines.push('| --- | --- | --- | --- |');
+  lines.push(tableRows);
+
+  return {
+    section: lines.join('\n'),
+    included: recent.length,
+    total: sorted.length,
+  };
+}
+
 export interface BuiltContext {
   systemPrompt: string;
   // For UI display — what was actually injected.
@@ -132,14 +214,16 @@ export interface BuiltContext {
     hasLatest: boolean;
     historyPoints: number;
     historicalSnapshots: number;
+    cashFlowEvents: number;
   };
 }
 
 export async function buildChatContext(
   options: ChatContextOptions
 ): Promise<BuiltContext> {
-  const { wallet, latest, history } = options;
+  const { wallet, latest, history, cashFlows } = options;
   const cap = options.maxHistoricalSnapshots ?? DEFAULT_HISTORICAL;
+  const cashFlowCap = options.maxCashFlowEvents ?? DEFAULT_CASHFLOW_EVENTS;
 
   const sections: string[] = [];
 
@@ -152,6 +236,7 @@ export async function buildChatContext(
       '2. 涉及数字时给出具体值（USD），不要只说定性。',
       '3. 不构成投资建议；涉及操作建议时使用"情景"措辞，并说明风险。',
       '4. 简洁、克制、中文回答。表格用 markdown 表格。',
+      '5. 分析净值变动时，必须把"充提记录"考虑进去：真实业绩 ≈ 净值变化 − 同期净流入。',
     ].join('\n')
   );
 
@@ -177,6 +262,14 @@ export async function buildChatContext(
     sections.push(lines.join('\n'));
   }
 
+  const cashFlowResult = renderCashFlows(cashFlows, cashFlowCap);
+  if (cashFlowResult.section) {
+    sections.push(
+      `## 充提记录（${cashFlowResult.included} / ${cashFlowResult.total} 条）`
+    );
+    sections.push(cashFlowResult.section);
+  }
+
   let historicalCount = 0;
   if (wallet) {
     try {
@@ -200,6 +293,7 @@ export async function buildChatContext(
       hasLatest: !!latest,
       historyPoints: compactedHistory.length,
       historicalSnapshots: historicalCount,
+      cashFlowEvents: cashFlowResult.total,
     },
   };
 }
