@@ -354,6 +354,29 @@ function flattenStocks(data: StocksData | undefined): PositionSnapshot[] {
   return out;
 }
 
+// Bank-cash row passed in already converted to USD (FX lives outside snapshot
+// generation — callers either use /api/fx or stocks.data.fx).
+export interface BankCashInput {
+  bank: string;
+  currency: string;
+  amount: number;
+  valueUsd: number;
+  note?: string;
+}
+
+function flattenBanks(banks: BankCashInput[] | undefined): PositionSnapshot[] {
+  if (!banks) return [];
+  return banks.map<PositionSnapshot>((b) => ({
+    source: 'bank',
+    account: b.bank,
+    symbol: b.currency,
+    kind: 'cash',
+    qty: b.amount,
+    currency: b.currency,
+    valueUsd: b.valueUsd,
+  }));
+}
+
 export interface BuildSnapshotInput {
   wallet: string;
   binance?: BinanceAllDataLike;
@@ -361,6 +384,7 @@ export interface BuildSnapshotInput {
   deribit?: DeribitDataLike;
   onchain?: WalletBalance[];
   stocks?: StocksData;
+  banks?: BankCashInput[];
   portfolio: PortfolioSummarySnapshot;
 }
 
@@ -371,6 +395,7 @@ export function buildSnapshot(input: BuildSnapshotInput): SnapshotPayload {
     ...flattenDeribit(input.deribit),
     ...flattenOnchain(input.onchain),
     ...flattenStocks(input.stocks),
+    ...flattenBanks(input.banks),
   ].filter((p) => Number.isFinite(p.valueUsd));
 
   return {

@@ -5,7 +5,8 @@ export type SnapshotSource =
   | 'onchain'
   | 'ths'
   | 'longport'
-  | 'ibkr';
+  | 'ibkr'
+  | 'bank';
 
 export type SnapshotKind =
   | 'crypto'         // non-stable spot or stake

@@ -8,9 +8,11 @@ import { ExchangeSection } from './ExchangeSection';
 import { DeribitSection } from './DeribitSection';
 import { OnchainSection } from './OnchainSection';
 import { StockSection } from './StockSection';
+import { CashSection } from './CashSection';
 import { WalletManager } from '@/components/settings/WalletManager';
 import { StockPositionsManager } from '@/components/settings/StockPositionsManager';
 import { CashBalancesManager } from '@/components/settings/CashBalancesManager';
+import { BankAccountsManager } from '@/components/settings/BankAccountsManager';
 import {
   Dialog,
   DialogContent,
@@ -24,6 +26,8 @@ import { useSnapshotPersist } from '@/hooks/useSnapshotPersist';
 import { buildSnapshot } from '@/lib/portfolio/snapshot';
 import { useVaultStore } from '@/stores/vaultStore';
 import { useCustomAssetStore } from '@/stores/customAssetStore';
+import { useBankAccountStore } from '@/stores/bankAccountStore';
+import { useFx } from '@/hooks/useFx';
 import { usePortfolioHistoryStore } from '@/stores/portfolioHistoryStore';
 import { useDashboardStore } from '@/stores/dashboardStore';
 import { BROKER_LABEL, type StockBroker } from '@/types/stocks';
@@ -36,7 +40,7 @@ import {
 import { buildPositionBreakdown } from '@/lib/portfolio/positions';
 import { cn } from '@/lib/utils';
 
-type AddDialog = 'wallet' | 'stock-position' | 'stock-cash';
+type AddDialog = 'wallet' | 'stock-position' | 'stock-cash' | 'bank-account';
 const STOCK_TAB_IDS = ['ths', 'longport', 'ibkr'] as const;
 type StockTabId = (typeof STOCK_TAB_IDS)[number];
 function isStockTab(id: string): id is StockTabId {
@@ -62,6 +66,11 @@ const tabGroups = [
       { id: 'ibkr', label: 'IBKR' },
     ],
   },
+  {
+    id: 'cash',
+    label: '现金',
+    tabs: [{ id: 'bank', label: '银行' }],
+  },
 ] as const;
 
 type TabId =
@@ -78,6 +87,8 @@ export function Dashboard() {
   const onchain = useOnchainData();
   const stocks = useStockData();
   const customAssets = useCustomAssetStore((s) => s.assets);
+  const bankAccounts = useBankAccountStore((s) => s.accounts);
+  const fxQuery = useFx();
   const addSnapshot = usePortfolioHistoryStore((s) => s.addSnapshot);
   const setLastRefreshed = useDashboardStore((s) => s.setLastRefreshed);
 
@@ -97,6 +108,24 @@ export function Dashboard() {
 
   const brokerById = (b: StockBroker) =>
     stocks.data?.brokers.find((x) => x.broker === b);
+
+  // FX for bank cash. Prefer the rates that came with /api/stocks (always
+  // present alongside stocks data); fall back to the standalone /api/fx
+  // query so the bank cash USD value still works even when no broker is
+  // configured.
+  const fx = stocks.data?.fx ?? fxQuery.data;
+  const bankCashUsd = (currency: string, amount: number): number => {
+    if (!fx) return currency === 'USD' ? amount : 0;
+    if (currency === 'USD') return amount;
+    if (currency === 'CNY') return amount * fx.cnyUsd;
+    if (currency === 'HKD') return amount * fx.hkdUsd;
+    if (currency === 'KRW') return amount * fx.krwUsd;
+    return 0;
+  };
+  const bankCashValue = bankAccounts.reduce(
+    (s, a) => s + bankCashUsd(a.currency, a.amount),
+    0
+  );
 
   const stockBreakdown = (['ths', 'longport', 'ibkr'] as StockBroker[])
     .map((b) => {
@@ -119,6 +148,7 @@ export function Dashboard() {
         ) ?? 0,
     },
     ...stockBreakdown,
+    bankCashValue > 0 && { label: '银行', value: bankCashValue },
     ...customAssets.map((a) => ({ label: a.name, value: a.value })),
   ].filter((item): item is { label: string; value: number } => !!item);
 
@@ -139,7 +169,7 @@ export function Dashboard() {
   const cryptoValue =
     binCat.crypto + okxCat.crypto + derCat.crypto + onCat.crypto;
   const cashValue =
-    binCat.cash + okxCat.cash + onCat.cash + stockCashValue;
+    binCat.cash + okxCat.cash + onCat.cash + stockCashValue + bankCashValue;
   const otherValue = customAssets.reduce((s, a) => s + a.value, 0);
 
   // Detail breakdowns power the click-to-drill-down on the pie chart and
@@ -152,6 +182,15 @@ export function Dashboard() {
     { label: '链上', value: onCat.crypto },
   ].filter((d) => d.value > 0);
 
+  // Bank cash detail rolls every account at the same institution into one
+  // row so the user's "招商银行" with three currencies shows as a single
+  // entry rather than three.
+  const bankByName = new Map<string, number>();
+  for (const a of bankAccounts) {
+    const usd = bankCashUsd(a.currency, a.amount);
+    bankByName.set(a.bank, (bankByName.get(a.bank) ?? 0) + usd);
+  }
+
   const cashDetails = [
     { label: 'Binance', value: binCat.cash },
     { label: 'OKX', value: okxCat.cash },
@@ -162,6 +201,10 @@ export function Dashboard() {
         label: `${BROKER_LABEL[b.broker]} 现金`,
         value: b.cashUsdValue,
       })),
+    ...Array.from(bankByName.entries()).map(([label, value]) => ({
+      label,
+      value,
+    })),
   ].filter((d) => d.value > 0);
 
   const stocksDetails = stockBrokers
@@ -242,6 +285,13 @@ export function Dashboard() {
           deribit: deribit.data,
           onchain: onchain.data,
           stocks: stocks.data,
+          banks: bankAccounts.map((a) => ({
+            bank: a.bank,
+            currency: a.currency,
+            amount: a.amount,
+            valueUsd: bankCashUsd(a.currency, a.amount),
+            note: a.note,
+          })),
           portfolio: {
             totalUsd: totalValue,
             cryptoUsd: cryptoValue,
@@ -331,6 +381,12 @@ export function Dashboard() {
                 />
               </>
             )}
+            {activeTab === 'bank' && (
+              <AddButton
+                onClick={() => setAddDialog('bank-account')}
+                label="添加银行"
+              />
+            )}
           </div>
         </div>
       </div>
@@ -358,6 +414,7 @@ export function Dashboard() {
           error={stocks.error as Error | null}
         />
       )}
+      {activeTab === 'bank' && <CashSection />}
 
       <Dialog
         open={addDialog !== null}
@@ -400,6 +457,14 @@ export function Dashboard() {
                 autoOpenForm
                 initialBroker={isStockTab(activeTab) ? activeTab : 'ths'}
               />
+            </>
+          )}
+          {addDialog === 'bank-account' && (
+            <>
+              <DialogHeader>
+                <DialogTitle>添加银行账户</DialogTitle>
+              </DialogHeader>
+              <BankAccountsManager embedded autoOpenForm />
             </>
           )}
         </DialogContent>
