@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Plus } from 'lucide-react';
+import { Plus, Bitcoin, LineChart, Banknote } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { PortfolioSummary } from './PortfolioSummary';
 import { ExchangeSection } from './ExchangeSection';
@@ -47,10 +47,14 @@ function isStockTab(id: string): id is StockTabId {
   return (STOCK_TAB_IDS as readonly string[]).includes(id);
 }
 
+// Icon colors match the CATEGORY_COLORS palette in PortfolioSummary so the
+// tab markers, category pie, and breakdown strip all read as the same hue.
 const tabGroups = [
   {
     id: 'crypto',
     label: '加密',
+    Icon: Bitcoin,
+    iconClass: 'text-amber-500',
     tabs: [
       { id: 'exchanges', label: '交易所' },
       { id: 'deribit', label: '期权 (Deribit)' },
@@ -60,6 +64,8 @@ const tabGroups = [
   {
     id: 'stocks',
     label: '股票',
+    Icon: LineChart,
+    iconClass: 'text-blue-500',
     tabs: [
       { id: 'ths', label: 'A股' },
       { id: 'longport', label: '长桥' },
@@ -69,6 +75,8 @@ const tabGroups = [
   {
     id: 'cash',
     label: '现金',
+    Icon: Banknote,
+    iconClass: 'text-emerald-500',
     tabs: [{ id: 'bank', label: '银行' }],
   },
 ] as const;
@@ -338,8 +346,9 @@ export function Dashboard() {
                   <div className="mb-2 mr-3 hidden h-5 w-px bg-border md:block" />
                 )}
                 <div className="flex flex-col">
-                  <span className="hidden px-4 pb-0.5 text-[10px] font-medium uppercase tracking-wider text-muted-foreground/70 md:block">
+                  <span className="hidden items-center gap-1 px-4 pb-0.5 text-[10px] font-medium uppercase tracking-wider text-muted-foreground/70 md:inline-flex">
                     {group.label}
+                    <group.Icon className={cn('h-5 w-5', group.iconClass)} />
                   </span>
                   <div className="flex gap-1">
                     {group.tabs.map((tab) => (

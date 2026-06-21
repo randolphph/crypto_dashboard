@@ -7,6 +7,7 @@ import { useCustomAssetStore, type CustomAsset } from '@/stores/customAssetStore
 import { usePortfolioHistoryStore } from '@/stores/portfolioHistoryStore';
 import { useCashFlowStore, netFlowInRange } from '@/stores/cashFlowStore';
 import { PortfolioChart } from './PortfolioChart';
+import { SourceIcon } from './SourceIcon';
 
 interface BreakdownItem {
   label: string;
@@ -315,7 +316,10 @@ function CategoryTooltip({
               key={d.label}
               className="flex items-center justify-between gap-2 text-xs"
             >
-              <span className="text-muted-foreground truncate">{d.label}</span>
+              <span className="flex items-center gap-1.5 min-w-0">
+                <SourceIcon label={d.label} className="h-3 w-3" />
+                <span className="text-muted-foreground truncate">{d.label}</span>
+              </span>
               <div className="flex items-baseline gap-1.5 shrink-0 tabular-nums">
                 <span className="font-medium text-foreground">
                   {fmtUsd(d.value)}
@@ -390,6 +394,7 @@ function CustomAssetItem({
   return (
     <div className="flex flex-col gap-0.5 group relative">
       <div className="flex items-center gap-1">
+        <SourceIcon label={asset.name} kind="other" />
         <p className="text-xs text-muted-foreground">{asset.name}</p>
         <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
           <button onClick={onEdit} className="text-muted-foreground hover:text-foreground">
@@ -555,7 +560,10 @@ export function PortfolioSummary({
           <div className="flex flex-wrap items-end gap-x-5 gap-y-3">
             {apiBreakdown.map((item) => (
               <div key={item.label} className="flex flex-col gap-0.5">
-                <p className="text-xs text-muted-foreground">{item.label}</p>
+                <p className="flex items-center gap-1 text-xs text-muted-foreground">
+                  <SourceIcon label={item.label} />
+                  {item.label}
+                </p>
                 <p className="text-sm font-medium tabular-nums">{fmtUsd(item.value)}</p>
               </div>
             ))}

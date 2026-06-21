@@ -3,6 +3,7 @@
 import { useBankAccountStore } from '@/stores/bankAccountStore';
 import { usePrivacyFormat } from '@/hooks/usePrivacyFormat';
 import { useFx } from '@/hooks/useFx';
+import { SourceIcon } from './SourceIcon';
 import type { StockCurrency } from '@/types/stocks';
 
 // USD value of a single bank-cash row, using the same FX rates the rest of
@@ -73,7 +74,10 @@ export function CashSection() {
           return (
             <div key={bank} className="rounded-xl border bg-card p-5 shadow-sm">
               <div className="flex items-center justify-between mb-3">
-                <h3 className="font-semibold">{bank}</h3>
+                <h3 className="font-semibold flex items-center gap-1.5">
+                  <SourceIcon label={bank} className="h-4 w-4" />
+                  {bank}
+                </h3>
                 <span className="text-sm font-medium tabular-nums">
                   {fmtUsd(subtotal)}
                 </span>
