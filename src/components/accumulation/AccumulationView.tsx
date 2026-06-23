@@ -9,6 +9,7 @@ import { useOnchainData } from '@/hooks/useOnchainData';
 import { useStockData } from '@/hooks/useStockData';
 import { useFx } from '@/hooks/useFx';
 import { useWatchQuotes, type WatchSymbol } from '@/hooks/useWatchQuotes';
+import { useMa20 } from '@/hooks/useMa20';
 import { useBankAccountStore } from '@/stores/bankAccountStore';
 import { useCustomAssetStore } from '@/stores/customAssetStore';
 import {
@@ -124,9 +125,31 @@ export function AccumulationView() {
 
   const watchQuotes = useWatchQuotes(watchSymbols);
 
+  // Real MA20 (Yahoo daily) for every plan symbol — overrides the manual ma20
+  // so anchor prices track the actual 20-day average.
+  const ma20Symbols = useMemo<WatchSymbol[]>(() => {
+    const seen = new Set<string>();
+    const out: WatchSymbol[] = [];
+    for (const t of targets) {
+      const k = `${t.market}:${t.symbol.trim().toUpperCase()}`;
+      if (seen.has(k)) continue;
+      seen.add(k);
+      out.push({ market: t.market, symbol: t.symbol });
+    }
+    return out;
+  }, [targets]);
+  const ma20 = useMa20(ma20Symbols);
+
   const derived = useMemo(
-    () => deriveTargets(targets, stocks.data, gate, watchQuotes.data ?? []),
-    [targets, stocks.data, gate, watchQuotes.data]
+    () =>
+      deriveTargets(
+        targets,
+        stocks.data,
+        gate,
+        watchQuotes.data ?? [],
+        ma20.data ?? {}
+      ),
+    [targets, stocks.data, gate, watchQuotes.data, ma20.data]
   );
   const orphans = useMemo(
     () => orphanHoldings(targets, stocks.data),
@@ -170,9 +193,6 @@ export function AccumulationView() {
         <div className="flex items-center gap-2">
           <Target className="h-6 w-6 text-blue-500" />
           <h1 className="text-xl font-bold">AI 加仓计划</h1>
-          <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
-            只读
-          </span>
         </div>
         <div className="flex items-center gap-2">
           <button
@@ -199,20 +219,24 @@ export function AccumulationView() {
         </div>
       </div>
 
-      <FundingOverview funding={funding} />
-
-      {/* 环形图居中放大,表格放到下方全宽。 */}
-      <div className="flex justify-center -mt-4">
-        <SectorDonut
-          rollups={rollups}
-          activeSector={activeSector}
-          onHover={setHoveredSector}
-          onTogglePin={togglePin}
-        />
+      {/* 资金块放圆环左侧、持仓未纳入计划放右侧的空白处,圆环上移,给下方
+          表格腾出更多纵向空间。窄屏回退为竖向堆叠。 */}
+      <div className="grid grid-cols-1 items-center gap-4 lg:grid-cols-[14rem_32rem_14rem] lg:justify-center">
+        <FundingOverview funding={funding} />
+        <div className="flex justify-center">
+          <SectorDonut
+            rollups={rollups}
+            activeSector={activeSector}
+            onHover={setHoveredSector}
+            onTogglePin={togglePin}
+          />
+        </div>
+        <div>
+          {orphans.length > 0 && (
+            <OrphanStrip orphans={orphans} onAdd={addFromHolding} />
+          )}
+        </div>
       </div>
-
-      {/* 差异标记:持仓里有、计划里没有的标的。点一下即可一键纳入计划。 */}
-      {orphans.length > 0 && <OrphanStrip orphans={orphans} onAdd={addFromHolding} />}
 
       <TargetTable derived={derived} activeSector={activeSector} />
 

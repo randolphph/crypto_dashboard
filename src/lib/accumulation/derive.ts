@@ -33,6 +33,10 @@ export interface DerivedTarget {
   target: AccumulationTarget;
   // Display name from live data (A/HK stocks); null when unknown.
   name: string | null;
+  // Effective MA20 used for the anchor ladder: the server-computed value when
+  // available, otherwise the plan's manual ma20.
+  ma20: number;
+  ma20IsLive: boolean;
   livePrice: number | null;
   // Whether this target is an existing holding in the dashboard feed. Not-held
   // (watch-list) names have currentValue 0 and price sourced from /api/quotes.
@@ -179,7 +183,8 @@ export function deriveTarget(
   target: AccumulationTarget,
   positions: EnrichedPosition[],
   gate: GateState,
-  watchQuotes: Map<string, StockQuote> = new Map()
+  watchQuotes: Map<string, StockQuote> = new Map(),
+  ma20Override?: number
 ): DerivedTarget {
   const {
     livePrice,
@@ -191,6 +196,10 @@ export function deriveTarget(
     costBasisLocal,
     name,
   } = matchLive(target, positions, watchQuotes);
+  // Prefer the server-computed MA20; fall back to the plan's manual value.
+  const ma20IsLive =
+    typeof ma20Override === 'number' && Number.isFinite(ma20Override) && ma20Override > 0;
+  const ma20 = ma20IsLive ? ma20Override! : target.ma20;
   const remaining = Math.max(0, target.targetValue - currentValue);
   const progressPct =
     target.targetValue > 0
@@ -199,7 +208,7 @@ export function deriveTarget(
   const ratios = target.budgetRatios ?? DEFAULT_BUDGET_RATIOS;
 
   const tiers: DerivedTier[] = target.tierOffsets.map((offset, i) => {
-    const price = target.ma20 * (1 + offset);
+    const price = ma20 * (1 + offset);
     const gapPct = livePrice !== null ? (livePrice - price) / price : null;
     return {
       level: (i + 1) as 1 | 2 | 3,
@@ -244,6 +253,8 @@ export function deriveTarget(
   return {
     target,
     name,
+    ma20,
+    ma20IsLive,
     livePrice,
     isHeld,
     currentValue,
@@ -265,12 +276,21 @@ export function deriveTargets(
   targets: AccumulationTarget[],
   stocks: StocksData | undefined,
   gate: GateState,
-  watchQuotes: StockQuote[] = []
+  watchQuotes: StockQuote[] = [],
+  ma20Map: Record<string, number> = {}
 ): DerivedTarget[] {
   const positions = (stocks?.brokers ?? []).flatMap((b) => b.positions);
   const watchMap = new Map<string, StockQuote>();
   for (const q of watchQuotes) watchMap.set(quoteKey(q.market, q.symbol), q);
-  return targets.map((t) => deriveTarget(t, positions, gate, watchMap));
+  return targets.map((t) =>
+    deriveTarget(
+      t,
+      positions,
+      gate,
+      watchMap,
+      ma20Map[quoteKey(t.market, t.symbol)]
+    )
+  );
 }
 
 export interface OrphanHolding {

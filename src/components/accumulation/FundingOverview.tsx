@@ -26,7 +26,7 @@ export function FundingOverview({ funding }: { funding: FundingData }) {
   const sharePct = (funding.aiShareOfPortfolio * 100).toFixed(1);
 
   return (
-    <div className="flex flex-wrap gap-3">
+    <div className="flex flex-col gap-3">
       <Stat
         label="AI 占总资产比"
         value={hidden ? '****' : `${sharePct}%`}

@@ -173,7 +173,12 @@ export function SectorDonut({
             paddingAngle={0}
             startAngle={90}
             endAngle={-270}
-            isAnimationActive={false}
+            // Sweep-in on mount. Route changes unmount the page, so switching
+            // away to 资产看板 and back replays the expand effect. Hover only
+            // changes Cell opacity (data ref is memoized), so it won't re-fire.
+            isAnimationActive
+            animationDuration={800}
+            animationBegin={0}
             onMouseEnter={hover}
             onMouseLeave={() => onHover(null)}
             onClick={click}

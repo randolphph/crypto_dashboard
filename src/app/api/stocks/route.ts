@@ -182,18 +182,29 @@ export async function POST(request: Request) {
   for (const q of [...aQuotes, ...hQuotes, ...uQuotes, ...kQuotes]) {
     quoteMap.set(quoteKey(q.market, q.symbol), q);
   }
-  // IBKR's mark price is the broker's authoritative number and covers OTC /
-  // foreign tickers Yahoo/Tencent miss — let it win when both sources have it.
-  // But Flex doesn't return intraday change, so preserve changePct (and name
-  // as fallback) from the public quote when we have one.
+  // IBKR's Flex mark is an END-OF-DAY statement value, so during market hours
+  // it lags a live public quote. Prefer a fresh intraday public quote when we
+  // have one; fall back to the IBKR mark only when the public sources miss the
+  // ticker (OTC / foreign) or the position is an option — there the mark is the
+  // OPTION's price, which the underlying-stock quote would wrongly replace.
+  const optionKeys = new Set(
+    allPositions
+      .filter(({ p }) => p.kind === 'option')
+      .map(({ p }) => quoteKey(p.market, p.symbol))
+  );
   for (const q of ibkrQuotes) {
     const key = quoteKey(q.market, q.symbol);
     const existing = quoteMap.get(key);
-    quoteMap.set(key, {
-      ...q,
-      changePct: q.changePct ?? existing?.changePct,
-      name: q.name ?? existing?.name,
-    });
+    if (existing && existing.price > 0 && !optionKeys.has(key)) {
+      // Keep the live public price/changePct; borrow IBKR's name if missing.
+      quoteMap.set(key, { ...existing, name: existing.name ?? q.name });
+    } else {
+      quoteMap.set(key, {
+        ...q,
+        changePct: q.changePct ?? existing?.changePct,
+        name: q.name ?? existing?.name,
+      });
+    }
   }
 
   const enrichedCash: EnrichedCashBalance[] = allCash.map(({ c, source }) => ({

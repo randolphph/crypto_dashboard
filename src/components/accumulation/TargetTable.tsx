@@ -122,6 +122,13 @@ export function TargetTable({
 
   const rows = useMemo(() => {
     const sorted = [...derived].sort((a, b) => {
+      // Hovering/pinning a sector floats its rows to the top; the chosen
+      // sort still orders within each group.
+      if (activeSector) {
+        const am = a.target.sector === activeSector ? 0 : 1;
+        const bm = b.target.sector === activeSector ? 0 : 1;
+        if (am !== bm) return am - bm;
+      }
       const va = sortValue(a, sortKey);
       const vb = sortValue(b, sortKey);
       if (typeof va === 'string' && typeof vb === 'string') {
@@ -132,7 +139,7 @@ export function TargetTable({
         : (vb as number) - (va as number);
     });
     return sorted;
-  }, [derived, sortKey, asc]);
+  }, [derived, sortKey, asc, activeSector]);
 
   if (derived.length === 0) {
     return (
@@ -215,19 +222,30 @@ export function TargetTable({
               </TableCell>
               <TableCell
                 className="text-right tabular-nums"
-                title={
+                title={[
                   d.costBasisLocal !== null
                     ? `成本价 ${NUM(d.costBasisLocal)}`
-                    : undefined
-                }
+                    : null,
+                  `MA20 ${NUM(d.ma20)}（${d.ma20IsLive ? '实时计算' : '手填'}）`,
+                ]
+                  .filter(Boolean)
+                  .join(' · ')}
               >
                 {d.livePrice !== null ? (
                   <span>
                     {NUM(d.livePrice)}
-                    <span className="text-muted-foreground"> / {NUM(d.target.ma20)}</span>
+                    <span className="text-muted-foreground"> / {NUM(d.ma20)}</span>
                   </span>
                 ) : (
-                  <span className="text-muted-foreground">无报价 / {NUM(d.target.ma20)}</span>
+                  <span className="text-muted-foreground">无报价 / {NUM(d.ma20)}</span>
+                )}
+                {!d.ma20IsLive && (
+                  <span
+                    className="ml-1 text-[10px] text-amber-500"
+                    title="MA20 用的是手填值（实时计算暂不可用）"
+                  >
+                    手填
+                  </span>
                 )}
               </TableCell>
               <TableCell className="text-right tabular-nums">

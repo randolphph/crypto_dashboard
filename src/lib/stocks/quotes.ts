@@ -514,9 +514,43 @@ async function fetchStooqQuote(symbol: string): Promise<StockQuote> {
   }
 }
 
+// Eastmoney real-time US quote — China-reachable and INTRADAY, unlike Yahoo
+// (blocked on a China-hosted box) or stooq (delayed/EOD). Tries each US market
+// (105 NASDAQ / 106 NYSE / 107 AMEX); the wrong one returns no data. Price is
+// f43 scaled by f59 decimals; f170 is change% ×100.
+async function fetchEastmoneyUsQuote(symbol: string): Promise<StockQuote | null> {
+  const u = symbol.trim().toUpperCase();
+  for (const mkt of [105, 106, 107]) {
+    const url = `https://push2.eastmoney.com/api/qt/stock/get?secid=${mkt}.${u}&fields=f43,f58,f59,f170`;
+    try {
+      const res = await fetch(url, {
+        headers: { 'User-Agent': 'Mozilla/5.0' },
+        cache: 'no-store',
+      });
+      if (!res.ok) continue;
+      const json = await res.json();
+      const d = json?.data;
+      if (!d || typeof d.f43 !== 'number' || typeof d.f59 !== 'number') continue;
+      const price = d.f43 / Math.pow(10, d.f59);
+      if (!Number.isFinite(price) || price <= 0) continue;
+      const changePct = typeof d.f170 === 'number' ? d.f170 / 100 : undefined;
+      // Deliberately omit Eastmoney's Chinese name for US tickers so displays
+      // keep the English symbol / IBKR description.
+      return { symbol, market: 'US', price, currency: 'USD', changePct };
+    } catch {
+      continue;
+    }
+  }
+  return null;
+}
+
 async function fetchUsQuote(symbol: string): Promise<StockQuote> {
+  // Yahoo first (real-time when reachable, e.g. off-China). Then Eastmoney
+  // (real-time, China-reachable). stooq (delayed) only as a last resort.
   const yahoo = await fetchYahooQuote(symbol);
   if (yahoo) return yahoo;
+  const eastmoney = await fetchEastmoneyUsQuote(symbol);
+  if (eastmoney) return eastmoney;
   return fetchStooqQuote(symbol);
 }
 
