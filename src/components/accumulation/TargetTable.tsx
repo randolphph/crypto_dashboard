@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useMemo } from 'react';
-import { ArrowUpDown, Flame } from 'lucide-react';
+import { ArrowUpDown, Flame, Pencil } from 'lucide-react';
 import {
   Table,
   TableBody,
@@ -48,23 +48,97 @@ function sortValue(d: DerivedTarget, key: SortKey): number | string {
   }
 }
 
-function TierChip({ tier }: { tier: DerivedTier }) {
+function tierClass(tier: DerivedTier): string {
   const near =
     tier.gapPct !== null && tier.gapPct > 0 && tier.gapPct <= TRIGGER_THRESHOLD;
+  return tier.triggered
+    ? 'bg-emerald-500/15 text-emerald-600 ring-1 ring-emerald-500/40'
+    : near
+      ? 'bg-amber-500/15 text-amber-600 ring-1 ring-amber-500/40'
+      : 'bg-muted text-muted-foreground';
+}
+
+const PCT = (v: number) => (v * 100).toFixed(v * 100 % 1 === 0 ? 0 : 1);
+
+// 三档锚价: 档1 hangs off ma20 (read-only); 档2/档3 show their drop relative
+// to 档1's anchor and let you edit that ratio inline. Committing rebuilds the
+// target's relRatios pair from the two current ratios so editing one keeps the
+// other.
+function TierCell({
+  d,
+  onUpdate,
+}: {
+  d: DerivedTarget;
+  onUpdate?: (id: string, updates: { relRatios: [number, number] }) => void;
+}) {
+  // Which tier level (2 or 3) is being edited, plus the draft percent text.
+  const [editing, setEditing] = useState<2 | 3 | null>(null);
+  const [draft, setDraft] = useState('');
+
+  const currentRel = (level: 2 | 3): number =>
+    d.tiers.find((t) => t.level === level)?.relToTier1 ?? 0;
+
+  const startEdit = (level: 2 | 3) => {
+    setEditing(level);
+    setDraft(PCT(currentRel(level)));
+  };
+
+  const commit = () => {
+    if (editing === null) return;
+    const pct = parseFloat(draft);
+    if (Number.isFinite(pct)) {
+      // Clamp to a sane 0–50% drop; ratios are fractions of 档1's price.
+      const r = Math.min(0.5, Math.max(0, pct / 100));
+      const pair: [number, number] = [currentRel(2), currentRel(3)];
+      pair[editing - 2] = r;
+      onUpdate?.(d.target.id, { relRatios: pair });
+    }
+    setEditing(null);
+  };
+
   return (
-    <span
-      title={`档${tier.level} · 锚价 ${NUM(tier.price)} · 预算 $${NUM(tier.amount)}${tier.gapPct !== null ? ` · 距 ${(tier.gapPct * 100).toFixed(1)}%` : ''}`}
-      className={cn(
-        'inline-flex items-center rounded px-1.5 py-0.5 text-[11px] tabular-nums',
-        tier.triggered
-          ? 'bg-emerald-500/15 text-emerald-600 ring-1 ring-emerald-500/40'
-          : near
-            ? 'bg-amber-500/15 text-amber-600 ring-1 ring-amber-500/40'
-            : 'bg-muted text-muted-foreground'
-      )}
-    >
-      {NUM(tier.price)}
-    </span>
+    <div className="flex items-center gap-1">
+      {d.tiers.map((tier) => {
+        const isEditing = editing === tier.level;
+        return (
+          <span
+            key={tier.level}
+            title={`档${tier.level} · 锚价 ${NUM(tier.price)} · 预算 $${NUM(tier.amount)}${tier.relToTier1 !== null ? ` · 较档1 ↓${PCT(tier.relToTier1)}%` : ''}${tier.gapPct !== null ? ` · 距 ${(tier.gapPct * 100).toFixed(1)}%` : ''}`}
+            className={cn(
+              'inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] tabular-nums',
+              tierClass(tier)
+            )}
+          >
+            {NUM(tier.price)}
+            {tier.level !== 1 &&
+              (isEditing ? (
+                <input
+                  autoFocus
+                  type="number"
+                  step="0.5"
+                  value={draft}
+                  onChange={(e) => setDraft(e.target.value)}
+                  onBlur={commit}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') commit();
+                    if (e.key === 'Escape') setEditing(null);
+                  }}
+                  className="w-10 rounded border bg-background px-1 text-[11px] tabular-nums outline-none focus:ring-1 focus:ring-blue-500"
+                />
+              ) : (
+                <button
+                  onClick={() => startEdit(tier.level as 2 | 3)}
+                  title="点击编辑：相对档1锚价的下跌比例"
+                  className="inline-flex items-center gap-0.5 text-[10px] opacity-70 hover:opacity-100"
+                >
+                  ↓{PCT(tier.relToTier1 ?? 0)}%
+                  <Pencil className="h-2.5 w-2.5" />
+                </button>
+              ))}
+          </span>
+        );
+      })}
+    </div>
   );
 }
 
@@ -103,9 +177,11 @@ function SortHeader({
 export function TargetTable({
   derived,
   activeSector,
+  onUpdate,
 }: {
   derived: DerivedTarget[];
   activeSector?: string | null;
+  onUpdate?: (id: string, updates: { relRatios: [number, number] }) => void;
 }) {
   const { fmtUsd, hidden } = usePrivacyFormat();
   const [sortKey, setSortKey] = useState<SortKey>('proximity');
@@ -297,11 +373,7 @@ export function TargetTable({
                 </div>
               </TableCell>
               <TableCell>
-                <div className="flex gap-1">
-                  {d.tiers.map((t) => (
-                    <TierChip key={t.level} tier={t} />
-                  ))}
-                </div>
+                <TierCell d={d} onUpdate={onUpdate} />
               </TableCell>
               <TableCell className="text-right tabular-nums">
                 <span

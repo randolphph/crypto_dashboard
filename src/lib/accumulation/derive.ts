@@ -17,10 +17,16 @@ export const TRIGGER_THRESHOLD = 0.03;
 
 export interface DerivedTier {
   level: 1 | 2 | 3;
+  // Effective offset off ma20 (price / ma20 − 1). For 档2/档3 driven by
+  // relRatios this is the implied value, not the raw tierOffsets entry.
   offset: number;
-  // price = ma20 * (1 + offset), in the symbol's local currency (same unit as
-  // ma20), so it lines up with the live local price.
+  // price in the symbol's local currency (same unit as ma20), so it lines up
+  // with the live local price. 档1 = ma20 * (1 + tierOffsets[0]); 档2/档3 =
+  // tier1Price * (1 − relToTier1) when relRatios is set, else ma20-relative.
   price: number;
+  // Relative drop off 档1's anchor price, (tier1Price − price)/tier1Price.
+  // null for 档1 itself. This is what the inline 比例 editor reads/writes.
+  relToTier1: number | null;
   ratio: number;
   // remaining * ratio — the USD budget allocated to this rung.
   amount: number;
@@ -207,13 +213,25 @@ export function deriveTarget(
       : 0;
   const ratios = target.budgetRatios ?? DEFAULT_BUDGET_RATIOS;
 
+  // 档1 anchors off ma20; 档2/档3 either drop a relative ratio off 档1's price
+  // (when relRatios is set) or fall back to their own ma20-relative offset.
+  const tier1Price = ma20 * (1 + target.tierOffsets[0]);
+  const rel = target.relRatios;
   const tiers: DerivedTier[] = target.tierOffsets.map((offset, i) => {
-    const price = ma20 * (1 + offset);
+    const price =
+      i === 0
+        ? tier1Price
+        : rel
+          ? tier1Price * (1 - (rel[i - 1] ?? 0))
+          : ma20 * (1 + offset);
     const gapPct = livePrice !== null ? (livePrice - price) / price : null;
+    const relToTier1 =
+      i === 0 || tier1Price === 0 ? null : (tier1Price - price) / tier1Price;
     return {
       level: (i + 1) as 1 | 2 | 3,
-      offset,
+      offset: ma20 !== 0 ? price / ma20 - 1 : offset,
       price,
+      relToTier1,
       ratio: ratios[i] ?? 0,
       amount: remaining * (ratios[i] ?? 0),
       gapPct,

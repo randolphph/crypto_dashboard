@@ -49,6 +49,7 @@ export function AccumulationView() {
   const targets = useAccumulationStore((s) => s.targets);
   const replaceAll = useAccumulationStore((s) => s.replaceAll);
   const addTarget = useAccumulationStore((s) => s.addTarget);
+  const updateTarget = useAccumulationStore((s) => s.updateTarget);
   const { gate, setOpen, isMutating } = useGate();
 
   // Live data — these hooks share react-query / zustand state with the
@@ -238,7 +239,11 @@ export function AccumulationView() {
         </div>
       </div>
 
-      <TargetTable derived={derived} activeSector={activeSector} />
+      <TargetTable
+        derived={derived}
+        activeSector={activeSector}
+        onUpdate={updateTarget}
+      />
 
       {hydrated && targets.length === 0 && (
         <div className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
@@ -367,6 +372,10 @@ function ImportDialog({
         sector: typeof t.sector === 'string' ? t.sector : '未分类',
         ma20: t.ma20,
         tierOffsets: t.tierOffsets as [number, number, number],
+        relRatios:
+          Array.isArray(t.relRatios) && t.relRatios.length === 2
+            ? (t.relRatios as [number, number])
+            : undefined,
         budgetRatios: t.budgetRatios,
         targetValue: t.targetValue,
         currentValueSnapshot: t.currentValueSnapshot,
@@ -397,7 +406,8 @@ function ImportDialog({
         </div>
         <p className="mb-2 text-xs text-muted-foreground">
           A 股手动维护:每个标的 symbol / market(A·HK·US·KR) / sector / ma20 /
-          tierOffsets[3] / targetValue / status。锚价与各档预算自动算出。
+          tierOffsets[3] / targetValue / status。锚价与各档预算自动算出。档2/档3
+          也可在表格内直接编辑「相对档1的下跌比例」(对应 relRatios[2])。
         </p>
         <textarea
           value={text}

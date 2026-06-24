@@ -24,8 +24,16 @@ export interface AccumulationTarget {
   // 20-day moving average, hand-maintained. The anchor ladder hangs off this.
   ma20: number;
   // Three anchor offsets relative to ma20: price = ma20 * (1 + offset). Buying
-  // dips → negative offsets, e.g. [-0.03, -0.06, -0.10].
+  // dips → negative offsets, e.g. [-0.03, -0.06, -0.10]. 档1 always hangs off
+  // ma20 via tierOffsets[0]; tierOffsets[1]/[2] are the fallback for 档2/档3
+  // when relRatios is absent.
   tierOffsets: [number, number, number];
+  // Optional override for 档2/档3 anchor prices, expressed as a relative drop
+  // off 档1's anchor price: price = tier1Price * (1 − r). Two entries [r2, r3],
+  // each an independent fraction (0.03 = 3% below 档1). When set it takes
+  // precedence over tierOffsets[1]/[2]; 档1 is unaffected. Edited inline in the
+  // 三档锚价 column.
+  relRatios?: [number, number];
   // How the *remaining* budget (targetValue − liveCurrentValue) is split across
   // the three tiers. Defaults to [0.3, 0.3, 0.4] when omitted.
   budgetRatios?: [number, number, number];
