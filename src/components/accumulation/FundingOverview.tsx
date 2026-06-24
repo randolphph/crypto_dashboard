@@ -35,7 +35,6 @@ export function FundingOverview({ funding }: { funding: FundingData }) {
       <Stat
         label="待加额度"
         value={hidden ? '****' : fmtUsd(funding.pendingBudget)}
-        sub="Σ 各标的 (目标 − 现值)"
       />
     </div>
   );
