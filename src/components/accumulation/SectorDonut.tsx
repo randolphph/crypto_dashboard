@@ -57,7 +57,7 @@ export function SectorDonut({
 }: Props) {
   const { fmtUsd, hidden } = usePrivacyFormat();
 
-  const { ring, labels, colorBySector, rollupBySector, hasData } =
+  const { ring, labels, colorBySector, rollupBySector, totalTarget, hasData } =
     useMemo(() => {
       const colorBySector = new Map<string, string>();
       const rollupBySector = new Map<string, SectorRollup>();
@@ -97,13 +97,14 @@ export function SectorDonut({
         labels,
         colorBySector,
         rollupBySector,
+        totalTarget,
         hasData: withTarget.length > 0,
       };
     }, [rollups]);
 
   if (!hasData) {
     return (
-      <div className="flex h-[340px] w-full max-w-lg items-center justify-center text-sm text-muted-foreground">
+      <div className="flex h-[340px] w-full max-w-xl items-center justify-center text-sm text-muted-foreground">
         暂无板块数据
       </div>
     );
@@ -121,21 +122,24 @@ export function SectorDonut({
   const RADIAN = Math.PI / 180;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const renderLabel = (props: any) => {
-    const { cx, cy, midAngle, outerRadius, payload } = props;
+    const { cx, cy, midAngle, outerRadius, payload, value } = props;
     const sector: string = payload?.sector ?? '';
     if (!sector) return null;
-    const r = outerRadius + 16;
+    const r = outerRadius + 18;
     const x = cx + r * Math.cos(-midAngle * RADIAN);
     const y = cy + r * Math.sin(-midAngle * RADIAN);
     const anchor = x >= cx ? 'start' : 'end';
     const dim = activeSector && activeSector !== sector;
+    // Share of total target = this sector's wedge size in the ring.
+    const pct =
+      totalTarget > 0 ? Math.round((value / totalTarget) * 100) : 0;
     return (
       <text
         x={x}
         y={y}
         textAnchor={anchor}
         dominantBaseline="central"
-        fontSize={17}
+        fontSize={19}
         fontWeight={activeSector === sector ? 800 : 700}
         fill={colorBySector.get(sector)}
         opacity={dim ? 0.3 : 1}
@@ -145,6 +149,9 @@ export function SectorDonut({
         onClick={() => onTogglePin(sector)}
       >
         {sector}
+        <tspan dx={7} fontSize={16} fontWeight={600} opacity={0.8}>
+          {pct}%
+        </tspan>
       </text>
     );
   };
@@ -159,8 +166,8 @@ export function SectorDonut({
   };
 
   return (
-    <div className="w-full max-w-lg">
-      <ResponsiveContainer width="100%" height={372}>
+    <div className="w-full max-w-xl">
+      <ResponsiveContainer width="100%" height={440}>
         <PieChart>
           <Pie
             data={ring}
@@ -168,8 +175,8 @@ export function SectorDonut({
             nameKey="sector"
             cx="50%"
             cy="50%"
-            innerRadius={104}
-            outerRadius={160}
+            innerRadius={124}
+            outerRadius={188}
             paddingAngle={0}
             startAngle={90}
             endAngle={-270}
@@ -209,8 +216,8 @@ export function SectorDonut({
             nameKey="sector"
             cx="50%"
             cy="50%"
-            innerRadius={104}
-            outerRadius={160}
+            innerRadius={124}
+            outerRadius={188}
             startAngle={90}
             endAngle={-270}
             fill="none"
@@ -230,6 +237,7 @@ export function SectorDonut({
                 r.targetValue > 0
                   ? Math.min(1, r.currentValue / r.targetValue) * 100
                   : 0;
+              const color = colorBySector.get(sector) ?? '#888888';
               return (
                 <div className="min-w-[320px] rounded-lg border bg-popover px-5 py-4 text-base shadow-lg">
                   <p className="flex items-center gap-2.5 text-lg font-semibold tracking-wide">
@@ -238,7 +246,19 @@ export function SectorDonut({
                       style={{ backgroundColor: colorBySector.get(sector) }}
                     />
                     {sector}
-                    <span className="ml-auto text-sm text-muted-foreground tabular-nums">
+                    <span className="ml-auto flex items-center gap-2 text-sm text-muted-foreground tabular-nums">
+                      <span
+                        className="h-2 w-16 overflow-hidden rounded-full"
+                        style={{ backgroundColor: `${color}33` }}
+                      >
+                        <span
+                          className="block h-full rounded-full"
+                          style={{
+                            width: `${progress}%`,
+                            backgroundColor: color,
+                          }}
+                        />
+                      </span>
                       进度 {progress.toFixed(0)}%
                     </span>
                   </p>
@@ -246,42 +266,36 @@ export function SectorDonut({
                     现有 {hidden ? '****' : fmtUsd(r.currentValue)} · 目标{' '}
                     {hidden ? '****' : fmtUsd(r.targetValue)}
                   </p>
-                  <div className="mt-3 grid grid-cols-[1fr_auto_auto] gap-x-8 gap-y-2 text-sm tracking-wide">
-                    <span className="text-muted-foreground">标的</span>
-                    <span className="text-right text-muted-foreground">现有</span>
-                    <span className="text-right text-muted-foreground">目标</span>
+                  <div className="mt-3 space-y-2.5">
                     {r.members.map((m) => {
-                      const curPct =
-                        r.currentValue > 0
-                          ? (m.currentValue / r.currentValue) * 100
+                      // Mini-ring depth = this stock's progress toward its own
+                      // target; the % beside the name = its share of the
+                      // sector's target.
+                      const prog =
+                        m.targetValue > 0
+                          ? Math.min(1, m.currentValue / m.targetValue)
                           : 0;
-                      const tgtPct =
+                      const tgtShare =
                         r.targetValue > 0
                           ? (m.targetValue / r.targetValue) * 100
                           : 0;
                       return (
-                        <div key={m.symbol} className="contents">
-                          <span className="text-foreground">{m.label}</span>
-                          <span className="text-right tabular-nums">
-                            {m.currentValue > 0 ? (
-                              <>
-                                {hidden ? '****' : fmtUsd(m.currentValue)}
-                                <span className="text-muted-foreground">
-                                  {' '}
-                                  · {curPct.toFixed(0)}%
-                                </span>
-                              </>
-                            ) : (
-                              '—'
-                            )}
-                          </span>
-                          <span className="text-right tabular-nums">
-                            {hidden ? '****' : fmtUsd(m.targetValue)}
-                            <span className="text-muted-foreground">
-                              {' '}
-                              · {tgtPct.toFixed(0)}%
-                            </span>
-                          </span>
+                        <div key={m.symbol} className="flex items-center gap-2.5">
+                          <MemberRing progress={prog} color={color} />
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-baseline justify-between gap-2">
+                              <span className="truncate font-medium text-foreground">
+                                {m.label}
+                              </span>
+                              <span className="shrink-0 text-xs text-muted-foreground tabular-nums">
+                                目标占比 {tgtShare.toFixed(0)}%
+                              </span>
+                            </div>
+                            <div className="text-xs text-muted-foreground tabular-nums">
+                              现有 {hidden ? '****' : fmtUsd(m.currentValue)} ·
+                              目标 {hidden ? '****' : fmtUsd(m.targetValue)}
+                            </div>
+                          </div>
                         </div>
                       );
                     })}
@@ -293,5 +307,63 @@ export function SectorDonut({
         </PieChart>
       </ResponsiveContainer>
     </div>
+  );
+}
+
+// Per-stock progress donut for the tooltip: a light track (sector color, faded)
+// with a saturated arc whose length = currentValue / targetValue, plus the
+// progress % in the middle. Same 深浅 language as the main ring.
+function MemberRing({
+  progress,
+  color,
+}: {
+  progress: number;
+  color: string;
+}) {
+  const size = 34;
+  const stroke = 5;
+  const radius = (size - stroke) / 2;
+  const circ = 2 * Math.PI * radius;
+  const filled = Math.max(0, Math.min(1, progress));
+  const center = size / 2;
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox={`0 0 ${size} ${size}`}
+      className="shrink-0"
+    >
+      <circle
+        cx={center}
+        cy={center}
+        r={radius}
+        fill="none"
+        stroke={color}
+        strokeOpacity={0.2}
+        strokeWidth={stroke}
+      />
+      <circle
+        cx={center}
+        cy={center}
+        r={radius}
+        fill="none"
+        stroke={color}
+        strokeWidth={stroke}
+        strokeLinecap="round"
+        strokeDasharray={`${filled * circ} ${circ}`}
+        transform={`rotate(-90 ${center} ${center})`}
+      />
+      <text
+        x={center}
+        y={center}
+        textAnchor="middle"
+        dominantBaseline="central"
+        fontSize={9}
+        fontWeight={700}
+        fill={color}
+      >
+        {Math.round(filled * 100)}
+      </text>
+    </svg>
   );
 }

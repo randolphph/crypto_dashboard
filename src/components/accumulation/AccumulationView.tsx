@@ -221,7 +221,7 @@ export function AccumulationView() {
 
       {/* 资金块放圆环左侧、持仓未纳入计划放右侧的空白处,圆环上移,给下方
           表格腾出更多纵向空间。窄屏回退为竖向堆叠。 */}
-      <div className="grid grid-cols-1 items-center gap-4 lg:grid-cols-[14rem_32rem_14rem] lg:justify-center">
+      <div className="grid grid-cols-1 items-center gap-4 lg:grid-cols-[12rem_36rem_12rem] lg:justify-center">
         <FundingOverview funding={funding} />
         <div className="flex justify-center">
           <SectorDonut
