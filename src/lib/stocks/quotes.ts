@@ -558,10 +558,39 @@ async function fetchUsFresh(symbols: string[]): Promise<StockQuote[]> {
   return Promise.all(symbols.map(fetchUsQuote));
 }
 
+// Naver Finance — the China-reachable source for KRX names. Yahoo is blocked on
+// a China-hosted box, and Eastmoney/Tencent don't carry Korean single stocks,
+// so Naver is the only real-time fallback (its KS/KQ are inferred natively, no
+// exchange guess needed). `closePrice` is a comma-grouped KRW string;
+// `fluctuationsRatio` is the signed day change %.
+async function fetchNaverKrQuote(symbol: string): Promise<StockQuote | null> {
+  const code = symbol.replace(/\D/g, '');
+  if (!code) return null;
+  const url = `https://m.stock.naver.com/api/stock/${code}/basic`;
+  try {
+    const res = await fetch(url, { headers: BROWSER_HEADERS, cache: 'no-store' });
+    if (!res.ok) return null;
+    const d = await res.json();
+    const price = parseFloat(String(d?.closePrice ?? '').replace(/,/g, ''));
+    if (!Number.isFinite(price) || price <= 0) return null;
+    const changePct = parseFloat(String(d?.fluctuationsRatio ?? ''));
+    return {
+      symbol,
+      market: 'KR',
+      name: typeof d?.stockName === 'string' ? d.stockName : undefined,
+      price,
+      currency: 'KRW',
+      changePct: Number.isFinite(changePct) ? changePct : undefined,
+    };
+  } catch {
+    return null;
+  }
+}
+
 // Yahoo serves KRX with `.KS` for KOSPI and `.KQ` for KOSDAQ. IBKR Flex emits
 // the bare 6-digit symbol without exchange hints, so try KOSPI first and fall
-// back to KOSDAQ. Both fail → IBKR's markPrice from Flex will still anchor the
-// value; only changePct goes missing.
+// back to KOSDAQ, then Naver (China-reachable). All fail → IBKR's markPrice from
+// Flex will still anchor the value; only changePct goes missing.
 async function fetchKrQuote(symbol: string): Promise<StockQuote> {
   for (const suffix of ['.KS', '.KQ']) {
     const yahoo = await fetchYahooQuote(`${symbol}${suffix}`);
@@ -574,12 +603,14 @@ async function fetchKrQuote(symbol: string): Promise<StockQuote> {
       };
     }
   }
+  const naver = await fetchNaverKrQuote(symbol);
+  if (naver) return naver;
   return {
     symbol,
     market: 'KR',
     price: 0,
     currency: 'KRW',
-    error: 'yahoo no KR quote',
+    error: 'no KR quote',
   };
 }
 

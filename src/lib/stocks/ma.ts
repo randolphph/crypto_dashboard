@@ -190,6 +190,39 @@ async function ma20FromTencent(code: string): Promise<number | null> {
   }
 }
 
+// Naver daily K-line for KRX names — China-reachable, unlike Yahoo. Rows come
+// ascending by date as { localDate, closePrice, ... }; closePrice is numeric.
+async function ma20FromNaver(code: string): Promise<number | null> {
+  const ck = `n:${code}`;
+  const cached = cache.get(ck);
+  if (cached && Date.now() - cached.ts < CACHE_TTL_MS) return cached.value;
+
+  const fmt = (d: Date) =>
+    `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(
+      d.getDate()
+    ).padStart(2, '0')}`;
+  const end = new Date();
+  const start = new Date(end.getTime() - 60 * 24 * 60 * 60 * 1000);
+  const url = `https://api.stock.naver.com/chart/domestic/item/${code}/day?startDateTime=${fmt(
+    start
+  )}&endDateTime=${fmt(end)}`;
+  try {
+    const res = await fetch(url, { headers: YAHOO_HEADERS, cache: 'no-store' });
+    if (!res.ok) return null;
+    const json = await res.json();
+    const rows: unknown = Array.isArray(json) ? json : json?.priceInfos;
+    if (!Array.isArray(rows)) return null;
+    const closes = rows
+      .map((r) => Number((r as { closePrice?: unknown })?.closePrice))
+      .filter((n) => Number.isFinite(n) && n > 0);
+    const ma = ma20FromCloses(closes);
+    if (ma !== null) cache.set(ck, { value: ma, ts: Date.now() });
+    return ma;
+  } catch {
+    return null;
+  }
+}
+
 export interface MaSymbol {
   market: StockMarket;
   symbol: string;
@@ -210,14 +243,17 @@ export async function fetchMa20(
       };
 
       // Yahoo first (accurate, works off-China). Then China-reachable fallbacks
-      // for when Yahoo is blocked: Tencent for A/HK, Eastmoney for US (tries
-      // each exchange; wrong one returns empty), stooq as a final US backstop.
-      // KR has no free China-reachable source → manual.
+      // for when Yahoo is blocked: Tencent for A/HK, Naver for KR, Eastmoney for
+      // US (tries each exchange; wrong one returns empty), stooq as a final US
+      // backstop.
       for (const cand of yahooCandidates(market, symbol)) {
         if (set(await ma20ForYahoo(cand))) return;
       }
       for (const tc of tencentCandidates(market, symbol)) {
         if (set(await ma20FromTencent(tc))) return;
+      }
+      if (market === 'KR') {
+        if (set(await ma20FromNaver(symbol.replace(/\D/g, '')))) return;
       }
       if (market === 'US') {
         for (const secid of eastmoneyUsSecids(symbol)) {
