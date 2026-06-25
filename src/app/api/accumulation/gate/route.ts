@@ -30,7 +30,7 @@ interface PatchBody {
 // PATCH toggles the global switch (`{ open }`) or arms/pauses one sector
 // (`{ sector, arm }`). Display-only state — there is deliberately no path here
 // that can submit an order. Reads/writes from the browser go freely (the
-// dashboard URL is the soft gate), matching the strategy module's posture.
+// dashboard URL is the soft gate).
 export async function PATCH(request: Request) {
   if (!isGateConfigured()) {
     return Response.json(

@@ -8,8 +8,7 @@ import {
 
 // Storage model: a single JSON blob at GATE_KEY holding the global switch and
 // the per-sector arm map. VERSION_KEY is INCR'd on every mutation so the SSE
-// stream can detect changes without re-reading the blob each tick — same shape
-// as strategy/serverStore.
+// stream can detect changes without re-reading the blob each tick.
 const GATE_KEY = 'accumulation:gate';
 const VERSION_KEY = 'accumulation:gate_version';
 

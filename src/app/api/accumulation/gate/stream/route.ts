@@ -1,9 +1,8 @@
 import { getGate, getVersion } from '@/lib/accumulation/serverStore';
 
 export const dynamic = 'force-dynamic';
-// Mirror the strategy stream: hold one SSE connection ~50s then close so the
-// platform's function timeout doesn't kill us mid-frame; EventSource auto-
-// reconnects from the client.
+// Hold one SSE connection ~50s then close so the platform's function timeout
+// doesn't kill us mid-frame; EventSource auto-reconnects from the client.
 export const maxDuration = 60;
 
 const CLOSE_AFTER_MS = 50_000;
