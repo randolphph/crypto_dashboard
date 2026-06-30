@@ -31,6 +31,11 @@ type SortKey =
 
 const NUM = (v: number) => v.toLocaleString('en-US', { maximumFractionDigits: 2 });
 
+const ROW_PROGRESS_MARKERS = [
+  'repeating-linear-gradient(to bottom, var(--accumulation-row-progress-marker-20) 0 2px, transparent 2px 5px)',
+  'repeating-linear-gradient(to bottom, var(--accumulation-row-progress-marker-50) 0 2px, transparent 2px 5px)',
+].join(', ');
+
 function sortValue(d: DerivedTarget, key: SortKey): number | string {
   switch (key) {
     case 'symbol':
@@ -272,12 +277,16 @@ export function TargetTable({
             return (
             <TableRow
               key={d.target.id}
+              title={`加仓进度 ${progress}% · 刻度线 20% / 50%`}
               className={cn(
                 'transition-opacity',
                 sectorDimmed && 'opacity-40'
               )}
               style={{
-                backgroundImage: `linear-gradient(to right, ${progressColor} 0%, ${progressColor} ${progress}%, transparent ${progress}%, transparent 100%)`,
+                backgroundImage: `${ROW_PROGRESS_MARKERS}, linear-gradient(to right, ${progressColor} 0%, ${progressColor} ${progress}%, transparent ${progress}%, transparent 100%)`,
+                backgroundPosition: '20% 0, 50% 0, 0 0',
+                backgroundRepeat: 'no-repeat',
+                backgroundSize: '1px 100%, 1px 100%, 100% 100%',
                 boxShadow: sectorActive
                   ? `inset 3px 0 0 ${sectorColor}`
                   : undefined,

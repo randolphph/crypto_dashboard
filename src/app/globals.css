@@ -98,6 +98,8 @@
   --accumulation-water-front-stroke-opacity: 0.68;
   --accumulation-water-outline-opacity: 0.62;
   --accumulation-row-progress-opacity: 16%;
+  --accumulation-row-progress-marker-20: oklch(0.25 0 0 / 18%);
+  --accumulation-row-progress-marker-50: oklch(0.25 0 0 / 26%);
   --accumulation-tier-1: #16a34a;
   --accumulation-tier-2: #ca8a04;
   --accumulation-tier-3: #dc2626;
@@ -152,6 +154,8 @@
   --accumulation-water-front-stroke-opacity: 0.95;
   --accumulation-water-outline-opacity: 0.9;
   --accumulation-row-progress-opacity: 22%;
+  --accumulation-row-progress-marker-20: oklch(0.95 0 0 / 22%);
+  --accumulation-row-progress-marker-50: oklch(0.95 0 0 / 30%);
   --accumulation-tier-1: #4ade80;
   --accumulation-tier-2: #facc15;
   --accumulation-tier-3: #f87171;
