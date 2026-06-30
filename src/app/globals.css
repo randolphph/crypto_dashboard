@@ -97,6 +97,12 @@
   --accumulation-water-back-stroke-opacity: 0.34;
   --accumulation-water-front-stroke-opacity: 0.68;
   --accumulation-water-outline-opacity: 0.62;
+  --accumulation-row-progress-opacity: 16%;
+  --accumulation-tier-1: #16a34a;
+  --accumulation-tier-2: #ca8a04;
+  --accumulation-tier-3: #dc2626;
+  --accumulation-tier-fill-opacity: 26%;
+  --accumulation-tier-border-opacity: 52%;
 }
 
 .dark {
@@ -145,6 +151,12 @@
   --accumulation-water-back-stroke-opacity: 0.62;
   --accumulation-water-front-stroke-opacity: 0.95;
   --accumulation-water-outline-opacity: 0.9;
+  --accumulation-row-progress-opacity: 22%;
+  --accumulation-tier-1: #4ade80;
+  --accumulation-tier-2: #facc15;
+  --accumulation-tier-3: #f87171;
+  --accumulation-tier-fill-opacity: 34%;
+  --accumulation-tier-border-opacity: 62%;
 }
 
 @layer base {

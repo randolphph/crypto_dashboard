@@ -5,19 +5,6 @@ import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
 import type { SectorRollup } from '@/lib/accumulation/derive';
 import { usePrivacyFormat } from '@/hooks/usePrivacyFormat';
 
-// Shared palette with the dashboard's category pie so a sector reads as the
-// same hue across the app.
-const COLORS = [
-  '#3b82f6',
-  '#f59e0b',
-  '#10b981',
-  '#8b5cf6',
-  '#ef4444',
-  '#06b6d4',
-  '#ec4899',
-  '#f97316',
-];
-
 const RAINBOW_STOPS = [
   ['0%', 'var(--accumulation-rainbow-red)'],
   ['14%', 'var(--accumulation-rainbow-orange)'],
@@ -55,6 +42,7 @@ interface LabelSlice {
 
 interface Props {
   rollups: SectorRollup[];
+  sectorColors: ReadonlyMap<string, string>;
   // 总体加仓进度 = AI 现值 / 目标,驱动圆环中心的接水特效。
   progress: number;
   // Effective highlight = hover ?? pin, computed by the parent.
@@ -65,6 +53,7 @@ interface Props {
 
 export function SectorDonut({
   rollups,
+  sectorColors,
   progress,
   activeSector,
   onHover,
@@ -72,12 +61,10 @@ export function SectorDonut({
 }: Props) {
   const { fmtUsd, hidden } = usePrivacyFormat();
 
-  const { ring, labels, colorBySector, rollupBySector, totalTarget, hasData } =
+  const { ring, labels, rollupBySector, totalTarget, hasData } =
     useMemo(() => {
-      const colorBySector = new Map<string, string>();
       const rollupBySector = new Map<string, SectorRollup>();
-      rollups.forEach((r, i) => {
-        colorBySector.set(r.sector, COLORS[i % COLORS.length]);
+      rollups.forEach((r) => {
         rollupBySector.set(r.sector, r);
       });
       const withTarget = rollups.filter((r) => r.targetValue > 0);
@@ -87,7 +74,7 @@ export function SectorDonut({
       const ring: RingSlice[] = [];
       const labels: LabelSlice[] = [];
       withTarget.forEach((r, idx) => {
-        const color = colorBySector.get(r.sector)!;
+        const color = sectorColors.get(r.sector) ?? '#64748b';
         const filled = Math.min(Math.max(r.currentValue, 0), r.targetValue);
         const remaining = Math.max(r.targetValue - filled, 0);
         // Keep filled then remaining adjacent so they read as one wedge.
@@ -110,12 +97,11 @@ export function SectorDonut({
       return {
         ring,
         labels,
-        colorBySector,
         rollupBySector,
         totalTarget,
         hasData: withTarget.length > 0,
       };
-    }, [rollups]);
+    }, [rollups, sectorColors]);
 
   if (!hasData) {
     return (
@@ -156,7 +142,7 @@ export function SectorDonut({
         dominantBaseline="central"
         fontSize={19}
         fontWeight={activeSector === sector ? 800 : 700}
-        fill={colorBySector.get(sector)}
+        fill={sectorColors.get(sector)}
         opacity={dim ? 0.3 : 1}
         className="cursor-pointer"
         onMouseEnter={() => onHover(sector)}
@@ -257,13 +243,13 @@ export function SectorDonut({
                 r.targetValue > 0
                   ? Math.min(1, r.currentValue / r.targetValue) * 100
                   : 0;
-              const color = colorBySector.get(sector) ?? '#888888';
+              const color = sectorColors.get(sector) ?? '#888888';
               return (
                 <div className="min-w-[320px] rounded-lg border bg-popover px-5 py-4 text-base shadow-lg">
                   <p className="flex items-center gap-2.5 text-lg font-semibold tracking-wide">
                     <span
                       className="inline-block h-3.5 w-3.5 rounded-sm"
-                      style={{ backgroundColor: colorBySector.get(sector) }}
+                      style={{ backgroundColor: color }}
                     />
                     {sector}
                     <span className="ml-auto flex items-center gap-2 text-sm text-muted-foreground tabular-nums">

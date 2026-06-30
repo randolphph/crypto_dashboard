@@ -28,6 +28,7 @@ import { usePrivacyFormat } from '@/hooks/usePrivacyFormat';
 import { SectorDonut } from './SectorDonut';
 import { FundingOverview } from './FundingOverview';
 import { TargetTable } from './TargetTable';
+import { buildSectorColorMap } from './sectorColors';
 import { cn } from '@/lib/utils';
 
 // Available "ammo" = money that can actually buy stocks: broker cash + bank
@@ -157,6 +158,10 @@ export function AccumulationView() {
     [targets, stocks.data]
   );
   const rollups = useMemo(() => rollupSectors(derived), [derived]);
+  const sectorColors = useMemo(
+    () => buildSectorColorMap(rollups),
+    [rollups]
+  );
   const funding = useMemo(
     () => deriveFunding(derived, totalPortfolioUsd, availableAmmo),
     [derived, totalPortfolioUsd, availableAmmo]
@@ -227,6 +232,7 @@ export function AccumulationView() {
         <div className="flex justify-center">
           <SectorDonut
             rollups={rollups}
+            sectorColors={sectorColors}
             progress={
               funding.aiTargetTotal > 0
                 ? funding.aiCurrentTotal / funding.aiTargetTotal
@@ -246,6 +252,7 @@ export function AccumulationView() {
 
       <TargetTable
         derived={derived}
+        sectorColors={sectorColors}
         activeSector={activeSector}
         onUpdate={updateTarget}
       />
