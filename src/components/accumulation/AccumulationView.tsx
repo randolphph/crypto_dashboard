@@ -227,6 +227,11 @@ export function AccumulationView() {
         <div className="flex justify-center">
           <SectorDonut
             rollups={rollups}
+            progress={
+              funding.aiTargetTotal > 0
+                ? funding.aiCurrentTotal / funding.aiTargetTotal
+                : 0
+            }
             activeSector={activeSector}
             onHover={setHoveredSector}
             onTogglePin={togglePin}

@@ -18,6 +18,18 @@ const COLORS = [
   '#f97316',
 ];
 
+const RAINBOW_STOPS = [
+  ['0%', '#ef4444'],
+  ['14%', '#f97316'],
+  ['28%', '#f59e0b'],
+  ['43%', '#10b981'],
+  ['57%', '#06b6d4'],
+  ['72%', '#3b82f6'],
+  ['86%', '#8b5cf6'],
+  ['93%', '#ec4899'],
+  ['100%', '#ef4444'],
+] as const;
+
 const FILLED_OPACITY = 1;
 const REMAINING_OPACITY = 0.3;
 // Angular gap between sectors, as a fraction of total target. Inserted as a
@@ -43,6 +55,8 @@ interface LabelSlice {
 
 interface Props {
   rollups: SectorRollup[];
+  // 总体加仓进度 = AI 现值 / 目标,驱动圆环中心的接水特效。
+  progress: number;
   // Effective highlight = hover ?? pin, computed by the parent.
   activeSector: string | null;
   onHover: (sector: string | null) => void;
@@ -51,6 +65,7 @@ interface Props {
 
 export function SectorDonut({
   rollups,
+  progress,
   activeSector,
   onHover,
   onTogglePin,
@@ -166,7 +181,12 @@ export function SectorDonut({
   };
 
   return (
-    <div className="w-full max-w-xl">
+    <div className="relative w-full max-w-xl">
+      {/* 圆环中央的接水特效:水位 = 总体加仓进度。绝对居中,对齐
+          recharts 的 cx/cy(50%/50%),落在内圈空洞里。 */}
+      <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+        <WaterCircle progress={progress} hidden={hidden} />
+      </div>
       <ResponsiveContainer width="100%" height={440}>
         <PieChart>
           <Pie
@@ -308,6 +328,197 @@ export function SectorDonut({
       </ResponsiveContainer>
     </div>
   );
+}
+
+// 圆环中心的「接水」特效:一个圆形容器,水位随加仓进度升降,水面用两层
+// 反向漂移的正弦波营造晃动感(SMIL animate,自包含、无需全局 CSS)。中央叠
+// 印进度百分比。边框与水体使用和图表色板一致的柔和七彩渐变。
+function WaterCircle({
+  progress,
+  hidden,
+}: {
+  progress: number;
+  hidden: boolean;
+}) {
+  const size = 200;
+  const r = size / 2;
+  const pct = Math.max(0, Math.min(1, progress));
+  // 水面 Y:满格在顶部(0),空时在底部(size)。多留一点余量,空/满时水
+  // 面不会贴边露出直角。
+  const level = size * (1 - pct);
+  // 满进度时仍把水面保留在圆顶下方，避免波浪完全移出视口。
+  const visibleLevel = pct > 0 ? Math.max(10, level) : level;
+  const clipId = 'water-clip';
+  const gradId = 'rainbow-progress';
+  const backGradId = 'rainbow-progress-back';
+  const frontGradId = 'rainbow-progress-front';
+  const backDuration = '6s';
+  const frontDuration = '3.8s';
+
+  // 一个周期 = size,路径横跨两个周期(2·size),向左平移一个周期即可
+  // 无缝循环。两层波形振幅/相位/速度不同,叠出层次。
+  const wave = (amp: number) =>
+    `M 0 0
+     Q ${size * 0.25} ${-amp}, ${size * 0.5} 0
+     T ${size} 0
+     T ${size * 1.5} 0
+     T ${size * 2} 0
+     L ${size * 2} ${size}
+     L 0 ${size} Z`;
+
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox={`0 0 ${size} ${size}`}
+      className="drop-shadow-sm"
+    >
+      <defs>
+        <clipPath id={clipId}>
+          <circle cx={r} cy={r} r={r - 2} />
+        </clipPath>
+        {/* 首尾用同一红色闭合，紫色到红色之间以粉色平滑衔接。 */}
+        <linearGradient
+          id={gradId}
+          gradientUnits="userSpaceOnUse"
+          x1="0"
+          y1="0"
+          x2={size}
+          y2="0"
+          colorInterpolation="sRGB"
+        >
+          <RainbowStops />
+        </linearGradient>
+        {/* 波形移动时反向补偿渐变坐标，让颜色固定在圆内，仅水面移动。 */}
+        <linearGradient
+          id={backGradId}
+          gradientUnits="userSpaceOnUse"
+          x1="0"
+          y1="0"
+          x2={size}
+          y2="0"
+          colorInterpolation="sRGB"
+        >
+          <RainbowStops />
+          <animateTransform
+            attributeName="gradientTransform"
+            type="translate"
+            from="0 0"
+            to={`${size} 0`}
+            dur={backDuration}
+            repeatCount="indefinite"
+          />
+        </linearGradient>
+        <linearGradient
+          id={frontGradId}
+          gradientUnits="userSpaceOnUse"
+          x1="0"
+          y1="0"
+          x2={size}
+          y2="0"
+          colorInterpolation="sRGB"
+        >
+          <RainbowStops />
+          <animateTransform
+            attributeName="gradientTransform"
+            type="translate"
+            from={`${size} 0`}
+            to="0 0"
+            dur={frontDuration}
+            repeatCount="indefinite"
+          />
+        </linearGradient>
+      </defs>
+
+      <g clipPath={`url(#${clipId})`}>
+        {/* 极淡底色让空水位保持可读，但不干扰水面边界。 */}
+        <rect
+          width={size}
+          height={size}
+          fill={`url(#${gradId})`}
+          fillOpacity={0.06}
+        />
+        {/* 直接绘制两层水体，避免部分浏览器不刷新动画 clipPath。 */}
+        <g transform={`translate(0 ${visibleLevel})`}>
+          <path
+            d={wave(9)}
+            fill={`url(#${backGradId})`}
+            fillOpacity={0.4}
+            stroke={`url(#${backGradId})`}
+            strokeOpacity={0.45}
+            strokeWidth={1.5}
+          >
+            <animateTransform
+              attributeName="transform"
+              type="translate"
+              from="0 0"
+              to={`${-size} 0`}
+              dur={backDuration}
+              repeatCount="indefinite"
+            />
+          </path>
+          <path
+            d={wave(6)}
+            fill={`url(#${frontGradId})`}
+            fillOpacity={0.72}
+            stroke={`url(#${frontGradId})`}
+            strokeOpacity={0.9}
+            strokeWidth={2}
+          >
+            <animateTransform
+              attributeName="transform"
+              type="translate"
+              from={`${-size} 0`}
+              to="0 0"
+              dur={frontDuration}
+              repeatCount="indefinite"
+            />
+          </path>
+        </g>
+      </g>
+
+      {/* 柔和的七彩描边，压在水面之上。 */}
+      <circle
+        cx={r}
+        cy={r}
+        r={r - 2}
+        fill="none"
+        stroke={`url(#${gradId})`}
+        strokeOpacity={0.8}
+        strokeWidth={2}
+      />
+
+      {/* 中央进度数字 */}
+      <text
+        x={r}
+        y={r - 6}
+        textAnchor="middle"
+        dominantBaseline="central"
+        fontSize={34}
+        fontWeight={800}
+        className="fill-foreground"
+      >
+        {hidden ? '****' : `${(pct * 100).toFixed(0)}%`}
+      </text>
+      <text
+        x={r}
+        y={r + 22}
+        textAnchor="middle"
+        dominantBaseline="central"
+        fontSize={13}
+        fontWeight={600}
+        className="fill-muted-foreground"
+      >
+        加仓进度
+      </text>
+    </svg>
+  );
+}
+
+function RainbowStops() {
+  return RAINBOW_STOPS.map(([offset, stopColor]) => (
+    <stop key={offset} offset={offset} stopColor={stopColor} />
+  ));
 }
 
 // Per-stock progress donut for the tooltip: a light track (sector color, faded)
