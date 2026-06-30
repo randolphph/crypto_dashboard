@@ -19,15 +19,15 @@ const COLORS = [
 ];
 
 const RAINBOW_STOPS = [
-  ['0%', '#ef4444'],
-  ['14%', '#f97316'],
-  ['28%', '#f59e0b'],
-  ['43%', '#10b981'],
-  ['57%', '#06b6d4'],
-  ['72%', '#3b82f6'],
-  ['86%', '#8b5cf6'],
-  ['93%', '#ec4899'],
-  ['100%', '#ef4444'],
+  ['0%', 'var(--accumulation-rainbow-red)'],
+  ['14%', 'var(--accumulation-rainbow-orange)'],
+  ['28%', 'var(--accumulation-rainbow-amber)'],
+  ['43%', 'var(--accumulation-rainbow-green)'],
+  ['57%', 'var(--accumulation-rainbow-cyan)'],
+  ['72%', 'var(--accumulation-rainbow-blue)'],
+  ['86%', 'var(--accumulation-rainbow-violet)'],
+  ['93%', 'var(--accumulation-rainbow-pink)'],
+  ['100%', 'var(--accumulation-rainbow-red)'],
 ] as const;
 
 const FILLED_OPACITY = 1;
@@ -436,16 +436,16 @@ function WaterCircle({
           width={size}
           height={size}
           fill={`url(#${gradId})`}
-          fillOpacity={0.06}
+          fillOpacity="var(--accumulation-water-base-opacity)"
         />
         {/* 直接绘制两层水体，避免部分浏览器不刷新动画 clipPath。 */}
         <g transform={`translate(0 ${visibleLevel})`}>
           <path
             d={wave(9)}
             fill={`url(#${backGradId})`}
-            fillOpacity={0.4}
+            fillOpacity="var(--accumulation-water-back-opacity)"
             stroke={`url(#${backGradId})`}
-            strokeOpacity={0.45}
+            strokeOpacity="var(--accumulation-water-back-stroke-opacity)"
             strokeWidth={1.5}
           >
             <animateTransform
@@ -460,9 +460,9 @@ function WaterCircle({
           <path
             d={wave(6)}
             fill={`url(#${frontGradId})`}
-            fillOpacity={0.72}
+            fillOpacity="var(--accumulation-water-front-opacity)"
             stroke={`url(#${frontGradId})`}
-            strokeOpacity={0.9}
+            strokeOpacity="var(--accumulation-water-front-stroke-opacity)"
             strokeWidth={2}
           >
             <animateTransform
@@ -484,7 +484,7 @@ function WaterCircle({
         r={r - 2}
         fill="none"
         stroke={`url(#${gradId})`}
-        strokeOpacity={0.8}
+        strokeOpacity="var(--accumulation-water-outline-opacity)"
         strokeWidth={2}
       />
 
