@@ -28,6 +28,10 @@ interface QuoteCacheEntry {
   ts: number;
 }
 
+function withPriceTimestamp(quote: StockQuote, ts: number): StockQuote {
+  return { ...quote, priceUpdatedAt: new Date(ts).toISOString() };
+}
+
 async function readQuoteCacheBatch(
   market: CacheMarket,
   symbols: string[]
@@ -101,10 +105,12 @@ async function withQuoteCache(
   const meta = CACHE_MARKET_META[market];
   return symbols.map((s, i) => {
     const c = cached[i];
-    if (c && now - c.ts < QUOTE_FRESH_TTL_MS) return c.quote;
+    if (c && now - c.ts < QUOTE_FRESH_TTL_MS) {
+      return withPriceTimestamp(c.quote, c.ts);
+    }
     const fresh = freshMap.get(s);
-    if (isQuoteOk(fresh)) return fresh;
-    if (c) return c.quote;
+    if (isQuoteOk(fresh)) return withPriceTimestamp(fresh, now);
+    if (c) return withPriceTimestamp(c.quote, c.ts);
     return (
       fresh ?? {
         symbol: s,

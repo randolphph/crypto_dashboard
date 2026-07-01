@@ -48,6 +48,9 @@ export interface StockQuote {
   market: StockMarket;
   price: number;
   currency: StockCurrency;
+  // When this price was fetched from its upstream source. Cache hits retain
+  // the original timestamp so the UI can reveal stale fallback data.
+  priceUpdatedAt?: string;
   changePct?: number;
   name?: string;
   error?: string;
@@ -55,6 +58,7 @@ export interface StockQuote {
 
 export interface EnrichedPosition extends StockPosition {
   price: number;
+  priceUpdatedAt?: string;
   currency: StockCurrency;
   marketValue: number;
   marketValueUsd: number;

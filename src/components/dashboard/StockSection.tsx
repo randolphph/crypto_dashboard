@@ -5,6 +5,7 @@ import { ChevronDown, ChevronUp, ChevronsUpDown } from 'lucide-react';
 import { usePrivacyFormat, PRIVACY_MASK } from '@/hooks/usePrivacyFormat';
 import { formatCurrency } from '@/lib/format';
 import { cn } from '@/lib/utils';
+import { PriceAge } from '@/components/common/PriceAge';
 import {
   BROKER_LABEL,
   MARKET_LABEL,
@@ -212,9 +213,14 @@ function PositionsTable({ positions }: { positions: EnrichedPosition[] }) {
                   {hidden ? PRIVACY_MASK : p.shares.toLocaleString()}
                 </td>
                 <td className="py-2 text-right tabular-nums">
-                  {p.price > 0
-                    ? formatCurrency(p.price, p.currency)
-                    : '—'}
+                  {p.price > 0 ? (
+                    <span className="inline-flex flex-col items-end">
+                      <span>{formatCurrency(p.price, p.currency)}</span>
+                      <PriceAge updatedAt={p.priceUpdatedAt} />
+                    </span>
+                  ) : (
+                    '—'
+                  )}
                 </td>
                 <td className="py-2 text-right">
                   <ChangeCell pct={p.changePct} />

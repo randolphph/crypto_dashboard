@@ -66,6 +66,7 @@ function readIbkrCreds(request: Request): IbkrCreds | null {
 }
 
 export async function POST(request: Request) {
+  const requestStartedAt = new Date().toISOString();
   let body: { positions?: StockPosition[]; cash?: CashBalance[] };
   try {
     body = await request.json();
@@ -201,6 +202,7 @@ export async function POST(request: Request) {
     } else {
       quoteMap.set(key, {
         ...q,
+        priceUpdatedAt: q.priceUpdatedAt ?? requestStartedAt,
         changePct: q.changePct ?? existing?.changePct,
         name: q.name ?? existing?.name,
       });
@@ -244,6 +246,7 @@ export async function POST(request: Request) {
     return {
       ...p,
       price,
+      priceUpdatedAt: q?.priceUpdatedAt,
       currency,
       marketValue,
       marketValueUsd,

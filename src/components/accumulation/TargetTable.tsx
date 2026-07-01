@@ -20,6 +20,7 @@ import { MARKET_LABEL } from '@/types/stocks';
 import { usePrivacyFormat } from '@/hooks/usePrivacyFormat';
 import { cn } from '@/lib/utils';
 import { StockLogo } from './StockLogo';
+import { PriceAge } from '@/components/common/PriceAge';
 
 type SortKey =
   | 'symbol'
@@ -214,6 +215,13 @@ export function TargetTable({
 
   const rows = useMemo(() => {
     const sorted = [...derived].sort((a, b) => {
+      // A selected/hovered sector forms the first group. The active sort still
+      // applies inside that group and to all remaining rows.
+      if (activeSector) {
+        const am = (a.target.sector || '未分类') === activeSector ? 0 : 1;
+        const bm = (b.target.sector || '未分类') === activeSector ? 0 : 1;
+        if (am !== bm) return am - bm;
+      }
       if (sortKey === 'tier') {
         const at = a.nearestTierLevel;
         const bt = b.nearestTierLevel;
@@ -238,7 +246,7 @@ export function TargetTable({
         : (vb as number) - (va as number);
     });
     return sorted;
-  }, [derived, sortKey, asc]);
+  }, [derived, sortKey, asc, activeSector]);
 
   if (derived.length === 0) {
     return (
@@ -369,7 +377,10 @@ export function TargetTable({
               </TableCell>
               <TableCell className="text-right tabular-nums">
                 {d.livePrice !== null ? (
-                  NUM(d.livePrice)
+                  <span className="inline-flex flex-col items-end">
+                    <span>{NUM(d.livePrice)}</span>
+                    <PriceAge updatedAt={d.priceUpdatedAt} />
+                  </span>
                 ) : (
                   <span className="text-muted-foreground">无报价</span>
                 )}
