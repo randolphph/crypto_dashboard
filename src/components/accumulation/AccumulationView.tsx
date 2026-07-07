@@ -31,6 +31,8 @@ import { TargetTable } from './TargetTable';
 import { buildSectorColorMap } from './sectorColors';
 import { cn } from '@/lib/utils';
 
+const AI_TARGET_PORTFOLIO_SHARE = 0.4;
+
 // Available "ammo" = money that can actually buy stocks: broker cash + bank
 // cash. Deliberately excludes crypto stablecoins.
 function bankUsd(
@@ -142,16 +144,26 @@ export function AccumulationView() {
   }, [targets]);
   const ma20 = useMa20(ma20Symbols);
 
+  const dynamicTargets = useMemo(() => {
+    const baseTotal = targets.reduce((s, t) => s + t.targetValue, 0);
+    if (baseTotal <= 0 || totalPortfolioUsd <= 0) return targets;
+    const scale = (totalPortfolioUsd * AI_TARGET_PORTFOLIO_SHARE) / baseTotal;
+    return targets.map((t) => ({
+      ...t,
+      targetValue: t.targetValue * scale,
+    }));
+  }, [targets, totalPortfolioUsd]);
+
   const derived = useMemo(
     () =>
       deriveTargets(
-        targets,
+        dynamicTargets,
         stocks.data,
         gate,
         watchQuotes.data ?? [],
         ma20.data ?? {}
       ),
-    [targets, stocks.data, gate, watchQuotes.data, ma20.data]
+    [dynamicTargets, stocks.data, gate, watchQuotes.data, ma20.data]
   );
   const orphans = useMemo(
     () => orphanHoldings(targets, stocks.data),
