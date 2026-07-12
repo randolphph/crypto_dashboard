@@ -7,8 +7,8 @@ import {
 } from '@/types/accumulation';
 
 // Storage model: a single JSON blob at GATE_KEY holding the global switch and
-// the per-sector arm map. VERSION_KEY is INCR'd on every mutation so the SSE
-// stream can detect changes without re-reading the blob each tick.
+// the per-sector arm map. VERSION_KEY remains a monotonic revision marker for
+// API compatibility and makes successive mutations easy to distinguish.
 const GATE_KEY = 'accumulation:gate';
 const VERSION_KEY = 'accumulation:gate_version';
 
@@ -26,11 +26,6 @@ export async function getGate(): Promise<GateState> {
     sectors: stored.sectors ?? {},
     version,
   };
-}
-
-export async function getVersion(): Promise<number> {
-  if (!redis) return 0;
-  return (await redis.get<number>(VERSION_KEY)) ?? 0;
 }
 
 async function persist(gate: Omit<GateState, 'version'>): Promise<GateState> {

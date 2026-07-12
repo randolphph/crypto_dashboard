@@ -1,6 +1,5 @@
 'use client';
 
-import { useEffect } from 'react';
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
 import { emptyGate, type GateState, type SectorArm } from '@/types/accumulation';
 
@@ -25,26 +24,14 @@ export function useGate() {
   const query = useQuery<GateState>({
     queryKey: GATE_KEY,
     queryFn: fetchGate,
-    staleTime: Infinity, // SSE keeps it fresh; no polling needed.
+    staleTime: 30_000,
+    // Gate changes are rare, so a short request while this page is visible is
+    // much cheaper than keeping a Vercel Function alive with SSE.
+    refetchInterval: 60_000,
+    refetchIntervalInBackground: false,
+    refetchOnWindowFocus: 'always',
+    refetchOnReconnect: 'always',
   });
-
-  // Live channel: a flip on another device pushes here within ~2s. We write the
-  // pushed gate straight into the cache so the toggle reflects instantly.
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    const es = new EventSource('/api/accumulation/gate/stream');
-    const handle = (e: MessageEvent) => {
-      try {
-        const data = JSON.parse(e.data) as { gate?: GateState };
-        if (data.gate) queryClient.setQueryData(GATE_KEY, data.gate);
-      } catch {
-        // ignore malformed frames
-      }
-    };
-    es.addEventListener('snapshot', handle);
-    es.addEventListener('gate', handle);
-    return () => es.close();
-  }, [queryClient]);
 
   const mutation = useMutation({
     mutationFn: async (patch: GatePatch): Promise<GateState> => {

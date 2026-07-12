@@ -66,7 +66,7 @@ export interface GateState {
   // sector name → arm state. Absent sectors default to 'armed' when the gate
   // is open.
   sectors: Record<string, SectorArm>;
-  // INCR'd on every mutation; the SSE stream polls this to detect changes.
+  // Monotonic revision number, incremented on every shared-state mutation.
   version: number;
 }
 
