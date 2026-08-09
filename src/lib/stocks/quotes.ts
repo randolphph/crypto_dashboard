@@ -1,6 +1,7 @@
 import 'server-only';
 import { redis } from '@/lib/cache/upstash';
 import type { StockCurrency, StockMarket, StockQuote } from '@/types/stocks';
+import { fetchWithTimeout } from '@/lib/http/fetch';
 
 function decodeBuffer(buf: ArrayBuffer, fallback = 'utf-8'): string {
   try {
@@ -148,7 +149,7 @@ async function fetchAShareFromSina(
   const url = `https://hq.sinajs.cn/list=${codes.join(',')}`;
   let text: string;
   try {
-    const res = await fetch(url, {
+    const res = await fetchWithTimeout(url, {
       headers: {
         Referer: 'https://finance.sina.com.cn',
         'User-Agent': 'Mozilla/5.0',
@@ -237,7 +238,7 @@ async function fetchAShareFromTencent(
   const url = `https://qt.gtimg.cn/q=${codes.join(',')}`;
   let text: string;
   try {
-    const res = await fetch(url, {
+    const res = await fetchWithTimeout(url, {
       headers: { 'User-Agent': 'Mozilla/5.0' },
       cache: 'no-store',
     });
@@ -348,7 +349,7 @@ async function fetchHkFresh(symbols: string[]): Promise<StockQuote[]> {
   const url = `https://qt.gtimg.cn/q=${codes.join(',')}`;
   let text: string;
   try {
-    const res = await fetch(url, {
+    const res = await fetchWithTimeout(url, {
       headers: { 'User-Agent': 'Mozilla/5.0' },
       cache: 'no-store',
     });
@@ -436,7 +437,7 @@ async function fetchYahooQuote(symbol: string): Promise<StockQuote | null> {
     symbol
   )}?interval=1d&range=1d`;
   try {
-    const res = await fetch(url, { headers: BROWSER_HEADERS, cache: 'no-store' });
+    const res = await fetchWithTimeout(url, { headers: BROWSER_HEADERS, cache: 'no-store' });
     if (!res.ok) return null;
     const data = await res.json();
     if (data?.chart?.error) return null;
@@ -466,7 +467,7 @@ async function fetchStooqQuote(symbol: string): Promise<StockQuote> {
   const code = `${symbol.toLowerCase()}.us`;
   const url = `https://stooq.com/q/l/?s=${encodeURIComponent(code)}&f=sd2t2ohlc&h&e=csv`;
   try {
-    const res = await fetch(url, { cache: 'no-store' });
+    const res = await fetchWithTimeout(url, { cache: 'no-store' });
     if (!res.ok) {
       return {
         symbol,
@@ -529,7 +530,7 @@ async function fetchEastmoneyUsQuote(symbol: string): Promise<StockQuote | null>
   for (const mkt of [105, 106, 107]) {
     const url = `https://push2.eastmoney.com/api/qt/stock/get?secid=${mkt}.${u}&fields=f43,f58,f59,f170`;
     try {
-      const res = await fetch(url, {
+      const res = await fetchWithTimeout(url, {
         headers: { 'User-Agent': 'Mozilla/5.0' },
         cache: 'no-store',
       });
@@ -574,7 +575,7 @@ async function fetchNaverKrQuote(symbol: string): Promise<StockQuote | null> {
   if (!code) return null;
   const url = `https://m.stock.naver.com/api/stock/${code}/basic`;
   try {
-    const res = await fetch(url, { headers: BROWSER_HEADERS, cache: 'no-store' });
+    const res = await fetchWithTimeout(url, { headers: BROWSER_HEADERS, cache: 'no-store' });
     if (!res.ok) return null;
     const d = await res.json();
     const price = parseFloat(String(d?.closePrice ?? '').replace(/,/g, ''));

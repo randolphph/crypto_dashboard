@@ -7,9 +7,10 @@ import type { DeribitData } from '@/types/deribit';
 interface DeribitSectionProps {
   data?: DeribitData;
   isLoading: boolean;
+  error?: Error | null;
 }
 
-export function DeribitSection({ data, isLoading }: DeribitSectionProps) {
+export function DeribitSection({ data, isLoading, error }: DeribitSectionProps) {
   const { fmtUsd, fmtCrypto, hidden } = usePrivacyFormat();
   if (isLoading) {
     return (
@@ -37,6 +38,9 @@ export function DeribitSection({ data, isLoading }: DeribitSectionProps) {
     );
   }
 
+  if (!data && error) {
+    return <p className="text-sm text-destructive">{error.message}</p>;
+  }
   if (!data) return null;
 
   const totalEquityUsd = data.accountSummaries[0]?.total_equity_usd ?? 0;
@@ -54,6 +58,16 @@ export function DeribitSection({ data, isLoading }: DeribitSectionProps) {
 
   return (
     <div className="space-y-6">
+      {error && (
+        <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive">
+          刷新失败，继续显示上次成功数据：{error.message}
+        </div>
+      )}
+      {data.dataQuality?.complete === false && (
+        <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-xs text-amber-700 dark:text-amber-400">
+          数据不完整：{data.dataQuality.errors.join('；')}
+        </div>
+      )}
       {/* Total Account Value */}
       <div className="rounded-xl border bg-card p-5 shadow-sm">
         <p className="text-sm text-muted-foreground">账户总价值 (跨币种组合保证金)</p>

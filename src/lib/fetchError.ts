@@ -5,6 +5,15 @@
 //   { error: { message: "msg" } }
 //   { message: "msg" }
 // Falls back to truncated plain text, then to `HTTP <status>`.
+export class ApiResponseError extends Error {
+  constructor(
+    message: string,
+    public readonly status: number
+  ) {
+    super(message);
+  }
+}
+
 export async function readApiError(res: Response, label: string): Promise<Error> {
   const text = await res.text().catch(() => '');
   let detail: string | undefined;
@@ -26,5 +35,8 @@ export async function readApiError(res: Response, label: string): Promise<Error>
       detail = text.slice(0, 200);
     }
   }
-  return new Error(`${label}: ${detail ?? `HTTP ${res.status}`}`);
+  return new ApiResponseError(
+    `${label}: ${detail ?? `HTTP ${res.status}`}`,
+    res.status
+  );
 }

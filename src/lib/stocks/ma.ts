@@ -1,5 +1,6 @@
 import 'server-only';
 import type { StockMarket } from '@/types/stocks';
+import { fetchWithTimeout } from '@/lib/http/fetch';
 
 // 20-day simple moving average from Yahoo daily closes. Used by the加仓 plan so
 // anchor prices hang off a REAL MA20 instead of a hand-typed (often stale)
@@ -59,7 +60,7 @@ async function ma20ForYahoo(yahooSymbol: string): Promise<number | null> {
     yahooSymbol
   )}?interval=1d&range=3mo`;
   try {
-    const res = await fetch(url, { headers: YAHOO_HEADERS, cache: 'no-store' });
+    const res = await fetchWithTimeout(url, { headers: YAHOO_HEADERS, cache: 'no-store' });
     if (!res.ok) return null;
     const data = await res.json();
     if (data?.chart?.error) return null;
@@ -88,7 +89,7 @@ async function ma20FromStooq(stooqCode: string): Promise<number | null> {
 
   const url = `https://stooq.com/q/d/l/?s=${encodeURIComponent(stooqCode)}&i=d`;
   try {
-    const res = await fetch(url, { cache: 'no-store' });
+    const res = await fetchWithTimeout(url, { cache: 'no-store' });
     if (!res.ok) return null;
     const text = await res.text();
     // Anti-bot challenge / error pages are HTML, not CSV.
@@ -143,7 +144,7 @@ async function ma20FromEastmoney(secid: string): Promise<number | null> {
 
   const url = `https://push2his.eastmoney.com/api/qt/stock/kline/get?secid=${secid}&klt=101&fqt=1&lmt=40&end=20500101&fields1=f1,f2&fields2=f51,f53`;
   try {
-    const res = await fetch(url, {
+    const res = await fetchWithTimeout(url, {
       headers: { 'User-Agent': 'Mozilla/5.0' },
       cache: 'no-store',
     });
@@ -170,7 +171,7 @@ async function ma20FromTencent(code: string): Promise<number | null> {
 
   const url = `https://web.ifzq.gtimg.cn/appstock/app/fqkline/get?param=${code},day,,,40,qfq`;
   try {
-    const res = await fetch(url, {
+    const res = await fetchWithTimeout(url, {
       headers: { 'User-Agent': 'Mozilla/5.0' },
       cache: 'no-store',
     });
@@ -207,7 +208,7 @@ async function ma20FromNaver(code: string): Promise<number | null> {
     start
   )}&endDateTime=${fmt(end)}`;
   try {
-    const res = await fetch(url, { headers: YAHOO_HEADERS, cache: 'no-store' });
+    const res = await fetchWithTimeout(url, { headers: YAHOO_HEADERS, cache: 'no-store' });
     if (!res.ok) return null;
     const json = await res.json();
     const rows: unknown = Array.isArray(json) ? json : json?.priceInfos;

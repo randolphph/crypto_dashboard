@@ -1,5 +1,6 @@
 import 'server-only';
 import { redis } from '@/lib/cache/upstash';
+import { fetchWithTimeout } from '@/lib/http/fetch';
 import type {
   StockPosition,
   StockMarket,
@@ -81,7 +82,7 @@ function extractTagInner(xml: string, tagName: string): string | null {
 
 async function sendRequest(creds: IbkrCreds): Promise<string> {
   const url = `${SEND_URL}?t=${encodeURIComponent(creds.flexToken)}&q=${encodeURIComponent(creds.flexQueryId)}&v=3`;
-  const res = await fetch(url, { cache: 'no-store' });
+  const res = await fetchWithTimeout(url, { cache: 'no-store' });
   const xml = await res.text();
   const status = extractTagInner(xml, 'Status');
   if (status !== 'Success') {
@@ -101,7 +102,7 @@ async function getStatement(
   const url = `${GET_URL}?t=${encodeURIComponent(creds.flexToken)}&q=${encodeURIComponent(referenceCode)}&v=3`;
   const start = Date.now();
   while (true) {
-    const res = await fetch(url, { cache: 'no-store' });
+    const res = await fetchWithTimeout(url, { cache: 'no-store' });
     const xml = await res.text();
     // "Statement generation in progress" — IBKR returns status code 1019 in the
     // body wrapped in a FlexStatementResponse, NOT a 4xx HTTP status.

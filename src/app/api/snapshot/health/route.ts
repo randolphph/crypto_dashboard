@@ -1,6 +1,13 @@
+import { fetchWithTimeout } from '@/lib/http/fetch';
+import { enforceRateLimit } from '@/lib/http/guards';
+
 export const dynamic = 'force-dynamic';
+export const maxDuration = 12;
 
 export async function GET(request: Request) {
+  const limited = await enforceRateLimit(request, 'snapshot:health', 60, 60);
+  if (limited) return limited;
+
   const base = process.env.MNAV_API_BASE?.trim();
   if (!base) {
     return Response.json(
@@ -25,7 +32,7 @@ export async function GET(request: Request) {
 
   try {
     // No bearer — backend exposes /snapshot/health unauthenticated by spec.
-    const res = await fetch(upstream, { cache: 'no-store' });
+    const res = await fetchWithTimeout(upstream, { cache: 'no-store' });
     const text = await res.text();
     return new Response(text, {
       status: res.status,

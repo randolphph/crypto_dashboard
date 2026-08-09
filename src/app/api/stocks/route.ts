@@ -24,8 +24,15 @@ import type {
   FxRates,
   DataSource,
 } from '@/types/stocks';
+import {
+  enforceRateLimit,
+  inputErrorResponse,
+  readJsonBody,
+} from '@/lib/http/guards';
+import { parseStocksBody } from '@/lib/http/validation';
 
 const BROKERS: StockBroker[] = ['ths', 'longport', 'ibkr'];
+export const maxDuration = 35;
 
 function quoteKey(market: StockMarket, symbol: string): string {
   return `${market}:${symbol.trim().toUpperCase()}`;
@@ -66,15 +73,18 @@ function readIbkrCreds(request: Request): IbkrCreds | null {
 }
 
 export async function POST(request: Request) {
+  const limited = await enforceRateLimit(request, 'stocks', 30, 60);
+  if (limited) return limited;
+
   const requestStartedAt = new Date().toISOString();
-  let body: { positions?: StockPosition[]; cash?: CashBalance[] };
+  let body: { positions: StockPosition[]; cash: CashBalance[] };
   try {
-    body = await request.json();
-  } catch {
-    body = {};
+    body = parseStocksBody(await readJsonBody(request));
+  } catch (error) {
+    return inputErrorResponse(error);
   }
-  const manualPositions = Array.isArray(body.positions) ? body.positions : [];
-  const manualCash = Array.isArray(body.cash) ? body.cash : [];
+  const manualPositions = body.positions;
+  const manualCash = body.cash;
   const longportCreds = readLongportCreds(request);
   const ibkrCreds = readIbkrCreds(request);
 
@@ -143,16 +153,27 @@ export async function POST(request: Request) {
   const allCash = [...taggedManualCash, ...taggedApiCash];
 
   if (allPositions.length === 0 && allCash.length === 0) {
+    const qualityErrors = [
+      longportError ? `Longport: ${longportError}` : null,
+      ibkrError ? `IBKR: ${ibkrError}` : null,
+    ].filter((error): error is string => !!error);
     const brokers = emptyBrokers().map((b) => {
       if (b.broker === 'longport' && longportCreds) return { ...b, apiError: longportError };
       if (b.broker === 'ibkr' && ibkrCreds) return { ...b, apiError: ibkrError };
       return b;
     });
-    return Response.json({
-      brokers,
-      fx: { cnyUsd: 0, hkdUsd: 0, krwUsd: 0 },
-      lastUpdated: new Date().toISOString(),
-    });
+    return Response.json(
+      {
+        brokers,
+        fx: { cnyUsd: 0, hkdUsd: 0, krwUsd: 0 },
+        lastUpdated: new Date().toISOString(),
+        dataQuality: {
+          complete: qualityErrors.length === 0,
+          errors: qualityErrors,
+        },
+      },
+      { headers: { 'Cache-Control': 'private, no-store' } }
+    );
   }
 
   const uniq = (xs: string[]) => [...new Set(xs.map((s) => s.trim()))].filter(Boolean);
@@ -282,9 +303,29 @@ export async function POST(request: Request) {
     };
   });
 
-  return Response.json({
-    brokers,
-    fx,
-    lastUpdated: new Date().toISOString(),
-  });
+  const qualityErrors: string[] = [];
+  if (longportError) qualityErrors.push(`Longport: ${longportError}`);
+  if (ibkrError) qualityErrors.push(`IBKR: ${ibkrError}`);
+  const needsFx =
+    allPositions.some(({ p }) => p.market !== 'US') ||
+    allCash.some(({ c }) => c.currency !== 'USD');
+  if (needsFx && !fxResult) qualityErrors.push('FX rates unavailable');
+  for (const p of enriched) {
+    if (!Number.isFinite(p.price) || p.price <= 0) {
+      qualityErrors.push(`Quote unavailable: ${p.market}:${p.symbol}`);
+    }
+  }
+
+  return Response.json(
+    {
+      brokers,
+      fx,
+      lastUpdated: new Date().toISOString(),
+      dataQuality: {
+        complete: qualityErrors.length === 0,
+        errors: [...new Set(qualityErrors)],
+      },
+    },
+    { headers: { 'Cache-Control': 'private, no-store' } }
+  );
 }

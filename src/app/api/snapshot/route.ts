@@ -1,6 +1,17 @@
+import { fetchWithTimeout } from '@/lib/http/fetch';
+import {
+  enforceRateLimit,
+  inputErrorResponse,
+  readJsonBody,
+} from '@/lib/http/guards';
+
 export const dynamic = 'force-dynamic';
+export const maxDuration = 25;
 
 export async function POST(request: Request) {
+  const limited = await enforceRateLimit(request, 'snapshot:write', 24, 60 * 60);
+  if (limited) return limited;
+
   const base = process.env.MNAV_API_BASE?.trim();
   const token = process.env.MNAV_API_TOKEN?.trim();
   if (!base || !token) {
@@ -23,13 +34,17 @@ export async function POST(request: Request) {
 
   let body: string;
   try {
-    body = await request.text();
-  } catch {
-    return Response.json({ ok: false, error: 'invalid request body' }, { status: 400 });
+    const parsed = await readJsonBody(request, 1024 * 1024);
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      return Response.json({ ok: false, error: 'snapshot must be an object' }, { status: 400 });
+    }
+    body = JSON.stringify(parsed);
+  } catch (error) {
+    return inputErrorResponse(error);
   }
 
   try {
-    const res = await fetch(upstream, {
+    const res = await fetchWithTimeout(upstream, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${token}`,
@@ -37,7 +52,7 @@ export async function POST(request: Request) {
       },
       body,
       cache: 'no-store',
-    });
+    }, 20_000);
     const text = await res.text();
     return new Response(text, {
       status: res.status,

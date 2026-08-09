@@ -5,12 +5,21 @@ import {
   isGateConfigured,
 } from '@/lib/accumulation/serverStore';
 import type { SectorArm } from '@/types/accumulation';
+import {
+  enforceRateLimit,
+  inputErrorResponse,
+  readJsonBody,
+} from '@/lib/http/guards';
 
 export const dynamic = 'force-dynamic';
+export const maxDuration = 10;
 
 const MAX_SECTOR_LEN = 100;
 
-export async function GET() {
+export async function GET(request: Request) {
+  const limited = await enforceRateLimit(request, 'gate:read', 30, 60);
+  if (limited) return limited;
+
   if (!isGateConfigured()) {
     return Response.json(
       { ok: false, error: 'redis not configured' },
@@ -18,7 +27,10 @@ export async function GET() {
     );
   }
   const gate = await getGate();
-  return Response.json({ ok: true, gate });
+  return Response.json(
+    { ok: true, gate },
+    { headers: { 'Cache-Control': 'private, no-store' } }
+  );
 }
 
 interface PatchBody {
@@ -32,6 +44,9 @@ interface PatchBody {
 // that can submit an order. Reads/writes from the browser go freely (the
 // dashboard URL is the soft gate).
 export async function PATCH(request: Request) {
+  const limited = await enforceRateLimit(request, 'gate:write', 20, 60);
+  if (limited) return limited;
+
   if (!isGateConfigured()) {
     return Response.json(
       { ok: false, error: 'redis not configured' },
@@ -41,17 +56,17 @@ export async function PATCH(request: Request) {
 
   let body: PatchBody;
   try {
-    body = (await request.json()) as PatchBody;
-  } catch {
-    return Response.json(
-      { ok: false, error: 'invalid json body' },
-      { status: 400 }
-    );
+    body = (await readJsonBody(request, 16 * 1024)) as PatchBody;
+  } catch (error) {
+    return inputErrorResponse(error);
   }
 
   if (typeof body.open === 'boolean') {
     const gate = await setOpen(body.open);
-    return Response.json({ ok: true, gate });
+    return Response.json(
+      { ok: true, gate },
+      { headers: { 'Cache-Control': 'private, no-store' } }
+    );
   }
 
   if (typeof body.sector === 'string') {
@@ -69,7 +84,10 @@ export async function PATCH(request: Request) {
       );
     }
     const gate = await setSectorArm(sector, body.arm as SectorArm);
-    return Response.json({ ok: true, gate });
+    return Response.json(
+      { ok: true, gate },
+      { headers: { 'Cache-Control': 'private, no-store' } }
+    );
   }
 
   return Response.json(

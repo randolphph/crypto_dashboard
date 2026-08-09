@@ -1,29 +1,25 @@
 import { fetchMa20, type MaSymbol } from '@/lib/stocks/ma';
-import type { StockMarket } from '@/types/stocks';
+import {
+  enforceRateLimit,
+  inputErrorResponse,
+  readJsonBody,
+} from '@/lib/http/guards';
+import { parseMarketSymbols } from '@/lib/http/validation';
 
 export const dynamic = 'force-dynamic';
-
-function isMaSymbol(x: unknown): x is MaSymbol {
-  if (!x || typeof x !== 'object') return false;
-  const w = x as Record<string, unknown>;
-  const m = w.market as StockMarket;
-  return (
-    (m === 'A' || m === 'HK' || m === 'US' || m === 'KR') &&
-    typeof w.symbol === 'string' &&
-    w.symbol.trim().length > 0
-  );
-}
+export const maxDuration = 30;
 
 export async function POST(request: Request) {
-  let body: { symbols?: unknown };
+  const limited = await enforceRateLimit(request, 'ma20', 12, 60);
+  if (limited) return limited;
+
+  let symbols: MaSymbol[];
   try {
-    body = await request.json();
-  } catch {
-    body = {};
+    const body = (await readJsonBody(request)) as { symbols?: unknown };
+    symbols = parseMarketSymbols(body?.symbols, 30);
+  } catch (error) {
+    return inputErrorResponse(error);
   }
-  const symbols = Array.isArray(body.symbols)
-    ? body.symbols.filter(isMaSymbol)
-    : [];
 
   if (symbols.length === 0) {
     return Response.json({ ma20: {} });

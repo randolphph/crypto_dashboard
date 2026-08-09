@@ -1,6 +1,7 @@
 import 'server-only';
 import crypto from 'crypto';
 import type { AssetBalance } from '@/types/common';
+import { fetchWithTimeout } from '@/lib/http/fetch';
 
 const BASE_URL = 'https://api.binance.com';
 const FAPI_URL = 'https://fapi.binance.com';
@@ -28,7 +29,7 @@ async function binanceRequest(
   const signature = signQuery(queryString, apiSecret);
 
   const url = `${baseUrl}${path}?${queryString}&signature=${signature}`;
-  const res = await fetch(url, {
+  const res = await fetchWithTimeout(url, {
     method,
     headers: { 'X-MBX-APIKEY': apiKey },
   });

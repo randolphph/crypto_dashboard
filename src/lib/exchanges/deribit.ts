@@ -1,5 +1,6 @@
 import 'server-only';
 import type { DeribitPosition, DeribitAccountSummary } from '@/types/deribit';
+import { fetchWithTimeout } from '@/lib/http/fetch';
 
 const BASE_URL = 'https://www.deribit.com';
 
@@ -22,7 +23,7 @@ async function authenticate(
     return tokenCache.token;
   }
 
-  const res = await fetch(
+  const res = await fetchWithTimeout(
     `${BASE_URL}/api/v2/public/auth?` +
       new URLSearchParams({
         grant_type: 'client_credentials',
@@ -54,7 +55,7 @@ async function deribitRequest(
   token: string
 ): Promise<unknown> {
   const url = `${BASE_URL}${path}?${new URLSearchParams(params)}`;
-  const res = await fetch(url, {
+  const res = await fetchWithTimeout(url, {
     headers: { Authorization: `Bearer ${token}` },
   });
 
@@ -171,5 +172,21 @@ export async function fetchDeribitData(
     )
     .map((r) => r.value);
 
-  return { positions, accountSummaries };
+  const errors: string[] = [];
+  positionResults.forEach((result, index) => {
+    if (result.status === 'rejected') {
+      const reason =
+        result.reason instanceof Error ? result.reason.message : String(result.reason);
+      errors.push(`${DERIBIT_CURRENCIES[index]} positions: ${reason}`);
+    }
+  });
+  summaryResults.forEach((result, index) => {
+    if (result.status === 'rejected') {
+      const reason =
+        result.reason instanceof Error ? result.reason.message : String(result.reason);
+      errors.push(`${DERIBIT_CURRENCIES[index]} summary: ${reason}`);
+    }
+  });
+
+  return { positions, accountSummaries, errors };
 }

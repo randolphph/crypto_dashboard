@@ -35,5 +35,9 @@ export interface DeribitData {
   prices: Record<string, number>;
   totalUsdValue: number;
   lastUpdated: string;
+  dataQuality?: {
+    complete: boolean;
+    errors: string[];
+  };
   error?: string;
 }

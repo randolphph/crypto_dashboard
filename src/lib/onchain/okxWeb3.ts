@@ -1,6 +1,7 @@
 import 'server-only';
 import crypto from 'crypto';
 import { getAddress } from 'viem';
+import { fetchWithTimeout } from '@/lib/http/fetch';
 import type { AssetBalance } from '@/types/common';
 
 const BASE_URL = 'https://web3.okx.com';
@@ -102,7 +103,7 @@ async function doFetch(
   const timestamp = new Date().toISOString();
   const signature = sign(timestamp, method, path, bodyString, config.apiSecret);
 
-  const res = await fetch(`${BASE_URL}${path}`, {
+  const res = await fetchWithTimeout(`${BASE_URL}${path}`, {
     method,
     headers: {
       'OK-ACCESS-KEY': config.apiKey,

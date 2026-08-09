@@ -1,4 +1,5 @@
 import 'server-only';
+import { fetchWithTimeout } from '@/lib/http/fetch';
 
 const SYMBOL_TO_COINGECKO: Record<string, string> = {
   BTC: 'bitcoin',
@@ -47,9 +48,10 @@ export async function fetchPrices(
       .filter(Boolean);
 
     if (coingeckoIds.length > 0) {
+      let coinGeckoFailed = false;
       try {
         const ids = coingeckoIds.join(',');
-        const res = await fetch(
+        const res = await fetchWithTimeout(
           `https://api.coingecko.com/api/v3/simple/price?ids=${ids}&vs_currencies=usd`,
           { next: { revalidate: 30 } }
         );
@@ -67,9 +69,15 @@ export async function fetchPrices(
             prices: { ...priceCache.prices, ...newPrices },
             timestamp: now,
           };
+        } else {
+          coinGeckoFailed = true;
         }
       } catch {
-        // Fallback: try Binance ticker
+        coinGeckoFailed = true;
+      }
+      if (coinGeckoFailed) {
+        // Rate limits and non-2xx responses are failures too, not just network
+        // exceptions. Try Binance before returning zero prices.
         await fetchBinanceFallbackPrices(uncachedSymbols);
       }
     }
@@ -96,7 +104,7 @@ export async function fetchPrices(
 
 async function fetchBinanceFallbackPrices(symbols: string[]): Promise<void> {
   try {
-    const res = await fetch('https://api.binance.com/api/v3/ticker/price');
+    const res = await fetchWithTimeout('https://api.binance.com/api/v3/ticker/price');
     if (res.ok) {
       const tickers: Array<{ symbol: string; price: string }> = await res.json();
       const tickerMap = new Map(

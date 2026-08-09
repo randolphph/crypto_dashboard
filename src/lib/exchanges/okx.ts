@@ -1,6 +1,7 @@
 import 'server-only';
 import crypto from 'crypto';
 import type { AssetBalance } from '@/types/common';
+import { fetchWithTimeout } from '@/lib/http/fetch';
 
 const BASE_URL = 'https://www.okx.com';
 
@@ -24,7 +25,7 @@ async function okxRequest(
   const timestamp = new Date().toISOString();
   const signature = sign(timestamp, 'GET', path, '', apiSecret);
 
-  const res = await fetch(`${BASE_URL}${path}`, {
+  const res = await fetchWithTimeout(`${BASE_URL}${path}`, {
     headers: {
       'OK-ACCESS-KEY': apiKey,
       'OK-ACCESS-SIGN': signature,

@@ -1,19 +1,30 @@
 import { fetchDeribitData } from '@/lib/exchanges/deribit';
 import { fetchPrices } from '@/lib/prices';
 import type { AssetBalance } from '@/types/common';
+import { enforceRateLimit } from '@/lib/http/guards';
 
 const STABLE_CURRENCIES = new Set(['USDC', 'USDT']);
+export const maxDuration = 20;
 
 export async function GET(request: Request) {
+  const limited = await enforceRateLimit(request, 'exchange:deribit', 30, 60);
+  if (limited) return limited;
+
   const clientId = request.headers.get('x-deribit-client-id') || process.env.DERIBIT_CLIENT_ID;
   const clientSecret = request.headers.get('x-deribit-client-secret') || process.env.DERIBIT_CLIENT_SECRET;
 
   if (!clientId || !clientSecret) {
-    return Response.json({ configured: false });
+    return Response.json(
+      { configured: false },
+      { headers: { 'Cache-Control': 'private, no-store' } }
+    );
   }
 
   try {
-    const { positions, accountSummaries } = await fetchDeribitData(clientId, clientSecret);
+    const { positions, accountSummaries, errors } = await fetchDeribitData(
+      clientId,
+      clientSecret
+    );
 
     // Use total_equity_usd from Deribit (cross-currency portfolio margin total).
     // All summaries are supposed to return the same number; take the largest as
@@ -31,6 +42,9 @@ export async function GET(request: Request) {
     const fetchedPrices = volatileCurrencies.length
       ? await fetchPrices(volatileCurrencies)
       : {};
+    const missingPrices = volatileCurrencies.filter(
+      (currency) => !(fetchedPrices[currency] > 0)
+    );
     const prices: Record<string, number> = { ...fetchedPrices };
     for (const c of STABLE_CURRENCIES) prices[c] = 1;
 
@@ -42,23 +56,30 @@ export async function GET(request: Request) {
         usdValue: s.margin_balance * (prices[s.currency] ?? 0),
       }));
 
-    return Response.json({
-      positions,
-      accountSummaries,
-      balances,
-      prices,
-      totalUsdValue,
-      lastUpdated: new Date().toISOString(),
-    });
+    return Response.json(
+      {
+        positions,
+        accountSummaries,
+        balances,
+        prices,
+        totalUsdValue,
+        lastUpdated: new Date().toISOString(),
+        dataQuality: {
+          complete: missingPrices.length === 0 && errors.length === 0,
+          errors: [
+            ...errors,
+            ...missingPrices.map(
+              (currency) => `Price unavailable: ${currency}`
+            ),
+          ],
+        },
+      },
+      { headers: { 'Cache-Control': 'private, no-store' } }
+    );
   } catch (error) {
-    return Response.json({
-      positions: [],
-      accountSummaries: [],
-      balances: [],
-      prices: {},
-      totalUsdValue: 0,
-      lastUpdated: new Date().toISOString(),
-      error: error instanceof Error ? error.message : 'Unknown error',
-    });
+    return Response.json(
+      { error: error instanceof Error ? error.message : 'Unknown error' },
+      { status: 502, headers: { 'Cache-Control': 'private, no-store' } }
+    );
   }
 }

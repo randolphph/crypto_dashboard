@@ -105,4 +105,8 @@ export interface StocksData {
   brokers: BrokerData[];
   fx: FxRates;
   lastUpdated: string;
+  dataQuality?: {
+    complete: boolean;
+    errors: string[];
+  };
 }

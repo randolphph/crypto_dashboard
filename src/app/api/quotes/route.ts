@@ -5,8 +5,15 @@ import {
   fetchUsQuotes,
 } from '@/lib/stocks/quotes';
 import type { StockMarket, StockQuote } from '@/types/stocks';
+import {
+  enforceRateLimit,
+  inputErrorResponse,
+  readJsonBody,
+} from '@/lib/http/guards';
+import { parseMarketSymbols } from '@/lib/http/validation';
 
 export const dynamic = 'force-dynamic';
+export const maxDuration = 25;
 
 // Lightweight quote-only endpoint. The dashboard's /api/stocks only quotes
 // symbols you actually HOLD (it builds its symbol lists from the positions
@@ -20,26 +27,17 @@ interface WatchSymbol {
   symbol: string;
 }
 
-function isWatchSymbol(x: unknown): x is WatchSymbol {
-  if (!x || typeof x !== 'object') return false;
-  const w = x as Record<string, unknown>;
-  return (
-    (w.market === 'A' || w.market === 'HK' || w.market === 'US' || w.market === 'KR') &&
-    typeof w.symbol === 'string' &&
-    w.symbol.trim().length > 0
-  );
-}
-
 export async function POST(request: Request) {
-  let body: { symbols?: unknown };
+  const limited = await enforceRateLimit(request, 'quotes', 30, 60);
+  if (limited) return limited;
+
+  let symbols: WatchSymbol[];
   try {
-    body = await request.json();
-  } catch {
-    body = {};
+    const body = (await readJsonBody(request)) as { symbols?: unknown };
+    symbols = parseMarketSymbols(body?.symbols, 50);
+  } catch (error) {
+    return inputErrorResponse(error);
   }
-  const symbols = Array.isArray(body.symbols)
-    ? body.symbols.filter(isWatchSymbol)
-    : [];
 
   const uniq = (xs: string[]) =>
     [...new Set(xs.map((s) => s.trim()))].filter(Boolean);

@@ -18,9 +18,10 @@ const CHAIN_LABELS: Record<string, string> = {
 interface OnchainSectionProps {
   wallets: WalletBalance[];
   isLoading: boolean;
+  error?: Error | null;
 }
 
-export function OnchainSection({ wallets, isLoading }: OnchainSectionProps) {
+export function OnchainSection({ wallets, isLoading, error }: OnchainSectionProps) {
   const { fmtUsd } = usePrivacyFormat();
   if (isLoading) {
     return (
@@ -30,6 +31,10 @@ export function OnchainSection({ wallets, isLoading }: OnchainSectionProps) {
         ))}
       </div>
     );
+  }
+
+  if (wallets.length === 0 && error) {
+    return <p className="text-sm text-destructive">{error.message}</p>;
   }
 
   if (wallets.length === 0) {
@@ -43,7 +48,13 @@ export function OnchainSection({ wallets, isLoading }: OnchainSectionProps) {
   }
 
   return (
-    <div className="grid gap-6 md:grid-cols-2">
+    <div className="space-y-4">
+      {error && (
+        <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive">
+          刷新失败，继续显示上次成功数据：{error.message}
+        </div>
+      )}
+      <div className="grid gap-6 md:grid-cols-2">
       {wallets.map((wallet) => (
         <div key={wallet.walletId} className="rounded-xl border bg-card p-5 shadow-sm">
           <div className="flex items-center justify-between mb-4">
@@ -66,6 +77,11 @@ export function OnchainSection({ wallets, isLoading }: OnchainSectionProps) {
             <p className="text-sm text-destructive">{wallet.error}</p>
           ) : (
             <>
+              {wallet.dataQuality?.complete === false && (
+                <p className="mb-3 text-xs text-amber-700 dark:text-amber-400">
+                  数据不完整：{wallet.dataQuality.errors.join('；')}
+                </p>
+              )}
               <AssetTable balances={wallet.balances} />
               {wallet.defiPositions && wallet.defiPositions.length > 0 && (
                 <DefiPositions
@@ -77,6 +93,7 @@ export function OnchainSection({ wallets, isLoading }: OnchainSectionProps) {
           )}
         </div>
       ))}
+      </div>
     </div>
   );
 }

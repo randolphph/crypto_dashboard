@@ -10,6 +10,14 @@ import {
 import { DEFAULT_RECEIPT_TOKEN_SYMBOLS } from '@/lib/onchain/receiptTokens';
 import type { WalletConfig, Chain, EvmChain } from '@/types/onchain';
 import type { WalletBalance, DefiProtocolPosition } from '@/types/onchain';
+import {
+  enforceRateLimit,
+  inputErrorResponse,
+  readJsonBody,
+} from '@/lib/http/guards';
+import { parseOnchainBody } from '@/lib/http/validation';
+
+export const maxDuration = 45;
 
 function getWalletChains(wallet: WalletConfig): Chain[] {
   // Backward compat: migrate legacy `network` field
@@ -46,6 +54,9 @@ function looksLikeReceiptToken(
 }
 
 export async function POST(request: Request) {
+  const limited = await enforceRateLimit(request, 'onchain', 20, 60);
+  if (limited) return limited;
+
   // Read OKX Web3 credentials from headers (client-side override)
   const okxWeb3Creds = {
     apiKey: request.headers.get('x-okx-web3-api-key') || undefined,
@@ -55,10 +66,12 @@ export async function POST(request: Request) {
   };
 
   try {
-    const body = (await request.json()) as {
-      wallets: WalletConfig[];
-      receiptTokenAddresses?: Array<{ chainId: string; tokenAddress: string }>;
-    };
+    let body: ReturnType<typeof parseOnchainBody>;
+    try {
+      body = parseOnchainBody(await readJsonBody(request));
+    } catch (error) {
+      return inputErrorResponse(error);
+    }
     const { wallets, receiptTokenAddresses } = body;
 
     if (!wallets || wallets.length === 0) {
@@ -100,10 +113,12 @@ export async function POST(request: Request) {
             lpTokenKeys: new Set<string>(),
             positionTokenAmounts: new Map<string, number[]>(),
           };
+          let defiError: string | null = null;
           const defiPromise = isOkxWeb3Available(okxWeb3Creds)
             ? fetchDefiPositionsViaOkx(wallet.address, chains, okxWeb3Creds).catch(
                 (err) => {
                   console.warn(`OKX DeFi fetch failed for ${wallet.name}:`, err);
+                  defiError = err instanceof Error ? err.message : String(err);
                   return emptyDefi;
                 }
               )
@@ -168,6 +183,9 @@ export async function POST(request: Request) {
           const needsPricing = markedBalances.filter((b) => !b.usdValue);
           const symbols = needsPricing.map((b) => b.asset);
           const prices = symbols.length > 0 ? await fetchPrices(symbols) : {};
+          const missingPrices = needsPricing
+            .filter((b) => !(prices[b.asset] > 0))
+            .map((b) => b.asset);
 
           const balancesWithUsd = markedBalances
             .map((b) => ({
@@ -193,6 +211,15 @@ export async function POST(request: Request) {
             totalUsdValue: balancesUsd + defiTotalUsdValue,
             defiPositions: defiResult.positions,
             defiTotalUsdValue,
+            dataQuality: {
+              complete: missingPrices.length === 0 && defiError === null,
+              errors: [
+                ...new Set(
+                  missingPrices.map((symbol) => `Price unavailable: ${symbol}`)
+                ),
+                ...(defiError ? [`DeFi: ${defiError}`] : []),
+              ],
+            },
           };
         } catch (error) {
           return {
@@ -208,11 +235,13 @@ export async function POST(request: Request) {
       })
     );
 
-    return Response.json(results);
+    return Response.json(results, {
+      headers: { 'Cache-Control': 'private, no-store' },
+    });
   } catch (error) {
     return Response.json(
       { error: error instanceof Error ? error.message : 'Unknown error' },
-      { status: 400 }
+      { status: 502, headers: { 'Cache-Control': 'private, no-store' } }
     );
   }
 }

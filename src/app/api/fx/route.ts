@@ -1,6 +1,12 @@
 import { fetchFx } from '@/lib/stocks/fx';
+import { enforceRateLimit } from '@/lib/http/guards';
 
-export async function GET() {
+export const maxDuration = 10;
+
+export async function GET(request: Request) {
+  const limited = await enforceRateLimit(request, 'fx', 60, 60);
+  if (limited) return limited;
+
   try {
     const fx = await fetchFx();
     return Response.json({
@@ -16,7 +22,7 @@ export async function GET() {
         error: e instanceof Error ? e.message : 'fx unavailable',
         lastUpdated: new Date().toISOString(),
       },
-      { status: 200 }
+      { status: 503, headers: { 'Cache-Control': 'no-store' } }
     );
   }
 }

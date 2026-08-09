@@ -100,19 +100,51 @@ export function Dashboard() {
   const addSnapshot = usePortfolioHistoryStore((s) => s.addSnapshot);
   const setLastRefreshed = useDashboardStore((s) => s.setLastRefreshed);
 
+  const bankNeedsFx = bankAccounts.some((a) => a.currency !== 'USD');
+  const isFxValid = (value: { cnyUsd: number; hkdUsd: number; krwUsd: number } | undefined) =>
+    !!value && value.cnyUsd > 0 && value.hkdUsd > 0 && value.krwUsd > 0;
+  const stocksFx = isFxValid(stocks.data?.fx) ? stocks.data?.fx : undefined;
+  const fx = stocksFx ?? (isFxValid(fxQuery.data) ? fxQuery.data : undefined);
+
   const isLoading =
     binance.isLoading ||
     okx.isLoading ||
     deribit.isLoading ||
     onchain.isLoading ||
-    stocks.isLoading;
+    stocks.isLoading ||
+    (bankNeedsFx && !fx && fxQuery.isLoading);
+
+  const isRefreshing =
+    binance.isFetching ||
+    okx.isFetching ||
+    deribit.isFetching ||
+    onchain.isFetching ||
+    stocks.isFetching ||
+    (bankNeedsFx && fxQuery.isFetching);
 
   const hasError =
     binance.isError ||
     okx.isError ||
     deribit.isError ||
     onchain.isError ||
-    stocks.isError;
+    stocks.isError ||
+    binance.error != null ||
+    okx.error != null ||
+    deribit.error != null ||
+    onchain.error != null ||
+    stocks.error != null ||
+    binance.data?.error != null ||
+    okx.data?.error != null ||
+    deribit.data?.error != null ||
+    binance.data?.dataQuality?.complete === false ||
+    okx.data?.dataQuality?.complete === false ||
+    deribit.data?.dataQuality?.complete === false ||
+    (Array.isArray(onchain.data) &&
+      onchain.data.some(
+        (wallet) => !!wallet.error || wallet.dataQuality?.complete === false
+      )) ||
+    stocks.data?.dataQuality?.complete === false ||
+    (bankNeedsFx && !fx && !fxQuery.isLoading);
 
   const brokerById = (b: StockBroker) =>
     stocks.data?.brokers.find((x) => x.broker === b);
@@ -121,7 +153,6 @@ export function Dashboard() {
   // present alongside stocks data); fall back to the standalone /api/fx
   // query so the bank cash USD value still works even when no broker is
   // configured.
-  const fx = stocks.data?.fx ?? fxQuery.data;
   const bankCashUsd = (currency: string, amount: number): number => {
     if (!fx) return currency === 'USD' ? amount : 0;
     if (currency === 'USD') return amount;
@@ -267,11 +298,17 @@ export function Dashboard() {
   // Record snapshot when total value settles (not loading and value > 0)
   const lastRecordedRef = useRef<number>(0);
   const recordSnapshot = useCallback(() => {
-    if (!isLoading && !hasError && totalValue > 0 && totalValue !== lastRecordedRef.current) {
+    if (
+      !isLoading &&
+      !isRefreshing &&
+      !hasError &&
+      totalValue > 0 &&
+      totalValue !== lastRecordedRef.current
+    ) {
       lastRecordedRef.current = totalValue;
       addSnapshot(totalValue);
     }
-  }, [isLoading, hasError, totalValue, addSnapshot]);
+  }, [isLoading, isRefreshing, hasError, totalValue, addSnapshot]);
 
   useEffect(() => {
     recordSnapshot();
@@ -283,7 +320,7 @@ export function Dashboard() {
   // No wallet → no push (e.g., still on the unlock screen).
   const walletAddress = useVaultStore((s) => s.address);
   const snapshotReady =
-    !isLoading && !hasError && totalValue > 0 && !!walletAddress;
+    !isLoading && !isRefreshing && !hasError && totalValue > 0 && !!walletAddress;
   const snapshotPayload =
     snapshotReady && walletAddress
       ? buildSnapshot({
@@ -405,12 +442,17 @@ export function Dashboard() {
         <ExchangeSection binance={binance} okx={okx} />
       )}
       {activeTab === 'deribit' && (
-        <DeribitSection data={deribit.data} isLoading={deribit.isLoading} />
+        <DeribitSection
+          data={deribit.data}
+          isLoading={deribit.isLoading}
+          error={deribit.error as Error | null}
+        />
       )}
       {activeTab === 'onchain' && (
         <OnchainSection
           wallets={onchain.data ?? []}
           isLoading={onchain.isLoading}
+          error={onchain.error as Error | null}
         />
       )}
       {(activeTab === 'ths' ||

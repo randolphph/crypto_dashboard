@@ -1,5 +1,6 @@
 import 'server-only';
 import type { FxRates } from '@/types/stocks';
+import { fetchWithTimeout } from '@/lib/http/fetch';
 
 const FX_URL =
   'https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@latest/v1/currencies/usd.json';
@@ -9,7 +10,7 @@ const FX_FALLBACK =
 export async function fetchFx(): Promise<FxRates> {
   for (const url of [FX_URL, FX_FALLBACK]) {
     try {
-      const res = await fetch(url, { cache: 'no-store' });
+      const res = await fetchWithTimeout(url, { cache: 'no-store' });
       if (!res.ok) continue;
       const data = await res.json();
       const rates = data?.usd;

@@ -1,4 +1,8 @@
+import { fetchWithTimeout } from '@/lib/http/fetch';
+import { enforceRateLimit } from '@/lib/http/guards';
+
 export const dynamic = 'force-dynamic';
+export const maxDuration = 35;
 
 const ALLOWED = new Set([
   'positions.csv',
@@ -10,6 +14,9 @@ export async function GET(
   request: Request,
   { params }: { params: Promise<{ file: string }> }
 ) {
+  const limited = await enforceRateLimit(request, 'snapshot:export', 30, 60 * 60);
+  if (limited) return limited;
+
   const { file } = await params;
   if (!ALLOWED.has(file)) {
     return Response.json({ error: 'unknown export file' }, { status: 404 });
@@ -42,11 +49,12 @@ export async function GET(
   }
 
   try {
-    const res = await fetch(upstream, {
+    const res = await fetchWithTimeout(upstream, {
       headers: { Authorization: `Bearer ${token}` },
       cache: 'no-store',
-    });
+    }, 30_000);
     const headers = new Headers();
+    headers.set('Cache-Control', 'private, no-store');
     const ct = res.headers.get('content-type');
     if (ct) headers.set('Content-Type', ct);
     const cd = res.headers.get('content-disposition');

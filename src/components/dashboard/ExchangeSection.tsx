@@ -41,12 +41,16 @@ interface ExchangeDataWithAccounts {
   balances: AssetBalance[];
   totalUsdValue: number;
   lastUpdated: string;
+  dataQuality?: {
+    complete: boolean;
+    errors: string[];
+  };
   error?: string;
 }
 
 interface ExchangeSectionProps {
-  binance: { data?: ExchangeDataWithAccounts; isLoading: boolean };
-  okx: { data?: ExchangeDataWithAccounts; isLoading: boolean };
+  binance: { data?: ExchangeDataWithAccounts; isLoading: boolean; error?: Error | null };
+  okx: { data?: ExchangeDataWithAccounts; isLoading: boolean; error?: Error | null };
 }
 
 function FuturesPositionsTable({ positions }: { positions: FuturesPosition[] }) {
@@ -192,10 +196,12 @@ function GridBotsTable({ bots }: { bots: GridBotSummary[] }) {
 function ExchangeCard({
   data,
   isLoading,
+  error,
   name,
 }: {
   data?: ExchangeDataWithAccounts;
   isLoading: boolean;
+  error?: Error | null;
   name: string;
 }) {
   const { fmtUsd } = usePrivacyFormat();
@@ -220,6 +226,16 @@ function ExchangeCard({
           )
         )}
       </div>
+      {error && (
+        <div className="mb-4 rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive">
+          刷新失败，继续显示上次成功数据：{error.message}
+        </div>
+      )}
+      {data?.dataQuality?.complete === false && (
+        <div className="mb-4 rounded-lg border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-xs text-amber-700 dark:text-amber-400">
+          数据不完整：{data.dataQuality.errors.join('；')}
+        </div>
+      )}
       {isLoading ? (
         <div className="space-y-2">
           {[...Array(3)].map((_, i) => (
@@ -265,8 +281,8 @@ function ExchangeCard({
 
 export function ExchangeSection({ binance, okx }: ExchangeSectionProps) {
   const cards = [
-    { data: binance.data, isLoading: binance.isLoading, name: 'Binance' },
-    { data: okx.data, isLoading: okx.isLoading, name: 'OKX' },
+    { data: binance.data, isLoading: binance.isLoading, error: binance.error, name: 'Binance' },
+    { data: okx.data, isLoading: okx.isLoading, error: okx.error, name: 'OKX' },
   ].filter((c) => c.isLoading || c.data?.configured !== false);
 
   if (cards.length === 0) {
@@ -280,7 +296,13 @@ export function ExchangeSection({ binance, okx }: ExchangeSectionProps) {
   return (
     <div className="grid gap-6 md:grid-cols-2">
       {cards.map((c) => (
-        <ExchangeCard key={c.name} data={c.data} isLoading={c.isLoading} name={c.name} />
+        <ExchangeCard
+          key={c.name}
+          data={c.data}
+          isLoading={c.isLoading}
+          error={c.error}
+          name={c.name}
+        />
       ))}
     </div>
   );

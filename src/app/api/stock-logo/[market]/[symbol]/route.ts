@@ -1,4 +1,5 @@
 import type { StockMarket } from '@/types/stocks';
+import { fetchWithTimeout } from '@/lib/http/fetch';
 
 const LOGO_BASE = 'https://financialmodelingprep.com/image-stock';
 const LOGO_REVALIDATE_SECONDS = 30 * 24 * 60 * 60;
@@ -47,7 +48,7 @@ export async function GET(
 
   for (const logoSymbol of logoSymbols(market as StockMarket, symbol)) {
     try {
-      const upstream = await fetch(
+      const upstream = await fetchWithTimeout(
         `${LOGO_BASE}/${encodeURIComponent(logoSymbol)}.png`,
         { next: { revalidate: LOGO_REVALIDATE_SECONDS } }
       );

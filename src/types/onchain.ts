@@ -50,5 +50,9 @@ export interface WalletBalance {
   totalUsdValue: number;
   defiPositions?: DefiProtocolPosition[];
   defiTotalUsdValue?: number;
+  dataQuality?: {
+    complete: boolean;
+    errors: string[];
+  };
   error?: string;
 }

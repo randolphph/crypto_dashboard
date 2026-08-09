@@ -1,5 +1,6 @@
 import 'server-only';
 import { buildLongportHeaders, type LongportCreds } from './sign';
+import { fetchWithTimeout } from '@/lib/http/fetch';
 
 export const LONGPORT_BASE = 'https://openapi.longportapp.com';
 
@@ -38,7 +39,7 @@ export async function lpGet<T>(
   const url = `${LONGPORT_BASE}${path}${qs ? `?${qs}` : ''}`;
   const headers = buildLongportHeaders(creds, 'GET', path, qs, '');
 
-  const res = await fetch(url, { method: 'GET', headers, cache: 'no-store' });
+  const res = await fetchWithTimeout(url, { method: 'GET', headers, cache: 'no-store' });
   let body: LpEnvelope<T> | { code?: number; message?: string };
   try {
     body = (await res.json()) as LpEnvelope<T>;
