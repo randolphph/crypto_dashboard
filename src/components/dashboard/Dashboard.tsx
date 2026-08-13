@@ -114,14 +114,6 @@ export function Dashboard() {
     stocks.isLoading ||
     (bankNeedsFx && !fx && fxQuery.isLoading);
 
-  const isRefreshing =
-    binance.isFetching ||
-    okx.isFetching ||
-    deribit.isFetching ||
-    onchain.isFetching ||
-    stocks.isFetching ||
-    (bankNeedsFx && fxQuery.isFetching);
-
   const hasError =
     binance.isError ||
     okx.isError ||
@@ -136,6 +128,9 @@ export function Dashboard() {
     binance.data?.error != null ||
     okx.data?.error != null ||
     deribit.data?.error != null ||
+    (bankNeedsFx && !fx && !fxQuery.isLoading);
+
+  const hasDataQualityIssue =
     binance.data?.dataQuality?.complete === false ||
     okx.data?.dataQuality?.complete === false ||
     deribit.data?.dataQuality?.complete === false ||
@@ -143,8 +138,7 @@ export function Dashboard() {
       onchain.data.some(
         (wallet) => !!wallet.error || wallet.dataQuality?.complete === false
       )) ||
-    stocks.data?.dataQuality?.complete === false ||
-    (bankNeedsFx && !fx && !fxQuery.isLoading);
+    stocks.data?.dataQuality?.complete === false;
 
   const brokerById = (b: StockBroker) =>
     stocks.data?.brokers.find((x) => x.broker === b);
@@ -319,7 +313,11 @@ export function Dashboard() {
   // No wallet → no push (e.g., still on the unlock screen).
   const walletAddress = useVaultStore((s) => s.address);
   const snapshotReady =
-    !isLoading && !hasError && totalValue > 0 && !!walletAddress;
+    !isLoading &&
+    !hasError &&
+    !hasDataQualityIssue &&
+    totalValue > 0 &&
+    !!walletAddress;
   const snapshotPayload =
     snapshotReady && walletAddress
       ? buildSnapshot({
