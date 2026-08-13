@@ -5,6 +5,7 @@ export interface ApiKeys {
   binanceApiKey: string;
   binanceApiSecret: string;
   binanceEnableGridBot: boolean;
+  binanceTradeSymbols: string;
   // OKX
   okxApiKey: string;
   okxApiSecret: string;
@@ -38,6 +39,7 @@ export const emptyKeys: ApiKeys = {
   binanceApiKey: '',
   binanceApiSecret: '',
   binanceEnableGridBot: false,
+  binanceTradeSymbols: '',
   okxApiKey: '',
   okxApiSecret: '',
   okxPassphrase: '',
@@ -75,6 +77,8 @@ export const useApiKeyStore = create<ApiKeyState>((set, get) => ({
     if (s.binanceApiKey) h['x-binance-api-key'] = s.binanceApiKey;
     if (s.binanceApiSecret) h['x-binance-api-secret'] = s.binanceApiSecret;
     if (s.binanceEnableGridBot) h['x-binance-enable-grid-bot'] = 'true';
+    if (s.binanceTradeSymbols.trim())
+      h['x-binance-trade-symbols'] = s.binanceTradeSymbols;
     if (s.okxApiKey) h['x-okx-api-key'] = s.okxApiKey;
     if (s.okxApiSecret) h['x-okx-api-secret'] = s.okxApiSecret;
     if (s.okxPassphrase) h['x-okx-passphrase'] = s.okxPassphrase;

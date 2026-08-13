@@ -140,6 +140,19 @@ export function ApiKeySettings() {
             checked={store.binanceEnableGridBot}
             onChange={(v) => store.setKeys({ binanceEnableGridBot: v })}
           />
+          <div className="flex flex-col gap-1">
+            <label className="text-sm text-muted-foreground">账本成交交易对</label>
+            <input
+              type="text"
+              value={store.binanceTradeSymbols}
+              onChange={(e) => store.setKeys({ binanceTradeSymbols: e.target.value })}
+              placeholder="BTCUSDT, ETHUSDT, BTCUSD_PERP"
+              className="w-full rounded-md border bg-background px-3 py-1.5 text-sm"
+            />
+            <p className="text-xs text-muted-foreground">
+              逗号或换行分隔；用于自动增量同步成交。USDT 交易对会查询现货和 U 本位，BTCUSD_PERP 等查询币本位。
+            </p>
+          </div>
         </Section>
 
         <Section title="OKX" configured={okxConfigured}>

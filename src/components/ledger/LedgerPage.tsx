@@ -52,6 +52,7 @@ import { cn } from '@/lib/utils';
 import { useLedgerStore } from '@/stores/ledgerStore';
 import { useDailyReviewStore } from '@/stores/dailyReviewStore';
 import { useTradeStore } from '@/stores/tradeStore';
+import { parseIbkrFlexXml } from '@/lib/ledger/ibkrSync';
 import { DailyTradeTimeline } from '@/components/ledger/DailyTradeTimeline';
 import type {
   LedgerAccount,
@@ -384,6 +385,20 @@ export function LedgerPage() {
 
   const handleCsvFile = async (file: File | undefined) => {
     if (!file) return;
+    if (file.name.toLowerCase().endsWith('.xml')) {
+      const account = accounts.find((candidate) => candidate.id === importAccountId);
+      if (account?.platform !== 'ibkr') {
+        setMessage('IBKR Flex XML 请在上方选择 IBKR 账户。');
+        return;
+      }
+      try {
+        const activities = await parseIbkrFlexXml(await file.text(), account.id);
+        setImportPreview({ fileName: file.name, activities, errors: [] });
+      } catch (error) {
+        setMessage(error instanceof Error ? error.message : 'IBKR Flex XML 解析失败。');
+      }
+      return;
+    }
     const result = parseLedgerCsv(await file.text(), accounts, importAccountId, activities);
     setImportPreview({ fileName: file.name, ...result });
   };
@@ -870,16 +885,16 @@ export function LedgerPage() {
         <DialogContent className="sm:max-w-xl">
           <DialogHeader>
             <DialogTitle>导入历史成交</DialogTitle>
-            <DialogDescription>支持中英文列名、带引号 CSV 和重复检测。导入前会先预览校验结果。</DialogDescription>
+            <DialogDescription>支持 CSV 和 IBKR Flex XML；导入前会先预览，并跳过重复成交。</DialogDescription>
           </DialogHeader>
           <div className="rounded-lg border border-dashed p-5 text-center">
             <FileSpreadsheet className="mx-auto mb-2 size-6 text-muted-foreground" />
-            <p className="text-sm font-medium">选择券商交割单或统一模板</p>
-            <p className="mt-1 text-xs text-muted-foreground">格式：日期、时间、代码、名称、方向、数量、价格、币种、费用</p>
+            <p className="text-sm font-medium">选择券商交割单、Flex XML 或统一模板</p>
+            <p className="mt-1 text-xs text-muted-foreground">IBKR XML 自动识别股票、期权和期货；外汇成交会跳过</p>
             <select value={importAccountId} onChange={(event) => { setImportAccountId(event.target.value); setImportPreview(null); }} className="mx-auto mt-3 block h-8 max-w-sm rounded-lg border bg-background px-2.5 text-sm">
               {accounts.map((account) => <option key={account.id} value={account.id}>空账户列默认导入到：{account.name}</option>)}
             </select>
-            <Input type="file" accept=".csv,text/csv" className="mx-auto mt-3 max-w-sm" onChange={(event) => handleCsvFile(event.target.files?.[0])} />
+            <Input type="file" accept=".csv,text/csv,.xml,application/xml,text/xml" className="mx-auto mt-3 max-w-sm" onChange={(event) => handleCsvFile(event.target.files?.[0])} />
             <Button variant="link" size="sm" className="mt-2" onClick={downloadTemplate}><Download />下载统一模板</Button>
           </div>
           {importPreview && (

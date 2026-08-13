@@ -7,6 +7,8 @@ import { VaultBootstrap } from '@/components/auth/VaultBootstrap';
 import { VaultGate } from '@/components/auth/VaultGate';
 import { CashToastContainer } from '@/components/ui/cash-toast';
 import { ChatPanel } from '@/components/ai/ChatPanel';
+import { IbkrTradeSync } from '@/components/ledger/IbkrTradeSync';
+import { BinanceTradeSync } from '@/components/ledger/BinanceTradeSync';
 import './globals.css';
 
 const geistSans = Geist({
@@ -39,6 +41,8 @@ export default function RootLayout({
         <ThemeProvider>
           <QueryProvider>
             <VaultBootstrap />
+            <IbkrTradeSync />
+            <BinanceTradeSync />
             <Header />
             <main className="flex-1 px-6 py-6">
               <VaultGate>{children}</VaultGate>

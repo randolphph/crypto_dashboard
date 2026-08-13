@@ -8,6 +8,7 @@ import type {
   CashBalance,
   StockQuote,
 } from '@/types/stocks';
+import type { IbkrExecution } from '@/types/ibkr';
 
 const FLEX_BASE = 'https://gdcdyn.interactivebrokers.com/Universal/servlet';
 const SEND_URL = `${FLEX_BASE}/FlexStatementService.SendRequest`;
@@ -29,6 +30,7 @@ export interface IbkrSnapshot {
   positions: StockPosition[];
   cash: CashBalance[];
   quotes: StockQuote[];
+  trades: IbkrExecution[];
 }
 
 interface CacheEntry {
@@ -143,10 +145,33 @@ function mapCurrency(c: string): StockCurrency | null {
   return null;
 }
 
+function tradeMarket(currency: string, exchange: string): string {
+  const c = currency.toUpperCase();
+  const venue = exchange.toUpperCase();
+  if (c === 'CNY' || c === 'RMB') return 'A';
+  if (c === 'HKD' || c === 'CNH' || venue.includes('SEHK')) return 'HK';
+  if (c === 'KRW') return 'KR';
+  if (c === 'EUR') return 'EU';
+  return 'US';
+}
+
+function flexDateTime(value: string | undefined): string | null {
+  const match = value?.match(/^(\d{4})(\d{2})(\d{2});(\d{2})(\d{2})(\d{2})$/);
+  if (!match) return null;
+  const [, year, month, day, hour, minute, second] = match;
+  return `${year}-${month}-${day}T${hour}:${minute}:${second}`;
+}
+
+function normalizeExpiry(value: string | undefined): string | undefined {
+  const match = value?.match(/^(\d{4})(\d{2})(\d{2})$/);
+  return match ? `${match[1]}-${match[2]}-${match[3]}` : undefined;
+}
+
 export function parseFlexStatement(xml: string): IbkrSnapshot {
   const positions: StockPosition[] = [];
   const cash: CashBalance[] = [];
   const quotes: StockQuote[] = [];
+  const trades: IbkrExecution[] = [];
 
   const posRe = /<OpenPosition\s+([^>]+?)\/>/g;
   let m: RegExpExecArray | null;
@@ -236,7 +261,75 @@ export function parseFlexStatement(xml: string): IbkrSnapshot {
     });
   }
 
-  return { positions, cash, quotes };
+  const tradeRe = /<Trade\s+([^>]+?)\/>/g;
+  while ((m = tradeRe.exec(xml)) !== null) {
+    const attrs = readAttrs(m[1]);
+    const assetClass = (attrs.assetCategory ?? attrs.assetClass ?? '').toUpperCase();
+    // FX / cash conversions are intentionally excluded from the transaction
+    // ledger. The user tracks securities executions only.
+    const instrumentType =
+      assetClass === 'STK'
+        ? 'stock'
+        : assetClass === 'OPT'
+          ? 'option'
+          : assetClass === 'FUT' || assetClass === 'FOP'
+            ? 'future'
+            : null;
+    if (!instrumentType) continue;
+
+    const occurredAt = flexDateTime(attrs.dateTime);
+    const symbol = attrs.symbol?.trim();
+    // Expiry / exercise rows can omit IB's execution ID even though they are
+    // legitimate ledger events. Flex still supplies a stable trade ID there.
+    const externalId = attrs.ibExecID?.trim() || attrs.tradeID?.trim();
+    const quantity = Math.abs(parseFloat(attrs.quantity ?? ''));
+    const price = parseFloat(attrs.tradePrice ?? '');
+    if (
+      !occurredAt ||
+      !symbol ||
+      !externalId ||
+      !Number.isFinite(quantity) ||
+      quantity <= 0 ||
+      !Number.isFinite(price) ||
+      price < 0
+    ) {
+      continue;
+    }
+
+    const multiplierValue = parseFloat(attrs.multiplier ?? '1');
+    const multiplier =
+      Number.isFinite(multiplierValue) && multiplierValue > 0 ? multiplierValue : 1;
+    const strikeValue = parseFloat(attrs.strike ?? '');
+    const putCall = (attrs.putCall ?? '').toUpperCase();
+    const commissionValue = parseFloat(attrs.ibCommission ?? '0');
+    const cashFlowValue = parseFloat(attrs.netCash ?? '');
+    const underlying = attrs.underlyingSymbol?.trim() ||
+      (instrumentType === 'option' ? symbol.split(/\s+/)[0] : undefined);
+    const exchange = attrs.exchange?.trim();
+    const orderId = attrs.ibOrderID?.trim();
+    trades.push({
+      occurredAt,
+      instrumentType,
+      market: tradeMarket(attrs.currency ?? '', exchange ?? ''),
+      symbol,
+      name: attrs.description?.trim() || undefined,
+      underlying,
+      expiry: normalizeExpiry(attrs.expiry),
+      strike: Number.isFinite(strikeValue) && strikeValue > 0 ? strikeValue : undefined,
+      optionType: putCall === 'P' || putCall === 'PUT' ? 'put' : putCall === 'C' || putCall === 'CALL' ? 'call' : undefined,
+      side: (attrs.buySell ?? '').toUpperCase() === 'BUY' ? 'buy' : 'sell',
+      quantity,
+      price,
+      currency: (attrs.currency ?? 'USD').toUpperCase(),
+      multiplier,
+      commission: Number.isFinite(commissionValue) ? Math.abs(commissionValue) : 0,
+      cashFlow: Number.isFinite(cashFlowValue) ? cashFlowValue : undefined,
+      externalId,
+      note: [exchange, orderId ? `Order ${orderId}` : undefined].filter(Boolean).join(' · ') || undefined,
+    });
+  }
+
+  return { positions, cash, quotes, trades };
 }
 
 export async function fetchIbkrSnapshot(

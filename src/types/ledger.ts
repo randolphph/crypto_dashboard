@@ -67,6 +67,8 @@ export interface LedgerActivity {
   status: LedgerConfirmationStatus;
   source: LedgerActivitySource;
   externalId?: string;
+  /** Individual exchange execution IDs represented by a daily aggregate. */
+  sourceExternalIds?: string[];
   importBatchId?: string;
   note?: string;
   operation: LedgerOperation | 'trade';

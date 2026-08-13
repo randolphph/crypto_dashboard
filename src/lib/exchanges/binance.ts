@@ -1,6 +1,7 @@
 import 'server-only';
 import crypto from 'crypto';
 import type { AssetBalance } from '@/types/common';
+import type { BinanceExecution, BinanceExecutionMarket } from '@/types/binance';
 import { fetchWithTimeout } from '@/lib/http/fetch';
 
 const BASE_URL = 'https://api.binance.com';
@@ -91,6 +92,30 @@ interface FuturesGridOpenOrdersResponse {
   orders: FuturesGridOrder[];
 }
 
+interface SpotTradeResponse {
+  id: number;
+  price: string;
+  qty: string;
+  quoteQty: string;
+  commission: string;
+  commissionAsset: string;
+  time: number;
+  isBuyer: boolean;
+}
+
+interface FuturesTradeResponse {
+  id: number;
+  price: string;
+  qty: string;
+  quoteQty?: string;
+  commission: string;
+  commissionAsset: string;
+  time: number;
+  buyer?: boolean;
+  side?: 'BUY' | 'SELL';
+  symbol: string;
+}
+
 export interface GridBotSummary {
   algoId: number;
   symbol: string;
@@ -123,6 +148,122 @@ function getCredentials(
     throw new Error('BINANCE_API_KEY 或 BINANCE_API_SECRET 未配置');
   }
   return { apiKey, apiSecret };
+}
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+const QUOTE_ASSETS = ['FDUSD', 'USDT', 'USDC', 'BUSD', 'TUSD', 'USDP', 'USD', 'BTC', 'ETH', 'BNB'];
+
+function quoteAssetForSymbol(symbol: string): string {
+  const normalized = symbol.toUpperCase().replace(/_[A-Z0-9]+$/, '');
+  return QUOTE_ASSETS.find((asset) => normalized.endsWith(asset)) ?? 'USDT';
+}
+
+function asNumber(value: string | number | undefined): number {
+  const result = Number(value ?? 0);
+  return Number.isFinite(result) ? result : 0;
+}
+
+function normaliseSymbols(symbols: string[]): string[] {
+  return [...new Set(symbols.map((symbol) => symbol.trim().toUpperCase()).filter(
+    (symbol) => /^[A-Z0-9_]{5,30}$/.test(symbol)
+  ))];
+}
+
+function toExecution(
+  trade: SpotTradeResponse | FuturesTradeResponse,
+  market: BinanceExecutionMarket
+): BinanceExecution | null {
+  const symbol = 'symbol' in trade ? trade.symbol : '';
+  const quantity = asNumber(trade.qty);
+  const price = asNumber(trade.price);
+  if (!symbol || quantity <= 0 || price <= 0 || !Number.isFinite(trade.time)) return null;
+  const side =
+    'side' in trade && trade.side
+      ? trade.side === 'BUY'
+      : 'isBuyer' in trade
+        ? trade.isBuyer
+        : trade.buyer ?? false;
+  return {
+    // Binance trade IDs are scoped to a symbol in some markets.
+    externalId: `binance:${market}:${symbol}:${trade.id}`,
+    market,
+    timestamp: trade.time,
+    symbol,
+    side: side ? 'buy' : 'sell',
+    quantity,
+    price,
+    quoteQuantity: asNumber(trade.quoteQty) || undefined,
+    quoteAsset: quoteAssetForSymbol(symbol),
+    commission: asNumber(trade.commission),
+    commissionAsset: trade.commissionAsset,
+    isContractQuantity: market === 'coinm',
+  };
+}
+
+/**
+ * Fetch user executions in day-sized windows. Spot restricts a query's time
+ * span to 24 hours, so using the same window for all three Binance markets
+ * keeps incremental reconciliation predictable.
+ */
+export async function fetchBinanceExecutions(
+  apiKeyOverride: string | undefined,
+  apiSecretOverride: string | undefined,
+  configuredSymbols: string[],
+  startTime: number,
+  endTime = Date.now()
+): Promise<{ executions: BinanceExecution[]; errors: string[] }> {
+  const { apiKey, apiSecret } = getCredentials(apiKeyOverride, apiSecretOverride);
+  const symbols = normaliseSymbols(configuredSymbols);
+  if (symbols.length === 0 || endTime <= startTime) return { executions: [], errors: [] };
+
+  const windows: Array<{ startTime: number; endTime: number }> = [];
+  for (let cursor = startTime; cursor < endTime; cursor += DAY_MS) {
+    windows.push({ startTime: cursor, endTime: Math.min(cursor + DAY_MS - 1, endTime) });
+  }
+
+  const jobs: Array<Promise<BinanceExecution[]>> = [];
+  const errors: string[] = [];
+  const requestTrades = async (
+    market: BinanceExecutionMarket,
+    baseUrl: string,
+    path: string,
+    symbol: string,
+    window: { startTime: number; endTime: number }
+  ) => {
+    try {
+      const data = (await binanceRequest(baseUrl, path, apiKey, apiSecret, {
+        symbol,
+        startTime: String(window.startTime),
+        endTime: String(window.endTime),
+        limit: '1000',
+      })) as Array<SpotTradeResponse | FuturesTradeResponse>;
+      return data
+        .map((trade) => toExecution(
+          market === 'spot' ? { ...trade, symbol } : trade,
+          market
+        ))
+        .filter((trade): trade is BinanceExecution => trade !== null);
+    } catch (error) {
+      errors.push(`${market}:${symbol} ${error instanceof Error ? error.message : '查询失败'}`);
+      return [];
+    }
+  };
+
+  for (const window of windows) {
+    for (const symbol of symbols) {
+      // A regular pair such as BTCUSDT can exist in both spot and USD-M.
+      // Coin-M instruments use Binance's underscore contract notation.
+      if (!symbol.includes('_')) {
+        jobs.push(requestTrades('spot', BASE_URL, '/api/v3/myTrades', symbol, window));
+        jobs.push(requestTrades('usdm', FAPI_URL, '/fapi/v1/userTrades', symbol, window));
+      } else {
+        jobs.push(requestTrades('coinm', DAPI_URL, '/dapi/v1/userTrades', symbol, window));
+      }
+    }
+  }
+
+  const executions = (await Promise.all(jobs)).flat();
+  return { executions, errors };
 }
 
 // Simple Earn receipt tokens (LDUSDT, LDUSDC, LDBTC, …) are returned by

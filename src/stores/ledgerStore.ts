@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { activityFingerprint } from '@/lib/ledger/identity';
+import { mergeDailyActivities } from '@/lib/ledger/aggregate';
 import type {
   LedgerAccount,
   LedgerActivity,
@@ -102,18 +103,21 @@ export const useLedgerStore = create<LedgerState>()(
         })),
       addActivity: (activity) =>
         set((state) => ({
-          activities: [
+          activities: mergeDailyActivities([
             ...state.activities,
             { ...activity, id: makeId('activity'), recordedAt: Date.now() },
-          ].sort((a, b) => b.occurredAt - a.occurredAt),
+          ]),
         })),
       importActivities: (incoming, meta) => {
         let result = { inserted: 0, skipped: 0 };
         set((state) => {
           const externalIds = new Set(
             state.activities
-              .filter((activity) => activity.externalId)
-              .map((activity) => `${activity.accountId}|${activity.externalId}`)
+              .flatMap((activity) =>
+                [activity.externalId, ...(activity.sourceExternalIds ?? [])]
+                  .filter((externalId): externalId is string => !!externalId)
+                  .map((externalId) => `${activity.accountId}|${externalId}`)
+              )
           );
           const fingerprints = new Set(state.activities.map(activityFingerprint));
           const batchId = makeId('batch');
@@ -144,10 +148,13 @@ export const useLedgerStore = create<LedgerState>()(
             errorCount: meta.errorCount,
           };
           return {
-            activities: [...state.activities, ...accepted].sort(
-              (a, b) => b.occurredAt - a.occurredAt
-            ),
-            importBatches: [batch, ...state.importBatches],
+            activities: mergeDailyActivities([...state.activities, ...accepted]),
+            // Automatic API polling can see the same Last Business Day report
+            // repeatedly. Keep its idempotent no-op runs out of import history.
+            importBatches:
+              accepted.length > 0 || meta.errorCount > 0
+                ? [batch, ...state.importBatches]
+                : state.importBatches,
           };
         });
         return result;
@@ -188,7 +195,7 @@ export const useLedgerStore = create<LedgerState>()(
     }),
     {
       name: 'crypto-dashboard-ledger',
-      version: 2,
+      version: 3,
       migrate: (persisted) => {
         const state = persisted as LedgerState;
         const accounts = state?.accounts ?? [];
@@ -199,14 +206,16 @@ export const useLedgerStore = create<LedgerState>()(
             ...accounts,
             ...DEFAULT_ACCOUNTS.filter((account) => !existingPlatforms.has(account.platform)),
           ],
-          activities: (state?.activities ?? []).map((activity) => ({
-            ...activity,
-            instrumentType:
-              (activity.instrumentType as string) === 'crypto'
-                ? 'crypto_spot'
-                : activity.instrumentType,
-            operation: activity.operation ?? 'trade',
-          })),
+          activities: mergeDailyActivities(
+            (state?.activities ?? []).map((activity) => ({
+              ...activity,
+              instrumentType:
+                (activity.instrumentType as string) === 'crypto'
+                  ? 'crypto_spot'
+                  : activity.instrumentType,
+              operation: activity.operation ?? 'trade',
+            }))
+          ),
           importBatches: state?.importBatches ?? [],
         } as LedgerState;
       },
