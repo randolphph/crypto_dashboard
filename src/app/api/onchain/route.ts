@@ -1,7 +1,6 @@
 import { fetchEvmWalletBalances } from '@/lib/onchain/ethereum';
 import { fetchSolanaWalletBalances } from '@/lib/onchain/solana';
 import { fetchBitcoinWalletBalances } from '@/lib/onchain/bitcoin';
-import { fetchPrices } from '@/lib/prices';
 import {
   fetchDefiPositionsViaOkx,
   isOkxWeb3Available,
@@ -179,26 +178,12 @@ export async function POST(request: Request) {
             dedupedToDefi: isDeduped(b),
           }));
 
-          // Fetch prices only for assets without USD values (RPC fallback)
-          const needsPricing = markedBalances.filter((b) => !b.usdValue);
-          const symbols = needsPricing.map((b) => b.asset);
-          const prices = symbols.length > 0 ? await fetchPrices(symbols) : {};
-          const missingPrices = needsPricing
-            .filter((b) => !(prices[b.asset] > 0))
-            .map((b) => b.asset);
-          const unpricedSymbols = [...new Set(missingPrices)];
-          const unpricedWarning =
-            unpricedSymbols.length > 0
-              ? `${unpricedSymbols.length} 个代币没有可用美元报价，未计入总资产：${unpricedSymbols
-                  .slice(0, 3)
-                  .join('、')}${unpricedSymbols.length > 3 ? ' 等' : ''}`
-              : null;
-
+          // Treat OKX Web3 as the authoritative source for on-chain balances
+          // and valuations. Do not submit its token list to another price feed:
+          // dust / delisted tokens can legitimately have no tokenPrice there.
+          // Those records carry a zero USD value and are omitted below, without
+          // turning the wallet or the portfolio into a data-quality warning.
           const balancesWithUsd = markedBalances
-            .map((b) => ({
-              ...b,
-              usdValue: b.usdValue || b.amount * (prices[b.asset] ?? 0),
-            }))
             .filter((b) => b.usdValue >= 1);
 
           const balancesUsd = balancesWithUsd
@@ -221,7 +206,6 @@ export async function POST(request: Request) {
             dataQuality: {
               complete: defiError === null,
               errors: defiError ? [`DeFi: ${defiError}`] : [],
-              warnings: unpricedWarning ? [unpricedWarning] : [],
             },
           };
         } catch (error) {
