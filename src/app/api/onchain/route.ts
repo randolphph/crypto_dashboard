@@ -186,6 +186,13 @@ export async function POST(request: Request) {
           const missingPrices = needsPricing
             .filter((b) => !(prices[b.asset] > 0))
             .map((b) => b.asset);
+          const unpricedSymbols = [...new Set(missingPrices)];
+          const unpricedWarning =
+            unpricedSymbols.length > 0
+              ? `${unpricedSymbols.length} 个代币没有可用美元报价，未计入总资产：${unpricedSymbols
+                  .slice(0, 3)
+                  .join('、')}${unpricedSymbols.length > 3 ? ' 等' : ''}`
+              : null;
 
           const balancesWithUsd = markedBalances
             .map((b) => ({
@@ -212,13 +219,9 @@ export async function POST(request: Request) {
             defiPositions: defiResult.positions,
             defiTotalUsdValue,
             dataQuality: {
-              complete: missingPrices.length === 0 && defiError === null,
-              errors: [
-                ...new Set(
-                  missingPrices.map((symbol) => `Price unavailable: ${symbol}`)
-                ),
-                ...(defiError ? [`DeFi: ${defiError}`] : []),
-              ],
+              complete: defiError === null,
+              errors: defiError ? [`DeFi: ${defiError}`] : [],
+              warnings: unpricedWarning ? [unpricedWarning] : [],
             },
           };
         } catch (error) {

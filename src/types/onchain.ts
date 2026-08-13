@@ -53,6 +53,7 @@ export interface WalletBalance {
   dataQuality?: {
     complete: boolean;
     errors: string[];
+    warnings?: string[];
   };
   error?: string;
 }

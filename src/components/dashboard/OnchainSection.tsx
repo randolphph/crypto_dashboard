@@ -77,11 +77,16 @@ export function OnchainSection({ wallets, isLoading, error }: OnchainSectionProp
             <p className="text-sm text-destructive">{wallet.error}</p>
           ) : (
             <>
-              {wallet.dataQuality?.complete === false && (
+              {wallet.dataQuality?.complete === false && wallet.dataQuality.errors.length > 0 && (
                 <p className="mb-3 text-xs text-amber-700 dark:text-amber-400">
                   数据不完整：{wallet.dataQuality.errors.join('；')}
                 </p>
               )}
+              {wallet.dataQuality?.warnings?.length ? (
+                <p className="mb-3 text-xs text-amber-700 dark:text-amber-400">
+                  估值提示：{wallet.dataQuality.warnings.join('；')}
+                </p>
+              ) : null}
               <AssetTable balances={wallet.balances} />
               {wallet.defiPositions && wallet.defiPositions.length > 0 && (
                 <DefiPositions
