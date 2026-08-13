@@ -300,7 +300,6 @@ export function Dashboard() {
   const recordSnapshot = useCallback(() => {
     if (
       !isLoading &&
-      !isRefreshing &&
       !hasError &&
       totalValue > 0 &&
       totalValue !== lastRecordedRef.current
@@ -308,7 +307,7 @@ export function Dashboard() {
       lastRecordedRef.current = totalValue;
       addSnapshot(totalValue);
     }
-  }, [isLoading, isRefreshing, hasError, totalValue, addSnapshot]);
+  }, [isLoading, hasError, totalValue, addSnapshot]);
 
   useEffect(() => {
     recordSnapshot();
@@ -320,7 +319,7 @@ export function Dashboard() {
   // No wallet → no push (e.g., still on the unlock screen).
   const walletAddress = useVaultStore((s) => s.address);
   const snapshotReady =
-    !isLoading && !isRefreshing && !hasError && totalValue > 0 && !!walletAddress;
+    !isLoading && !hasError && totalValue > 0 && !!walletAddress;
   const snapshotPayload =
     snapshotReady && walletAddress
       ? buildSnapshot({
