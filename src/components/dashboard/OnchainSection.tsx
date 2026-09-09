@@ -12,7 +12,9 @@ const CHAIN_LABELS: Record<string, string> = {
   arbitrum: 'ARB',
   base: 'Base',
   bsc: 'BSC',
+  robinhood: 'Robinhood',
   solana: 'SOL',
+  bitcoin: 'BTC',
 };
 
 interface OnchainSectionProps {

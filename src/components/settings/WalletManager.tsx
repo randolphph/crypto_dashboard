@@ -18,6 +18,7 @@ const EVM_CHAINS: { id: EvmChain; label: string }[] = [
   { id: 'arbitrum', label: 'Arbitrum One' },
   { id: 'base', label: 'Base' },
   { id: 'bsc', label: 'BNB Chain' },
+  { id: 'robinhood', label: 'Robinhood Chain' },
 ];
 
 const CHAIN_LABELS: Record<Chain, string> = {
@@ -26,6 +27,7 @@ const CHAIN_LABELS: Record<Chain, string> = {
   arbitrum: 'ARB',
   base: 'Base',
   bsc: 'BSC',
+  robinhood: 'Robinhood',
   solana: 'SOL',
   bitcoin: 'BTC',
 };

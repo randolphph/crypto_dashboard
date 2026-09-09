@@ -21,6 +21,7 @@ const CHAIN_INDEX_MAP: Record<Chain, string> = {
   arbitrum: '42161',
   base: '8453',
   bsc: '56',
+  robinhood: '4663',
   solana: '501',
   bitcoin: '0',
 };
@@ -162,6 +163,7 @@ const CHAIN_INDEX_LABEL: Record<string, string> = {
   '42161': 'ARB',
   '8453': 'Base',
   '56': 'BSC',
+  '4663': 'Robinhood',
   '501': 'SOL',
 };
 

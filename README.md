@@ -6,7 +6,7 @@
 
 ### 加密资产
 - **中心化交易所** — Binance（现货 + 合约 + 理财 + 资金账户）、OKX（含 Web3 链上钱包）、Deribit（期权）
-- **链上钱包** — Ethereum / Solana 地址追踪，OKX Web3 API 解析多链余额
+- **链上钱包** — Ethereum / Robinhood Chain / Solana / Bitcoin 等地址追踪，OKX Web3 API 解析多链余额
 
 ### 股票
 - **多市场** — A 股、港股、美股、韩股（KOSPI / KOSDAQ）

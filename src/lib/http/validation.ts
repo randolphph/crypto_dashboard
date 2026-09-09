@@ -17,6 +17,7 @@ const CHAINS = new Set<Chain>([
   'arbitrum',
   'base',
   'bsc',
+  'robinhood',
   'solana',
   'bitcoin',
 ]);

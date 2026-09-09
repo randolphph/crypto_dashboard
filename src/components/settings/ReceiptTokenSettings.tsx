@@ -10,6 +10,7 @@ const CHAIN_OPTIONS: { chainId: string; label: string }[] = [
   { chainId: '42161', label: 'Arbitrum' },
   { chainId: '8453', label: 'Base' },
   { chainId: '56', label: 'BSC' },
+  { chainId: '4663', label: 'Robinhood' },
   { chainId: '501', label: 'Solana' },
 ];
 
@@ -19,6 +20,7 @@ const CHAIN_BADGE: Record<string, string> = {
   '42161': 'ARB',
   '8453': 'Base',
   '56': 'BSC',
+  '4663': 'Robinhood',
   '501': 'SOL',
 };
 
