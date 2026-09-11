@@ -393,14 +393,15 @@ export function rollupSectors(derived: DerivedTarget[]): SectorRollup[] {
 export function deriveFunding(
   derived: DerivedTarget[],
   totalPortfolioUsd: number,
-  availableAmmo: number
+  availableAmmo: number,
+  unassignedTargetValue = 0
 ): FundingOverview {
   const aiCurrentTotal = derived.reduce((s, d) => s + d.currentValue, 0);
-  const aiTargetTotal = derived.reduce(
-    (s, d) => s + d.target.targetValue,
-    0
-  );
-  const pendingBudget = derived.reduce((s, d) => s + d.remaining, 0);
+  const aiTargetTotal =
+    derived.reduce((s, d) => s + d.target.targetValue, 0) +
+    unassignedTargetValue;
+  const pendingBudget =
+    derived.reduce((s, d) => s + d.remaining, 0) + unassignedTargetValue;
   return {
     aiCurrentTotal,
     aiTargetTotal,

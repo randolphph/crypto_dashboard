@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useMemo, useEffect, useCallback } from 'react';
-import { Target, Power, FileJson, X, Plus } from 'lucide-react';
+import { Target, Power, FileJson, X, Plus, ChartPie } from 'lucide-react';
 import { useAccumulationStore } from '@/stores/accumulationStore';
 import { useGate } from '@/hooks/useGate';
 import { useExchangeData } from '@/hooks/useExchangeData';
@@ -23,10 +23,12 @@ import {
 import {
   DEFAULT_BUDGET_RATIOS,
   type AccumulationTarget,
+  type SectorAllocation,
 } from '@/types/accumulation';
 import { usePrivacyFormat } from '@/hooks/usePrivacyFormat';
 import { SectorDonut } from './SectorDonut';
 import { FundingOverview } from './FundingOverview';
+import { SectorAllocationDialog } from './SectorAllocationDialog';
 import { TargetTable } from './TargetTable';
 import { buildSectorColorMap } from './sectorColors';
 import { cn } from '@/lib/utils';
@@ -46,17 +48,81 @@ function bankUsd(
   return 0;
 }
 
+function normalizeSectorAllocations(
+  allocations: SectorAllocation[]
+): SectorAllocation[] {
+  const bySector = new Map<string, number>();
+  for (const allocation of allocations) {
+    const sector = allocation.sector.trim();
+    if (!sector) continue;
+    bySector.set(
+      sector,
+      (bySector.get(sector) ?? 0) + Math.max(0, allocation.ratio)
+    );
+  }
+  const total = [...bySector.values()].reduce((sum, ratio) => sum + ratio, 0);
+  if (bySector.size === 0) return [];
+  return [...bySector.entries()].map(([sector, ratio]) => ({
+    sector,
+    ratio: total > 0 ? ratio / total : 1 / bySector.size,
+  }));
+}
+
+function resolveSectorAllocations(
+  targets: AccumulationTarget[],
+  configured: SectorAllocation[]
+): SectorAllocation[] {
+  const baseBySector = new Map<string, number>();
+  for (const target of targets) {
+    const sector = target.sector || '未分类';
+    baseBySector.set(
+      sector,
+      (baseBySector.get(sector) ?? 0) + Math.max(0, target.targetValue)
+    );
+  }
+  if (configured.length === 0) {
+    return normalizeSectorAllocations(
+      [...baseBySector.entries()].map(([sector, targetValue]) => ({
+        sector,
+        ratio: targetValue,
+      }))
+    );
+  }
+  const configuredSectors = new Set(configured.map((item) => item.sector));
+  return normalizeSectorAllocations([
+    ...configured,
+    ...[...baseBySector.keys()]
+      .filter((sector) => !configuredSectors.has(sector))
+      .map((sector) => ({ sector, ratio: 0 })),
+  ]);
+}
+
 function scaleTargetsToPortfolioShare(
   targets: AccumulationTarget[],
   totalPortfolioUsd: number,
-  targetPortfolioShare: number
+  targetPortfolioShare: number,
+  allocations: SectorAllocation[]
 ): AccumulationTarget[] {
-  const baseTotal = targets.reduce((sum, target) => sum + target.targetValue, 0);
-  if (baseTotal <= 0 || totalPortfolioUsd <= 0) return targets;
-  const scale = (totalPortfolioUsd * targetPortfolioShare) / baseTotal;
+  if (totalPortfolioUsd <= 0) return targets;
+  const baseBySector = new Map<string, number>();
+  for (const target of targets) {
+    const sector = target.sector || '未分类';
+    baseBySector.set(
+      sector,
+      (baseBySector.get(sector) ?? 0) + Math.max(0, target.targetValue)
+    );
+  }
+  const allocationBySector = new Map(
+    allocations.map((allocation) => [allocation.sector, allocation.ratio])
+  );
+  const targetTotal = totalPortfolioUsd * targetPortfolioShare;
   return targets.map((target) => ({
     ...target,
-    targetValue: target.targetValue * scale,
+    targetValue:
+      targetTotal *
+      (allocationBySector.get(target.sector || '未分类') ?? 0) *
+      (Math.max(0, target.targetValue) /
+        (baseBySector.get(target.sector || '未分类') || 1)),
   }));
 }
 
@@ -65,8 +131,14 @@ export function AccumulationView() {
   const targetPortfolioShare = useAccumulationStore(
     (s) => s.targetPortfolioShare
   );
+  const configuredSectorAllocations = useAccumulationStore(
+    (s) => s.sectorAllocations
+  );
   const setTargetPortfolioShare = useAccumulationStore(
     (s) => s.setTargetPortfolioShare
+  );
+  const applySectorAllocations = useAccumulationStore(
+    (s) => s.applySectorAllocations
   );
   const replaceAll = useAccumulationStore((s) => s.replaceAll);
   const addTarget = useAccumulationStore((s) => s.addTarget);
@@ -163,14 +235,27 @@ export function AccumulationView() {
   }, [targets]);
   const ma20 = useMa20(ma20Symbols);
 
+  const sectorAllocations = useMemo(
+    () => resolveSectorAllocations(targets, configuredSectorAllocations),
+    [targets, configuredSectorAllocations]
+  );
+  const portfolioTargetTotal = useMemo(
+    () =>
+      totalPortfolioUsd > 0
+        ? totalPortfolioUsd * targetPortfolioShare
+        : targets.reduce((sum, target) => sum + target.targetValue, 0),
+    [totalPortfolioUsd, targetPortfolioShare, targets]
+  );
+
   const dynamicTargets = useMemo(
     () =>
       scaleTargetsToPortfolioShare(
         targets,
         totalPortfolioUsd,
-        targetPortfolioShare
+        targetPortfolioShare,
+        sectorAllocations
       ),
-    [targets, totalPortfolioUsd, targetPortfolioShare]
+    [targets, totalPortfolioUsd, targetPortfolioShare, sectorAllocations]
   );
 
   const derived = useMemo(
@@ -188,42 +273,105 @@ export function AccumulationView() {
     () => orphanHoldings(targets, stocks.data),
     [targets, stocks.data]
   );
-  const rollups = useMemo(() => rollupSectors(derived), [derived]);
+  const rollups = useMemo(() => {
+    const next = rollupSectors(derived);
+    const existing = new Set(next.map((rollup) => rollup.sector));
+    for (const allocation of sectorAllocations) {
+      if (existing.has(allocation.sector)) continue;
+      next.push({
+        sector: allocation.sector,
+        targetValue: portfolioTargetTotal * allocation.ratio,
+        currentValue: 0,
+        members: [],
+      });
+    }
+    return next.sort((a, b) => b.targetValue - a.targetValue);
+  }, [derived, sectorAllocations, portfolioTargetTotal]);
   const sectorColors = useMemo(
     () => buildSectorColorMap(rollups),
     [rollups]
   );
+  const unassignedTargetValue = useMemo(() => {
+    if (totalPortfolioUsd <= 0) return 0;
+    const sectorsWithTargets = new Set(
+      targets.map((target) => target.sector || '未分类')
+    );
+    return sectorAllocations.reduce(
+      (sum, allocation) =>
+        sum +
+        (sectorsWithTargets.has(allocation.sector)
+          ? 0
+          : portfolioTargetTotal * allocation.ratio),
+      0
+    );
+  }, [targets, sectorAllocations, portfolioTargetTotal, totalPortfolioUsd]);
   const funding = useMemo(
-    () => deriveFunding(derived, totalPortfolioUsd, availableAmmo),
-    [derived, totalPortfolioUsd, availableAmmo]
+    () =>
+      deriveFunding(
+        derived,
+        totalPortfolioUsd,
+        availableAmmo,
+        unassignedTargetValue
+      ),
+    [derived, totalPortfolioUsd, availableAmmo, unassignedTargetValue]
   );
   const getFundingPreview = useCallback(
     (share: number) => {
       const previewTargets = scaleTargetsToPortfolioShare(
         targets,
         totalPortfolioUsd,
-        share
+        share,
+        sectorAllocations
       );
       const currentValueById = new Map(
         derived.map((item) => [item.target.id, item.currentValue])
+      );
+      const previewTargetTotal =
+        totalPortfolioUsd > 0
+          ? totalPortfolioUsd * share
+          : previewTargets.reduce((sum, target) => sum + target.targetValue, 0);
+      const sectorsWithTargets = new Set(
+        targets.map((target) => target.sector || '未分类')
+      );
+      const previewUnassigned = sectorAllocations.reduce(
+        (sum, allocation) =>
+          sum +
+          (sectorsWithTargets.has(allocation.sector)
+            ? 0
+            : previewTargetTotal * allocation.ratio),
+        0
       );
       return {
         aiTargetTotal: previewTargets.reduce(
           (sum, target) => sum + target.targetValue,
           0
-        ),
-        pendingBudget: previewTargets.reduce(
-          (sum, target) =>
-            sum +
-            Math.max(0, target.targetValue - (currentValueById.get(target.id) ?? 0)),
-          0
-        ),
+        ) + previewUnassigned,
+        pendingBudget:
+          previewTargets.reduce(
+            (sum, target) =>
+              sum +
+              Math.max(
+                0,
+                target.targetValue - (currentValueById.get(target.id) ?? 0)
+              ),
+            0
+          ) + previewUnassigned,
       };
     },
-    [targets, totalPortfolioUsd, derived]
+    [targets, totalPortfolioUsd, derived, sectorAllocations]
   );
 
+  const targetCounts = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const target of targets) {
+      const sector = target.sector || '未分类';
+      counts.set(sector, (counts.get(sector) ?? 0) + 1);
+    }
+    return counts;
+  }, [targets]);
+
   const [showImport, setShowImport] = useState(false);
+  const [showSectorAllocations, setShowSectorAllocations] = useState(false);
   // Sector highlight lights up both rings, the legend dot, and the matching
   // table rows. Hover previews; click pins. Effective = hover falls back to
   // pin, so hovering elsewhere previews without losing the lock.
@@ -257,6 +405,13 @@ export function AccumulationView() {
           <h1 className="text-xl font-bold">AI 加仓计划</h1>
         </div>
         <div className="flex items-center gap-2">
+          <button
+            onClick={() => setShowSectorAllocations(true)}
+            className="inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+          >
+            <ChartPie className="h-4 w-4" />
+            板块占比
+          </button>
           <button
             onClick={() => setShowImport(true)}
             className="inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-sm text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors"
@@ -332,6 +487,21 @@ export function AccumulationView() {
           onApply={(next) => {
             replaceAll(next);
             setShowImport(false);
+          }}
+        />
+      )}
+
+      {showSectorAllocations && (
+        <SectorAllocationDialog
+          allocations={sectorAllocations}
+          targetCounts={targetCounts}
+          targetTotalUsd={portfolioTargetTotal}
+          sectorColors={sectorColors}
+          onClose={() => setShowSectorAllocations(false)}
+          onApply={(next, removedSectors) => {
+            applySectorAllocations(next, removedSectors);
+            setPinnedSector(null);
+            setShowSectorAllocations(false);
           }}
         />
       )}

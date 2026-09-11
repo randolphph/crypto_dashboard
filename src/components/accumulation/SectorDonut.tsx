@@ -273,6 +273,11 @@ export function SectorDonut({
                     {hidden ? '****' : fmtUsd(r.targetValue)}
                   </p>
                   <div className="mt-3 space-y-2.5">
+                    {r.members.length === 0 && (
+                      <p className="text-sm text-muted-foreground">
+                        尚未添加标的，额度暂未分配
+                      </p>
+                    )}
                     {r.members.map((m) => {
                       // Mini-ring depth = this stock's progress toward its own
                       // target; the % beside the name = its share of the

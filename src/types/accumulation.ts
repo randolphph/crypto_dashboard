@@ -46,6 +46,11 @@ export interface AccumulationTarget {
   note?: string;
 }
 
+export interface SectorAllocation {
+  sector: string;
+  ratio: number;
+}
+
 export const DEFAULT_BUDGET_RATIOS: [number, number, number] = [0.3, 0.3, 0.4];
 export const DEFAULT_AI_TARGET_PORTFOLIO_SHARE = 0.4;
 
