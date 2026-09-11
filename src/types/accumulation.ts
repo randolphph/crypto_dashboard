@@ -47,6 +47,7 @@ export interface AccumulationTarget {
 }
 
 export const DEFAULT_BUDGET_RATIOS: [number, number, number] = [0.3, 0.3, 0.4];
+export const DEFAULT_AI_TARGET_PORTFOLIO_SHARE = 0.4;
 
 export const TARGET_STATUS_LABEL: Record<TargetStatus, string> = {
   active: '执行中',

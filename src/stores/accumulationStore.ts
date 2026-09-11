@@ -1,9 +1,14 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import type { AccumulationTarget } from '@/types/accumulation';
+import {
+  DEFAULT_AI_TARGET_PORTFOLIO_SHARE,
+  type AccumulationTarget,
+} from '@/types/accumulation';
 
 interface State {
   targets: AccumulationTarget[];
+  targetPortfolioShare: number;
+  setTargetPortfolioShare: (share: number) => void;
   addTarget: (t: Omit<AccumulationTarget, 'id'>) => void;
   removeTarget: (id: string) => void;
   updateTarget: (
@@ -18,12 +23,20 @@ function makeId(): string {
 }
 
 // The加仓计划 is hand-maintained locally (per the chosen design). Mirrors
-// stockPositionStore: a plain persisted list with add/remove/update plus a
+// stockPositionStore: a persisted target list plus the AI portfolio-share
+// setting used to scale the whole plan. Targets support add/remove/update and
 // bulk replace for paste/import-a-whole-plan-JSON workflows.
 export const useAccumulationStore = create<State>()(
   persist(
     (set) => ({
       targets: [],
+      targetPortfolioShare: DEFAULT_AI_TARGET_PORTFOLIO_SHARE,
+      setTargetPortfolioShare: (share) =>
+        set({
+          targetPortfolioShare: Number.isFinite(share)
+            ? Math.min(1, Math.max(0, share))
+            : DEFAULT_AI_TARGET_PORTFOLIO_SHARE,
+        }),
       addTarget: (t) =>
         set((s) => ({ targets: [...s.targets, { ...t, id: makeId() }] })),
       removeTarget: (id) =>

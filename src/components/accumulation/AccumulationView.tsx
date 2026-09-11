@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useCallback } from 'react';
 import { Target, Power, FileJson, X, Plus } from 'lucide-react';
 import { useAccumulationStore } from '@/stores/accumulationStore';
 import { useGate } from '@/hooks/useGate';
@@ -31,8 +31,6 @@ import { TargetTable } from './TargetTable';
 import { buildSectorColorMap } from './sectorColors';
 import { cn } from '@/lib/utils';
 
-const AI_TARGET_PORTFOLIO_SHARE = 0.4;
-
 // Available "ammo" = money that can actually buy stocks: broker cash + bank
 // cash. Deliberately excludes crypto stablecoins.
 function bankUsd(
@@ -48,8 +46,28 @@ function bankUsd(
   return 0;
 }
 
+function scaleTargetsToPortfolioShare(
+  targets: AccumulationTarget[],
+  totalPortfolioUsd: number,
+  targetPortfolioShare: number
+): AccumulationTarget[] {
+  const baseTotal = targets.reduce((sum, target) => sum + target.targetValue, 0);
+  if (baseTotal <= 0 || totalPortfolioUsd <= 0) return targets;
+  const scale = (totalPortfolioUsd * targetPortfolioShare) / baseTotal;
+  return targets.map((target) => ({
+    ...target,
+    targetValue: target.targetValue * scale,
+  }));
+}
+
 export function AccumulationView() {
   const targets = useAccumulationStore((s) => s.targets);
+  const targetPortfolioShare = useAccumulationStore(
+    (s) => s.targetPortfolioShare
+  );
+  const setTargetPortfolioShare = useAccumulationStore(
+    (s) => s.setTargetPortfolioShare
+  );
   const replaceAll = useAccumulationStore((s) => s.replaceAll);
   const addTarget = useAccumulationStore((s) => s.addTarget);
   const removeTarget = useAccumulationStore((s) => s.removeTarget);
@@ -145,15 +163,15 @@ export function AccumulationView() {
   }, [targets]);
   const ma20 = useMa20(ma20Symbols);
 
-  const dynamicTargets = useMemo(() => {
-    const baseTotal = targets.reduce((s, t) => s + t.targetValue, 0);
-    if (baseTotal <= 0 || totalPortfolioUsd <= 0) return targets;
-    const scale = (totalPortfolioUsd * AI_TARGET_PORTFOLIO_SHARE) / baseTotal;
-    return targets.map((t) => ({
-      ...t,
-      targetValue: t.targetValue * scale,
-    }));
-  }, [targets, totalPortfolioUsd]);
+  const dynamicTargets = useMemo(
+    () =>
+      scaleTargetsToPortfolioShare(
+        targets,
+        totalPortfolioUsd,
+        targetPortfolioShare
+      ),
+    [targets, totalPortfolioUsd, targetPortfolioShare]
+  );
 
   const derived = useMemo(
     () =>
@@ -178,6 +196,31 @@ export function AccumulationView() {
   const funding = useMemo(
     () => deriveFunding(derived, totalPortfolioUsd, availableAmmo),
     [derived, totalPortfolioUsd, availableAmmo]
+  );
+  const getFundingPreview = useCallback(
+    (share: number) => {
+      const previewTargets = scaleTargetsToPortfolioShare(
+        targets,
+        totalPortfolioUsd,
+        share
+      );
+      const currentValueById = new Map(
+        derived.map((item) => [item.target.id, item.currentValue])
+      );
+      return {
+        aiTargetTotal: previewTargets.reduce(
+          (sum, target) => sum + target.targetValue,
+          0
+        ),
+        pendingBudget: previewTargets.reduce(
+          (sum, target) =>
+            sum +
+            Math.max(0, target.targetValue - (currentValueById.get(target.id) ?? 0)),
+          0
+        ),
+      };
+    },
+    [targets, totalPortfolioUsd, derived]
   );
 
   const [showImport, setShowImport] = useState(false);
@@ -241,7 +284,12 @@ export function AccumulationView() {
       {/* 资金块放圆环左侧、持仓未纳入计划放右侧的空白处,圆环上移,给下方
           表格腾出更多纵向空间。窄屏回退为竖向堆叠。 */}
       <div className="grid grid-cols-1 items-center gap-4 lg:grid-cols-[12rem_36rem_12rem] lg:justify-center">
-        <FundingOverview funding={funding} />
+        <FundingOverview
+          funding={funding}
+          targetPortfolioShare={targetPortfolioShare}
+          onTargetPortfolioShareChange={setTargetPortfolioShare}
+          getFundingPreview={getFundingPreview}
+        />
         <div className="flex justify-center">
           <SectorDonut
             rollups={rollups}
