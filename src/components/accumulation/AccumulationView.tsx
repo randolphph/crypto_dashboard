@@ -52,6 +52,7 @@ export function AccumulationView() {
   const targets = useAccumulationStore((s) => s.targets);
   const replaceAll = useAccumulationStore((s) => s.replaceAll);
   const addTarget = useAccumulationStore((s) => s.addTarget);
+  const removeTarget = useAccumulationStore((s) => s.removeTarget);
   const updateTarget = useAccumulationStore((s) => s.updateTarget);
   const { gate, setOpen, isMutating } = useGate();
 
@@ -267,6 +268,7 @@ export function AccumulationView() {
         sectorColors={sectorColors}
         activeSector={activeSector}
         onUpdate={updateTarget}
+        onDelete={removeTarget}
       />
 
       {hydrated && targets.length === 0 && (

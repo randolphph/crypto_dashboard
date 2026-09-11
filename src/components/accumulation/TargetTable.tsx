@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useMemo } from 'react';
-import { ArrowUpDown, Pencil } from 'lucide-react';
+import { ArrowUpDown, Pencil, Trash2 } from 'lucide-react';
 import {
   Table,
   TableBody,
@@ -193,11 +193,13 @@ export function TargetTable({
   sectorColors,
   activeSector,
   onUpdate,
+  onDelete,
 }: {
   derived: DerivedTarget[];
   sectorColors: ReadonlyMap<string, string>;
   activeSector?: string | null;
   onUpdate?: (id: string, updates: { relRatios: [number, number] }) => void;
+  onDelete: (id: string) => void;
 }) {
   const { fmtUsd, hidden } = usePrivacyFormat();
   const [sortKey, setSortKey] = useState<SortKey>('tier');
@@ -270,6 +272,9 @@ export function TargetTable({
             <SortHeader label="待加" k="remaining" sortKey={sortKey} asc={asc} onSort={onSort} className="text-right" />
             <TableHead className="text-right">现价</TableHead>
             <SortHeader label="三档锚价" k="tier" sortKey={sortKey} asc={asc} onSort={onSort} />
+            <TableHead className="w-10">
+              <span className="sr-only">操作</span>
+            </TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -387,6 +392,26 @@ export function TargetTable({
               </TableCell>
               <TableCell>
                 <TierCell d={d} onUpdate={onUpdate} />
+              </TableCell>
+              <TableCell className="pr-2 text-right">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const label = displayName(
+                      d.target.market,
+                      d.target.symbol,
+                      d.name
+                    );
+                    if (window.confirm(`确定从加仓计划中删除 ${label} 吗？`)) {
+                      onDelete(d.target.id);
+                    }
+                  }}
+                  aria-label={`从加仓计划中删除 ${d.target.symbol}`}
+                  title="删除标的"
+                  className="inline-flex h-7 w-7 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-red-500/10 hover:text-red-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </button>
               </TableCell>
             </TableRow>
             );
