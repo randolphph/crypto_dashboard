@@ -20,6 +20,16 @@
 - **资产变动曲线** — 最近 30 天保留每次刷新的快照（intraday 密度），更早的历史按本地日压缩成离 12:00 最近的一条，保留最多 3 年
 - **现金流标注** — 在曲线上标记入金 / 出金事件，避免误读为收益
 
+### DeFi 仓位监控
+- **云端监控** — 通过 CryptoSentry 创建 Aave 与 Uniswap 钱包监控，网页端只经由 Next.js 服务端代理访问
+- **数据源初始化** — 根据后端目录一键配置 Binance 公共行情，或添加 Alchemy / Infura / QuickNode / 自定义 EVM RPC
+- **多链 RPC 管理** — 一次可选择多个 EVM 网络并逐链配置端点；Aave 与 Uniswap 共用 RPC 池，支持新增、编辑、启停、测试与删除
+- **运行状态** — 每 10 秒检查后端 API、引擎心跳、运行组件和 Monitor 状态，连接中断时明确显示离线
+- **能力门禁** — RPC 保存后立即测试连接；Uniswap 创建前还会验证所选 V3 / V4 能力
+- **仓位状态** — 每 10 秒轮询多链 Aave 仓位、资产、债务与健康因子
+- **Uniswap LP** — Robinhood Chain（chainId 4663）RPC 同时支持 V3 / V4，使用钱包地址自动发现 LP，并展示同步进度、区间状态与仓位详情
+- **风险规则与告警** — 首次成功扫描后自动创建默认健康因子规则，并展示历史告警
+
 ### 安全与配置
 - **钱包加密保险箱** — 浏览器端 API Key 经 EVM 钱包签名派生密钥后 AES 加密存 localStorage；无明文留痕，可跨设备靠相同钱包解锁
 - **服务端凭据** — 也支持纯环境变量模式（Vercel 部署 / 自托管），与钱包保险箱二选一
@@ -82,6 +92,7 @@ npm run build && npm start
 |---|---|
 | `UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN` | Upstash REST 缓存（也兼容 `KV_REST_API_URL` / `KV_REST_API_TOKEN` Vercel KV 命名） |
 | `MNAV_API_BASE` / `MNAV_API_TOKEN` | 家用后端 API（快照推送 / 导出，见下文部署架构） |
+| `CRYPTOSENTRY_API_URL` / `CRYPTOSENTRY_API_TOKEN` | CryptoSentry 后端地址与 Bearer Token；仅在 Next.js 服务端使用 |
 
 > 凭据也可以走「钱包加密保险箱」流程从浏览器端注入——见设置页的"API Keys"卡片。
 
