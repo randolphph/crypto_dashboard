@@ -9,6 +9,7 @@ import {
   TriangleAlert,
 } from 'lucide-react';
 import { EvmRpcManager } from '@/components/monitoring/EvmRpcManager';
+import { TelegramIntegrationManager } from '@/components/monitoring/TelegramIntegrationManager';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -57,6 +58,7 @@ export function DataSourceSetup({
     Number(uniswapReadiness.ready);
 
   return (
+    <div className="space-y-4">
     <Card>
       <CardHeader>
         <div className="flex flex-wrap items-start justify-between gap-3">
@@ -164,5 +166,7 @@ export function DataSourceSetup({
       </CardContent>
 
     </Card>
+    <TelegramIntegrationManager />
+    </div>
   );
 }

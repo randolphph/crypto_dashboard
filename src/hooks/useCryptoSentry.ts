@@ -29,6 +29,10 @@ import type {
   RuleListResponse,
   RuntimeMonitorStatusResponse,
   SystemStatusSummary,
+  TelegramIntegration,
+  TelegramIntegrationInput,
+  TelegramIntegrationUpdateInput,
+  TelegramDiscoveryResult,
   UniswapPoolCatalogResponse,
   UniswapVersion,
   UniswapWalletPositionsResponse,
@@ -138,6 +142,10 @@ function isEvmRpc(integration: CryptoSentryIntegration): integration is EvmRpcIn
   return integration.type === 'evm_rpc';
 }
 
+function isTelegram(integration: CryptoSentryIntegration): integration is TelegramIntegration {
+  return integration.type === 'notification' && integration.provider === 'telegram';
+}
+
 export function useIntegrations() {
   return useQuery({
     queryKey: cryptoSentryKeys.integrations,
@@ -158,6 +166,65 @@ export function useEvmRpcIntegrations() {
     },
     select: (data) => data.items.filter(isEvmRpc),
     staleTime: 5_000,
+  });
+}
+
+export function useTelegramIntegrations() {
+  return useQuery({
+    queryKey: cryptoSentryKeys.integrations,
+    queryFn: async () => {
+      const data = await cryptoSentryRequest<IntegrationListResponse>('integrations');
+      return { items: data.items.map(normalizeIntegration) };
+    },
+    select: (data) => data.items.filter(isTelegram),
+    staleTime: 5_000,
+  });
+}
+
+export function useCreateTelegramIntegration() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: TelegramIntegrationInput) => cryptoSentryRequest<TelegramIntegration>('integrations', {
+      method: 'POST',
+      body: JSON.stringify({
+        name: input.name, type: 'notification', provider: 'telegram', enabled: true,
+        config: { botToken: input.botToken, chatId: input.chatId },
+      }),
+    }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: cryptoSentryKeys.integrations }),
+  });
+}
+
+export function useDiscoverTelegramChats() {
+  return useMutation({
+    mutationFn: (botToken: string) => cryptoSentryRequest<TelegramDiscoveryResult>(
+      'integrations/telegram/discover', {
+        method: 'POST', body: JSON.stringify({ botToken }),
+      },
+    ),
+  });
+}
+
+export function useUpdateTelegramIntegration() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, name, chatId, botToken }: TelegramIntegrationUpdateInput) =>
+      cryptoSentryRequest<TelegramIntegration>(`integrations/${encodeURIComponent(id)}`, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          name,
+          config: { chatId, ...(botToken ? { botToken } : {}) },
+        }),
+      }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: cryptoSentryKeys.integrations }),
+  });
+}
+
+export function useTestTelegramIntegration() {
+  return useMutation({
+    mutationFn: (id: string) => cryptoSentryRequest<IntegrationTestResult>(
+      `integrations/${encodeURIComponent(id)}/test`, { method: 'POST' },
+    ),
   });
 }
 

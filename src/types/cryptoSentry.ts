@@ -51,6 +51,38 @@ export interface EvmRpcIntegration extends Omit<CryptoSentryIntegration, 'type' 
   config: EvmRpcIntegrationConfig;
 }
 
+export interface TelegramIntegration extends Omit<CryptoSentryIntegration, 'type' | 'provider' | 'config'> {
+  type: 'notification';
+  provider: 'telegram';
+  config: { botToken: string; chatId: string };
+}
+
+export interface TelegramIntegrationInput {
+  name: string;
+  chatId: string;
+  botToken: string;
+}
+
+export interface TelegramIntegrationUpdateInput {
+  id: string;
+  name: string;
+  chatId: string;
+  botToken?: string;
+}
+
+export interface TelegramDiscoveredChat {
+  id: string;
+  type: 'private' | 'group' | 'supergroup' | 'channel';
+  title: string;
+  username: string | null;
+  lastSeenAt: string;
+}
+
+export interface TelegramDiscoveryResult {
+  bot: { id: string; username: string | null; displayName: string };
+  chats: TelegramDiscoveredChat[];
+}
+
 export interface IntegrationListResponse { items: CryptoSentryIntegration[] }
 
 export interface RuleMetricDefinition {
@@ -135,6 +167,8 @@ export interface IntegrationNetworkTest {
 export interface IntegrationTestResult {
   ok: boolean;
   provider: string;
+  delivery?: { status: 'sent' | 'failed' };
+  error?: { code: string; message: string };
   networks?: IntegrationNetworkTest[];
   connectivity?: Record<string, 'ok' | 'error' | 'unknown'>;
   chainId?: number;
@@ -303,7 +337,18 @@ export interface CryptoSentryAlert {
   severity: AlertSeverity; title: string; message: string; metricName: string | null;
   currentValue: string | null; threshold: string | null; observedAt: string;
   acknowledgedAt: string | null; resolvedAt: string | null;
-  delivery: Record<string, unknown>; createdAt: string; updatedAt: string;
+  delivery: {
+    targets?: Array<{
+      integrationId: string;
+      status: 'pending' | 'sending' | 'sent' | 'failed' | 'skipped';
+      attempts: number;
+      lastAttemptAt?: string;
+      nextAttemptAt?: string;
+      sentAt?: string;
+      errorCode?: string;
+    }>;
+  };
+  createdAt: string; updatedAt: string;
 }
 export interface AlertListResponse { items: CryptoSentryAlert[]; total: number; limit: number; offset: number }
 
