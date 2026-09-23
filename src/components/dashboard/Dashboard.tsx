@@ -312,14 +312,14 @@ export function Dashboard() {
   // dashboard run from prod vs local dev (different wallets) won't collide.
   // No wallet → no push (e.g., still on the unlock screen).
   const walletAddress = useVaultStore((s) => s.address);
-  const snapshotReady =
+  const snapshotPayloadReady =
     !isLoading &&
-    !hasError &&
-    !hasDataQualityIssue &&
     totalValue > 0 &&
     !!walletAddress;
+  const snapshotHasWarnings = hasError || hasDataQualityIssue;
+  const snapshotReady = snapshotPayloadReady && !snapshotHasWarnings;
   const snapshotPayload =
-    snapshotReady && walletAddress
+    snapshotPayloadReady && walletAddress
       ? buildSnapshot({
           wallet: walletAddress,
           binance: binance.data,
@@ -355,8 +355,8 @@ export function Dashboard() {
     (s) => s.setLatestSnapshotPayload
   );
   useEffect(() => {
-    setLatestSnapshotPayload(snapshotPayload);
-  }, [snapshotPayload, setLatestSnapshotPayload]);
+    setLatestSnapshotPayload(snapshotPayload, snapshotHasWarnings);
+  }, [snapshotPayload, snapshotHasWarnings, setLatestSnapshotPayload]);
 
   return (
     <div className="space-y-6">

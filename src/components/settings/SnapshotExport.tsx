@@ -39,6 +39,7 @@ export function SnapshotExport() {
   const walletAddress = useVaultStore((s) => s.address);
   const wallet = walletAddress?.toLowerCase() ?? null;
   const latestPayload = useDashboardStore((s) => s.latestSnapshotPayload);
+  const latestPayloadHasWarnings = useDashboardStore((s) => s.latestSnapshotHasWarnings);
   const [stats, setStats] = useState<SnapshotStats | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
@@ -148,7 +149,9 @@ export function SnapshotExport() {
     setInfo(null);
     try {
       await appendSnapshot({ ...latestPayload, timestamp: Date.now() });
-      setInfo('已手动写入一条快照');
+      setInfo(latestPayloadHasWarnings
+        ? '已手动写入一条快照（包含缓存或部分数据）'
+        : '已手动写入一条快照');
       setRefreshKey((k) => k + 1);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -173,6 +176,8 @@ export function SnapshotExport() {
           title={
             !latestPayload
               ? '请先打开资产看板加载完数据'
+              : latestPayloadHasWarnings
+                ? '当前包含缓存或部分数据；仍可按页面显示内容手动快照'
               : '立即写入一条快照（不受 12h 节流限制）'
           }
           className="shrink-0 inline-flex items-center gap-1.5 rounded-md border bg-primary text-primary-foreground px-3 py-1.5 text-sm hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
@@ -223,6 +228,11 @@ export function SnapshotExport() {
             {info && (
               <div className="text-emerald-600 dark:text-emerald-400">
                 {info}
+              </div>
+            )}
+            {latestPayload && latestPayloadHasWarnings && !info && (
+              <div className="text-amber-600 dark:text-amber-400">
+                当前包含缓存或部分数据；手动快照将按页面显示内容保存。
               </div>
             )}
           </>

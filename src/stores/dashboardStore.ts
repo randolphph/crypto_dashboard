@@ -15,7 +15,8 @@ interface DashboardState {
   // Lets the settings panel's "manual snapshot" button reach a fresh payload
   // even though it lives on a different route from Dashboard.
   latestSnapshotPayload: SnapshotPayload | null;
-  setLatestSnapshotPayload: (p: SnapshotPayload | null) => void;
+  latestSnapshotHasWarnings: boolean;
+  setLatestSnapshotPayload: (p: SnapshotPayload | null, hasWarnings?: boolean) => void;
 }
 
 export const useDashboardStore = create<DashboardState>()(
@@ -26,7 +27,11 @@ export const useDashboardStore = create<DashboardState>()(
       lastRefreshed: null,
       setLastRefreshed: (timestamp) => set({ lastRefreshed: timestamp }),
       latestSnapshotPayload: null,
-      setLatestSnapshotPayload: (p) => set({ latestSnapshotPayload: p }),
+      latestSnapshotHasWarnings: false,
+      setLatestSnapshotPayload: (p, hasWarnings = false) => set({
+        latestSnapshotPayload: p,
+        latestSnapshotHasWarnings: p !== null && hasWarnings,
+      }),
     }),
     {
       name: 'crypto-dashboard-settings',

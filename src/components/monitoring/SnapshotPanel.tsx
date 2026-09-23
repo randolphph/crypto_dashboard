@@ -20,6 +20,30 @@ const STATUS: Record<SnapshotStatus, { label: string; className: string }> = {
 };
 const STABLECOIN_SYMBOLS = new Set(['USDC', 'USDT', 'DAI', 'USDS', 'USDG']);
 const DISTRIBUTION_SEGMENTS = Array.from({ length: 31 }, (_, index) => index);
+const METRIC_LABELS: Record<string, string> = {
+  price: '最新价格', price_change_percent: '价格涨跌幅', base_volume_24h: '基础资产成交量（24 小时）',
+  quote_volume_24h: '成交额（24 小时）', funding_rate_percent: '资金费率', next_funding_time: '下次资金费时间',
+  open_interest: '未平仓量', open_interest_change_percent: '未平仓量变化率', data_age_seconds: '数据年龄',
+  health_factor: '健康因子', health_factor_infinite: '健康因子无限', total_collateral_base: '总抵押价值',
+  total_debt_base: '总债务价值', available_borrows_base: '可借额度', supplied_amount: '供应数量',
+  total_debt_amount: '债务数量', usage_as_collateral: '是否作为抵押品',
+  total_collateral_change_base: '抵押价值变化', total_collateral_change_percent: '抵押变化率',
+  total_debt_change_base: '债务价值变化', total_debt_change_percent: '债务变化率',
+  account_supply: '存入事件', account_withdraw: '提取事件', account_borrow: '借款事件', account_repay: '还款事件',
+  account_liquidation: '清算事件', account_position_opened: '仓位开启', account_position_closed: '仓位关闭',
+  aave_event_amount_token: 'Aave 事件代币数量', aave_event_amount_usd: 'Aave 事件金额',
+  in_range: '是否在价格区间', current_tick: '当前 Tick', tick_lower: '区间下界 Tick', tick_upper: '区间上界 Tick',
+  distance_to_lower_tick: '距下界 Tick', distance_to_upper_tick: '距上界 Tick',
+  distance_to_nearest_boundary_percent: '距最近边界', liquidity: '流动性', token0_amount: 'Token0 数量',
+  token1_amount: 'Token1 数量', fees_owed_token0: 'Token0 待领取手续费', fees_owed_token1: 'Token1 待领取手续费',
+  position_value_usd: '仓位价值', fees_value_usd: '手续费价值', position_closed: '仓位已关闭', position_count: '仓位数',
+  in_range_count: '区间内仓位数', out_of_range_count: '区间外仓位数', failed_position_count: '读取失败仓位数',
+  aggregate_value_usd: '仓位总价值', aggregate_fees_usd: '手续费总价值', token0_price: 'Token0 价格',
+  token1_price: 'Token1 价格', active_liquidity: '活跃流动性', tvl_token0: 'Token0 锁仓量', tvl_token1: 'Token1 锁仓量',
+  tvl_usd: '锁仓价值', volume_token0: 'Token0 成交量', volume_token1: 'Token1 成交量',
+  volume_usd: '成交额', volume_change_percent: '成交额变化率', swap: '兑换事件', mint: '增加流动性事件',
+  burn: '移除流动性事件', fee_collection: '领取手续费事件',
+};
 
 function record(value: unknown): Record<string, unknown> | null {
   return typeof value === 'object' && value !== null && !Array.isArray(value) ? value as Record<string, unknown> : null;
@@ -37,6 +61,7 @@ function display(value: unknown): string {
 }
 function label(key: string): string {
   const labels: Record<string, string> = {
+    metricCount: '指标数量',
     positionCount: '仓位数', positionAssetCount: '资产数', failedPositionCount: '读取失败', eventCount: '近期事件',
     scannedChainCount: '扫描网络', successfulChainCount: '成功网络', failedChainCount: '失败网络', positionChainCount: '仓位网络',
     totalCollateralBase: '总抵押', totalDebtBase: '总债务', availableBorrowsBase: '可借额度', healthFactor: '健康因子',
@@ -44,6 +69,41 @@ function label(key: string): string {
     inRangeCount: '区间内仓位', outOfRangeCount: '区间外仓位', aggregateValueUsd: '总价值 (USD)', aggregateFeesUsd: '累计费用 (USD)', valuationCoverage: '估值状态',
   };
   return labels[key] ?? key.replace(/([A-Z])/g, ' $1').replace(/^./, (value) => value.toUpperCase());
+}
+
+function metricWindow(metric: Record<string, unknown>): string | null {
+  const labels = record(metric.labels);
+  const seconds = numberValue(labels?.windowSeconds);
+  if (seconds === null) return null;
+  if (seconds % 3_600 === 0) return `${seconds / 3_600} 小时`;
+  if (seconds % 60 === 0) return `${seconds / 60} 分钟`;
+  return `${seconds} 秒`;
+}
+
+function metricLabel(metric: Record<string, unknown>): string {
+  const name = String(metric.name ?? 'metric');
+  const translated = METRIC_LABELS[name] ?? name;
+  const window = metricWindow(metric);
+  const labels = record(metric.labels);
+  const symbol = typeof labels?.symbol === 'string' ? labels.symbol : null;
+  return `${translated}${window ? `（${window}）` : ''}${symbol ? ` · ${symbol}` : ''}`;
+}
+
+function metricUnit(metric: Record<string, unknown>): string {
+  const unit = typeof metric.unit === 'string' ? metric.unit : '';
+  const labels = record(metric.labels);
+  const units: Record<string, string> = {
+    percent: '%', seconds: '秒', contracts: '张', unix_milliseconds: '毫秒', ratio: '倍',
+    base_currency: '基础计价单位', token: typeof labels?.symbol === 'string' ? labels.symbol : '代币',
+    token0: typeof labels?.token0Symbol === 'string' ? labels.token0Symbol : 'Token0',
+    token1: typeof labels?.token1Symbol === 'string' ? labels.token1Symbol : 'Token1',
+    tick: 'Tick', liquidity: '流动性单位', positions: '个', boolean: '', USD: 'USD',
+    base_asset: typeof labels?.baseAsset === 'string' ? labels.baseAsset : '基础资产',
+    quote_asset: typeof labels?.quoteAsset === 'string' ? labels.quoteAsset : '计价资产',
+  };
+  if (unit) return units[unit] ?? unit;
+  if (metric.name === 'price' && typeof labels?.quoteAsset === 'string') return labels.quoteAsset;
+  return '';
 }
 
 function KeyValues({ value, limit = 12 }: { value: Record<string, unknown>; limit?: number }) {
@@ -201,7 +261,7 @@ export function SnapshotPanel({ snapshot, loading, fetching, error, onRefresh }:
     {error ? <p className="rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">刷新失败，继续展示上次数据：{error.message}</p> : null}
     <Card><CardHeader><div className="flex flex-wrap items-start justify-between gap-3"><div className="flex items-start gap-3"><div className="rounded-lg border p-2"><StatusIcon className={cn('size-5', status.className, snapshot.status === 'warming_up' && 'animate-pulse')} /></div><div><CardTitle>{status.label}</CardTitle><p className="mt-1 text-sm text-muted-foreground">快照 {formatDateTime(snapshot.observedAt)} · {dataAgeLabel} {displayedDataAgeSeconds === null ? '—' : `${formatDecimalString(String(displayedDataAgeSeconds), 3)}s`}</p></div></div><Button variant="outline" size="sm" onClick={onRefresh} disabled={fetching}><RefreshCw className={fetching ? 'animate-spin' : undefined} />刷新</Button></div></CardHeader><CardContent className="space-y-3"><KeyValues value={snapshot.summary} />{snapshot.error ? <p className="rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive"><span className="font-mono text-xs">{snapshot.error.code}</span><span className="mt-1 block">{snapshotErrorText(snapshot.error.code, snapshot.error.message)}</span></p> : null}{!snapshot.capability.available ? <p className="rounded-lg bg-muted p-3 text-sm text-muted-foreground">{snapshot.capability.reason ?? '当前能力暂不可用'}</p> : null}</CardContent></Card>
     {pool ? <Card><CardHeader><CardTitle>Pool 快照</CardTitle></CardHeader><CardContent className="space-y-3"><KeyValues value={pool} />{volumes.length ? <div><p className="mb-2 text-sm font-medium">滚动成交量</p><div className="grid gap-2 md:grid-cols-2">{volumes.map((volume, index) => <div key={String(volume.windowSeconds ?? index)} className="rounded-lg border p-3"><p className="mb-2 text-xs font-medium text-muted-foreground">窗口 {display(volume.windowSeconds)} 秒</p><KeyValues value={volume} /></div>)}</div></div> : null}</CardContent></Card> : null}
-    {metrics.length ? <Card><CardHeader><CardTitle className="flex items-center gap-2"><Database className="size-4" />最新指标</CardTitle></CardHeader><CardContent><div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">{metrics.map((metric, index) => <div key={`${String(metric.name)}-${index}`} className="rounded-lg border p-3"><p className="text-xs text-muted-foreground">{String(metric.name ?? 'metric')}</p><p className="mt-1 font-mono font-semibold">{display(metric.value)} <span className="text-xs font-normal text-muted-foreground">{String(metric.unit ?? '')}</span></p></div>)}</div></CardContent></Card> : null}
+    {metrics.length ? <Card><CardHeader><CardTitle className="flex items-center gap-2"><Database className="size-4" />最新指标</CardTitle></CardHeader><CardContent><div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">{metrics.map((metric, index) => <div key={`${String(metric.name)}-${index}`} className="rounded-lg border p-3"><p className="text-xs text-muted-foreground">{metricLabel(metric)}</p><p className="mt-1 font-mono font-semibold">{display(metric.value)}{metricUnit(metric) ? <span className="ml-1.5 text-xs font-normal text-muted-foreground">{metricUnit(metric)}</span> : null}</p></div>)}</div></CardContent></Card> : null}
     {positions.length ? isAave ? <AavePositions positions={positions} /> : <UniPositions key={snapshot.monitorId} positions={positions} /> : null}
     <Events events={events} />
   </div>;
