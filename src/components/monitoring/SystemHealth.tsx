@@ -1,11 +1,11 @@
 'use client';
 
 import {
-  Activity,
   AlertTriangle,
   BellRing,
   CheckCircle2,
   Clock3,
+  Cpu,
   ListChecks,
   RefreshCw,
   ServerCrash,
@@ -20,7 +20,6 @@ import {
   useRuntimeMonitorStatuses,
   useSystemStatus,
 } from '@/hooks/useCryptoSentry';
-import { formatDateTime } from '@/lib/cryptoSentry/format';
 import { cn } from '@/lib/utils';
 
 function formatUptime(startedAt: string, serverTime: string): string {
@@ -44,6 +43,7 @@ export function SystemHealth() {
   const problemMonitors = (monitorsQuery.data?.items ?? []).filter(
     (monitor) => monitor.enabled && monitor.status !== 'ok'
   );
+  const healthyComponentCount = summary?.components.filter((component) => component.status === 'healthy').length ?? 0;
 
   const status = offline ? 'offline' : summary?.status ?? 'loading';
   const statusCopy = {
@@ -101,7 +101,7 @@ export function SystemHealth() {
             <Button className="ml-auto shrink-0" variant="ghost" size="icon-sm" onClick={refresh} disabled={isFetching} aria-label="立即检查后端状态"><RefreshCw className={isFetching ? 'animate-spin' : undefined} /></Button>
           </div>
           {summary ? <>
-            <div className="flex items-center gap-3 border-t px-4 py-3 md:border-l md:border-t-0"><Activity className="size-4 shrink-0 text-emerald-500" /><div className="min-w-0"><p className="text-[11px] text-muted-foreground">最新心跳</p><p className="mt-0.5 truncate text-sm font-semibold tabular-nums">{formatDateTime(summary.engineHeartbeatAt)}</p></div></div>
+            <div className="flex items-center gap-3 border-t px-4 py-3 md:border-l md:border-t-0"><Cpu className={cn('size-4 shrink-0', summary.components.length === 0 ? 'text-muted-foreground' : healthyComponentCount === summary.components.length ? 'text-emerald-500' : 'text-amber-500')} /><div className="min-w-0 flex-1"><p className="text-[11px] text-muted-foreground">运行组件</p><div className="mt-1 flex items-center gap-2"><p className="whitespace-nowrap text-sm font-semibold tabular-nums">{summary.components.length === 0 ? '未上报' : `${healthyComponentCount} / ${summary.components.length} 正常`}</p>{summary.components.length > 0 ? <span className="flex min-w-8 flex-1 gap-0.5" aria-label={`${healthyComponentCount} 个组件正常，共 ${summary.components.length} 个`}>{summary.components.map((component) => <span key={component.name} title={`${component.name}：${component.status === 'healthy' ? '正常' : component.lastError ?? '异常'}`} className={cn('h-1.5 min-w-1 flex-1 rounded-full', component.status === 'healthy' ? 'bg-emerald-500' : 'bg-destructive')} />)}</span> : null}</div></div></div>
             <div className="flex items-center gap-3 border-t px-4 py-3 md:border-l md:border-t-0"><Timer className="size-4 shrink-0 text-blue-500" /><div><p className="text-[11px] text-muted-foreground">持续运行</p><p className="mt-0.5 text-sm font-semibold tabular-nums">{formatUptime(summary.startedAt, summary.serverTime)}</p></div></div>
             <div className="flex items-center gap-3 border-t px-4 py-3 md:border-l md:border-t-0"><ListChecks className="size-4 shrink-0 text-violet-500" /><div><p className="text-[11px] text-muted-foreground">健康任务</p><p className="mt-0.5 text-sm font-semibold tabular-nums"><span className="text-base">{summary.monitors.healthy}</span> / {summary.monitors.total}</p></div></div>
             <div className="flex items-center gap-3 border-t px-4 py-3 md:border-l md:border-t-0"><BellRing className={cn('size-4 shrink-0', summary.alerts.open > 0 ? 'text-amber-500' : 'text-muted-foreground')} /><div><p className="text-[11px] text-muted-foreground">未处理告警</p><p className="mt-0.5 text-base font-semibold tabular-nums">{summary.alerts.open}</p></div></div>
