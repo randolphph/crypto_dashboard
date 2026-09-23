@@ -2,13 +2,12 @@
 
 import { useMemo, useState, type FormEvent } from 'react';
 import { LoaderCircle, Search } from 'lucide-react';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
-  useAaveReserves, useBinanceMarkets, useEvmRpcIntegrations, useUniswapPools, useUniswapWalletPositions,
+  useAaveReserves, useBinanceMarkets, useEvmRpcIntegrations, useUniswapPools,
 } from '@/hooks/useCryptoSentry';
 import { cn } from '@/lib/utils';
 import type {
@@ -17,15 +16,17 @@ import type {
 } from '@/types/cryptoSentry';
 
 const ADDRESS = /^0x[0-9a-fA-F]{40}$/;
+const POOL_ID = /^0x[0-9a-fA-F]{64}$/;
+const TOKEN_ID = /^\d+$/;
 type AvailableType = Exclude<MonitorType, 'aave_position' | 'lp_position'>;
 
 const TYPES: Array<{ id: AvailableType; title: string; description: string }> = [
   { id: 'market', title: 'Binance 行情', description: '价格、成交量、资金费率和 OI' },
   { id: 'aave_account', title: 'Aave 地址', description: '账户仓位、健康因子与资金变化' },
   { id: 'aave_pool', title: 'Aave 池子', description: '大额 Supply / Borrow / Liquidation 事件' },
-  { id: 'uniswap_position', title: 'Uniswap 单个 LP', description: '从钱包仓位中选择一个 NFT' },
+  { id: 'uniswap_position', title: 'Uniswap 单个 LP', description: '直接使用 NFT Token ID，不扫描钱包' },
   { id: 'uniswap_wallet', title: 'Uniswap 地址 LP', description: '跨网络和 V3/V4 自动发现' },
-  { id: 'uniswap_pool', title: 'Uniswap 池子', description: '价格、TVL、成交量和链上事件' },
+  { id: 'uniswap_pool', title: 'Uniswap 池子', description: 'V3/V4 池状态、流动性和链上事件' },
 ];
 
 interface Props {
@@ -61,7 +62,6 @@ export function CreateMonitorDialog({ open, onOpenChange, catalog, readiness, on
   const [selectedReserves, setSelectedReserves] = useState<string[]>(monitor?.config.reserveAssetAddresses ?? []);
   const [selectedChains, setSelectedChains] = useState<number[]>(monitor?.config.chainIds ?? [1]);
   const [selectedVersions, setSelectedVersions] = useState<UniswapVersion[]>(monitor?.config.versions ?? ['v3']);
-  const [discover, setDiscover] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -80,6 +80,14 @@ export function CreateMonitorDialog({ open, onOpenChange, catalog, readiness, on
   const aaveNetwork = readiness.aave.networks.find((network) => network.chainId === 1);
   const aaveRpcId = aaveNetwork?.integrationIds.includes(rpcId) ? rpcId : aaveNetwork?.integrationIds[0] ?? null;
   const availableNetworks = (readiness.uniswap?.networks ?? []).filter((network) => selectedRpcId && network.integrationIds.includes(selectedRpcId));
+  const keepAvailableChains = (networks: typeof availableNetworks) => {
+    setSelectedChains((current) => {
+      const availableIds = new Set(networks.map((network) => network.chainId));
+      const valid = current.filter((id) => availableIds.has(id));
+      if (valid.length === current.length && valid.length > 0) return current;
+      return valid.length > 0 ? valid : networks[0] === undefined ? [] : [networks[0].chainId];
+    });
+  };
   const selectedNetwork = availableNetworks.find((network) => network.chainId === chainId) ?? availableNetworks[0];
   const effectiveChainId = selectedNetwork?.chainId ?? chainId;
   const effectiveVersion = selectedNetwork?.versions[version] ? version : selectedNetwork?.versions.v3 ? 'v3' : 'v4';
@@ -91,15 +99,6 @@ export function CreateMonitorDialog({ open, onOpenChange, catalog, readiness, on
     1,
   );
   const poolsQuery = useUniswapPools(type === 'uniswap_pool' ? selectedRpcId : null, effectiveChainId, effectiveVersion, search);
-  const walletPositionsQuery = useUniswapWalletPositions(
-    type === 'uniswap_position' ? selectedRpcId : null,
-    effectiveChainId,
-    effectiveVersion,
-    wallet.trim(),
-    search,
-    discover && ADDRESS.test(wallet.trim()),
-  );
-
   const markets = useMemo(() => (marketsQuery.data?.items ?? []).filter((market) => market.marketType === marketType && (
     !search.trim() || market.providerSymbol.toLowerCase().includes(search.toLowerCase()) || market.canonicalSymbol.toLowerCase().includes(search.toLowerCase())
   )).slice(0, 80), [marketType, marketsQuery.data, search]);
@@ -107,7 +106,7 @@ export function CreateMonitorDialog({ open, onOpenChange, catalog, readiness, on
   const reset = () => {
     setType('market'); setName(''); setIntervalMode('standard'); setIntervalValue('20'); setMaxStale('90'); setRpcId(''); setChainId(1); setVersion('v3');
     setWallet(''); setTokenId(''); setMarketType('spot'); setMarketSymbol(''); setSearch(''); setSelectedReserves([]);
-    setSelectedChains([1]); setSelectedVersions(['v3']); setDiscover(false); setError(null);
+    setSelectedChains([1]); setSelectedVersions(['v3']); setError(null);
   };
 
   const buildConfig = (): MonitorCreateInput['config'] => {
@@ -130,8 +129,9 @@ export function CreateMonitorDialog({ open, onOpenChange, catalog, readiness, on
     }
     if (!selectedRpcId) throw new Error('请选择可用的 EVM RPC');
     if (type === 'uniswap_position') {
-      if (!tokenId) throw new Error('请先输入钱包地址并从发现结果中选择 LP');
-      return { rpcIntegrationId: selectedRpcId, chainId: effectiveChainId, version: effectiveVersion, tokenId };
+      const normalizedTokenId = tokenId.trim();
+      if (!TOKEN_ID.test(normalizedTokenId)) throw new Error('请输入有效的 NFT Token ID（只能包含数字）');
+      return { rpcIntegrationId: selectedRpcId, chainId: effectiveChainId, version: effectiveVersion, tokenId: normalizedTokenId };
     }
     if (type === 'uniswap_wallet') {
       if (!ADDRESS.test(wallet.trim())) throw new Error('请输入有效钱包地址');
@@ -147,15 +147,13 @@ export function CreateMonitorDialog({ open, onOpenChange, catalog, readiness, on
       }
       return { rpcIntegrationId: selectedRpcId, chainIds: supportedChains, versions: selectedVersions, walletAddress: wallet.trim() };
     }
-    const pool = poolsQuery.data?.items.find((item) => (item.poolAddress ?? item.poolId) === marketSymbol);
-    if (!pool) {
-      const existingPoolId = monitor?.config.poolAddress ?? monitor?.config.poolId;
-      if (monitor && marketSymbol === existingPoolId && effectiveChainId === monitor.config.chainId && effectiveVersion === monitor.config.version) {
-        return { ...monitor.config, rpcIntegrationId: selectedRpcId };
-      }
-      throw new Error('请从资源目录选择一个 Pool');
+    const poolTarget = marketSymbol.trim();
+    if (effectiveVersion === 'v3') {
+      if (!ADDRESS.test(poolTarget)) throw new Error('请输入有效的 V3 Pool 合约地址（0x 开头，共 40 位十六进制）');
+      return { rpcIntegrationId: selectedRpcId, chainId: effectiveChainId, version: 'v3', poolAddress: poolTarget };
     }
-    return { rpcIntegrationId: selectedRpcId, chainId: effectiveChainId, version: effectiveVersion, ...(effectiveVersion === 'v3' ? { poolAddress: pool.poolAddress as string } : { poolId: pool.poolId as string }) };
+    if (!POOL_ID.test(poolTarget)) throw new Error('请输入有效的 V4 Pool ID（0x 开头，共 64 位十六进制）');
+    return { rpcIntegrationId: selectedRpcId, chainId: effectiveChainId, version: 'v4', poolId: poolTarget };
   };
 
   const submit = async (event: FormEvent) => {
@@ -186,10 +184,17 @@ export function CreateMonitorDialog({ open, onOpenChange, catalog, readiness, on
     <Dialog open={open} onOpenChange={(next) => { if (!next && !submitting && !editing) reset(); onOpenChange(next); }}>
       <DialogContent className="max-h-[calc(100vh-2rem)] overflow-y-auto sm:max-w-3xl">
         <form onSubmit={submit} className="contents">
-          <DialogHeader><DialogTitle>{editing ? '编辑监控任务' : '添加监控任务'}</DialogTitle><DialogDescription>{editing ? '可修改监控对象、采样频率和过期阈值；监控类型保持不变。' : '先选择监控对象，再从后端资源目录选择市场、资产、LP 或 Pool；无需查找协议合约地址。'}</DialogDescription></DialogHeader>
+          <DialogHeader><DialogTitle>{editing ? '编辑监控任务' : '添加监控任务'}</DialogTitle><DialogDescription>{editing ? '可修改监控对象、采样频率和过期阈值；监控类型保持不变。' : '选择监控对象并填写对应信息；Uniswap V4 池需要提供 Pool ID。'}</DialogDescription></DialogHeader>
           <div className="space-y-5 py-1">
             {editing ? <div className="rounded-lg border bg-muted/35 px-3 py-2 text-sm"><span className="text-muted-foreground">监控类型：</span><span className="font-medium">{TYPES.find((item) => item.id === type)?.title ?? type}</span></div> : <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-              {TYPES.map((item) => <button key={item.id} type="button" disabled={!typeReady(item.id)} onClick={() => { setType(item.id); setSearch(''); setMarketSymbol(''); setError(null); }} className={cn('rounded-lg border p-3 text-left disabled:cursor-not-allowed disabled:opacity-45', type === item.id && 'border-primary bg-primary/5 ring-1 ring-primary/20')}><span className="text-sm font-semibold">{item.title}</span><span className="mt-1 block text-xs text-muted-foreground">{typeReady(item.id) ? item.description : '请先配置并测试数据源'}</span></button>)}
+              {TYPES.map((item) => <button key={item.id} type="button" disabled={!typeReady(item.id)} onClick={() => {
+                setType(item.id);
+                setSearch('');
+                setMarketSymbol('');
+                setTokenId('');
+                setError(null);
+                if (item.id === 'uniswap_wallet') keepAvailableChains(availableNetworks);
+              }} className={cn('rounded-lg border p-3 text-left disabled:cursor-not-allowed disabled:opacity-45', type === item.id && 'border-primary bg-primary/5 ring-1 ring-primary/20')}><span className="text-sm font-semibold">{item.title}</span><span className="mt-1 block text-xs text-muted-foreground">{typeReady(item.id) ? item.description : '请先配置并测试数据源'}</span></button>)}
             </div>}
 
             <div className="grid gap-4 sm:grid-cols-[1fr_180px_180px]">
@@ -204,10 +209,18 @@ export function CreateMonitorDialog({ open, onOpenChange, catalog, readiness, on
 
             {type === 'aave_pool' ? <div className="space-y-3 rounded-xl border p-4"><div className="space-y-2"><Label htmlFor="aave-pool-rpc">Ethereum RPC</Label><select id="aave-pool-rpc" value={aaveRpcId ?? ''} onChange={(event) => setRpcId(event.target.value)} className="h-8 w-full rounded-lg border bg-background px-2 text-sm">{rpcOptions.filter((rpc) => aaveNetwork?.integrationIds.includes(rpc.id)).map((rpc) => <option key={rpc.id} value={rpc.id}>{rpc.name}</option>)}</select></div><div><p className="text-sm font-medium">选择 Reserve</p><p className="text-xs text-muted-foreground">不选择表示监控全部 Reserve；无需填写 Aave 合约地址。</p></div>{reservesQuery.isLoading ? <p className="text-sm text-muted-foreground">正在读取 Aave 资源目录…</p> : <div className="grid max-h-52 gap-2 overflow-y-auto sm:grid-cols-2">{reservesQuery.data?.items.map((reserve) => <label key={reserve.underlyingAsset} className="flex items-center gap-2 rounded-lg border p-2 text-sm"><input type="checkbox" checked={selectedReserves.includes(reserve.underlyingAsset)} onChange={() => setSelectedReserves((current) => current.includes(reserve.underlyingAsset) ? current.filter((address) => address !== reserve.underlyingAsset) : [...current, reserve.underlyingAsset])} /><span className="font-medium">{reserve.symbol}</span><span className="truncate text-xs text-muted-foreground">{reserve.name}</span></label>)}</div>}</div> : null}
 
-            {type.startsWith('uniswap_') ? <div className="space-y-4 rounded-xl border p-4"><div className="grid gap-3 sm:grid-cols-3"><div className="space-y-2"><Label>RPC</Label><select value={selectedRpcId ?? ''} onChange={(event) => setRpcId(event.target.value)} className="h-8 w-full rounded-lg border bg-background px-2 text-sm">{rpcOptions.map((rpc) => <option key={rpc.id} value={rpc.id}>{rpc.name}</option>)}</select></div>{type !== 'uniswap_wallet' ? <><div className="space-y-2"><Label>网络</Label><select value={effectiveChainId} onChange={(event) => setChainId(Number(event.target.value))} className="h-8 w-full rounded-lg border bg-background px-2 text-sm">{availableNetworks.map((network) => <option key={network.chainId} value={network.chainId}>{network.name}</option>)}</select></div><div className="space-y-2"><Label>版本</Label><select value={effectiveVersion} onChange={(event) => setVersion(event.target.value as UniswapVersion)} className="h-8 w-full rounded-lg border bg-background px-2 text-sm">{(['v3', 'v4'] as const).filter((item) => selectedNetwork?.versions[item]).map((item) => <option key={item} value={item}>{item.toUpperCase()}</option>)}</select></div></> : null}</div>
-              {type === 'uniswap_wallet' ? <><div className="space-y-2"><Label>钱包地址</Label><Input value={wallet} onChange={(event) => setWallet(event.target.value)} placeholder="0x…" className="font-mono text-xs" /></div><div className="grid gap-3 sm:grid-cols-2"><div><Label>网络（可多选）</Label><div className="mt-2 flex flex-wrap gap-2">{availableNetworks.map((network) => <label key={network.chainId} className="flex items-center gap-2 rounded-lg border px-3 py-2 text-sm"><input type="checkbox" checked={selectedChains.includes(network.chainId)} onChange={() => setSelectedChains((current) => current.includes(network.chainId) ? current.filter((id) => id !== network.chainId) : [...current, network.chainId])} />{network.name}</label>)}</div></div><div><Label>版本（可多选）</Label><div className="mt-2 flex gap-2">{(['v3', 'v4'] as const).map((item) => { const unavailable = selectedChains.some((id) => availableNetworks.find((network) => network.chainId === id)?.versions[item] !== true); const selected = selectedVersions.includes(item); return <label key={item} className={cn('flex items-center gap-2 rounded-lg border px-3 py-2 text-sm', unavailable && !selected && 'opacity-45')}><input type="checkbox" disabled={unavailable && !selected} checked={selected} onChange={() => setSelectedVersions((current) => current.includes(item) ? current.filter((value) => value !== item) : [...current, item])} />{item.toUpperCase()}</label>; })}</div></div></div></> : null}
-              {type === 'uniswap_position' ? <><div className="flex gap-2"><Input value={wallet} onChange={(event) => { setWallet(event.target.value); setDiscover(false); }} placeholder="输入持有 LP 的钱包地址" className="font-mono text-xs" /><Button type="button" variant="outline" onClick={() => setDiscover(true)} disabled={!ADDRESS.test(wallet.trim())}><Search />发现 LP</Button></div>{walletPositionsQuery.isFetching ? <p className="text-sm text-muted-foreground">正在读取钱包 LP…</p> : <div className="max-h-52 overflow-y-auto rounded-lg border">{walletPositionsQuery.data?.items.map((position) => <button type="button" key={position.tokenId} onClick={() => setTokenId(position.tokenId)} className={cn('flex w-full items-center justify-between border-b px-3 py-2 text-left text-sm last:border-0', tokenId === position.tokenId && 'bg-accent')}><span>{position.token0.symbol ?? 'Token0'} / {position.token1.symbol ?? 'Token1'} <Badge variant="outline">#{position.tokenId}</Badge></span><span className="text-xs text-muted-foreground">{position.inRange === true ? '区间内' : position.inRange === false ? '区间外' : '范围未知'}</span></button>)}{discover && walletPositionsQuery.data?.items.length === 0 ? <p className="p-4 text-center text-sm text-muted-foreground">未发现该网络/版本 LP</p> : null}</div>}</> : null}
-              {type === 'uniswap_pool' ? <><div className="relative"><Search className="absolute left-2.5 top-2 size-4 text-muted-foreground" /><Input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="搜索 ETH/USDC、Token、Pool 地址或费率" className="pl-8" /></div><div className="max-h-56 overflow-y-auto rounded-lg border">{poolsQuery.data?.items.map((pool) => { const id = pool.poolAddress ?? pool.poolId ?? ''; return <button type="button" key={id} onClick={() => setMarketSymbol(id)} className={cn('flex w-full items-center justify-between gap-3 border-b px-3 py-2 text-left text-sm last:border-0', marketSymbol === id && 'bg-accent')}><span className="font-medium">{pool.token0.symbol ?? 'Token0'} / {pool.token1.symbol ?? 'Token1'}</span><span className="font-mono text-xs text-muted-foreground">{pool.version.toUpperCase()} {pool.feeTier ?? pool.tickSpacing ?? ''}</span></button>; })}{poolsQuery.data?.status === 'warming_up' ? <p className="p-3 text-xs text-amber-600">Pool 目录仍在后台索引，当前结果可先使用。</p> : null}</div></> : null}
+            {type.startsWith('uniswap_') ? <div className="space-y-4 rounded-xl border p-4"><div className="grid gap-3 sm:grid-cols-3"><div className="space-y-2"><Label>RPC</Label><select value={selectedRpcId ?? ''} onChange={(event) => {
+              const nextRpcId = event.target.value;
+              setRpcId(nextRpcId);
+              setMarketSymbol('');
+              setTokenId('');
+              if (type === 'uniswap_wallet') {
+                keepAvailableChains((readiness.uniswap?.networks ?? []).filter((network) => network.integrationIds.includes(nextRpcId)));
+              }
+            }} className="h-8 w-full rounded-lg border bg-background px-2 text-sm">{rpcOptions.map((rpc) => <option key={rpc.id} value={rpc.id}>{rpc.name}</option>)}</select></div>{type !== 'uniswap_wallet' ? <><div className="space-y-2"><Label>网络</Label><select value={effectiveChainId} onChange={(event) => { setChainId(Number(event.target.value)); setMarketSymbol(''); setTokenId(''); }} className="h-8 w-full rounded-lg border bg-background px-2 text-sm">{availableNetworks.map((network) => <option key={network.chainId} value={network.chainId}>{network.name}</option>)}</select></div><div className="space-y-2"><Label>版本</Label><select value={effectiveVersion} onChange={(event) => { setVersion(event.target.value as UniswapVersion); setMarketSymbol(''); setTokenId(''); }} className="h-8 w-full rounded-lg border bg-background px-2 text-sm">{(['v3', 'v4'] as const).filter((item) => selectedNetwork?.versions[item]).map((item) => <option key={item} value={item}>{item.toUpperCase()}</option>)}</select></div></> : null}</div>
+              {type === 'uniswap_wallet' ? <><div className="space-y-2"><Label>钱包地址</Label><Input value={wallet} onChange={(event) => setWallet(event.target.value)} placeholder="0x…" className="font-mono text-xs" /></div><div className="grid gap-3 sm:grid-cols-2"><div><Label>网络（可多选）</Label><div className="mt-2 flex flex-wrap gap-2">{availableNetworks.map((network) => <label key={network.chainId} className="flex items-center gap-2 rounded-lg border px-3 py-2 text-sm"><input type="checkbox" checked={selectedChains.includes(network.chainId)} onChange={() => setSelectedChains((current) => current.includes(network.chainId) ? current.filter((id) => id !== network.chainId) : [...current, network.chainId])} />{network.name}</label>)}</div></div><div><Label>版本（可多选）</Label><div className="mt-2 flex gap-2">{(['v3', 'v4'] as const).map((item) => { const unavailable = selectedChains.some((id) => availableNetworks.find((network) => network.chainId === id)?.versions[item] !== true); const selected = selectedVersions.includes(item); return <label key={item} className={cn('flex items-center gap-2 rounded-lg border px-3 py-2 text-sm', unavailable && !selected && 'opacity-45')}><input type="checkbox" disabled={unavailable && !selected} checked={selected} onChange={() => setSelectedVersions((current) => current.includes(item) ? current.filter((value) => value !== item) : [...current, item])} />{item.toUpperCase()}</label>; })}</div></div></div>{selectedVersions.includes('v4') ? <p className="text-xs text-muted-foreground">V4 首次扫描会从 PositionManager 历史事件建立钱包仓位索引，期间会显示“首次同步中”，完成后自动持续更新。</p> : null}</> : null}
+              {type === 'uniswap_position' ? <div className="space-y-2"><Label htmlFor="uniswap-position-token-id">NFT Token ID</Label><Input id="uniswap-position-token-id" value={tokenId} onChange={(event) => setTokenId(event.target.value)} inputMode="numeric" pattern="[0-9]*" placeholder="例如：123456" className="font-mono text-xs" /><p className="text-xs text-muted-foreground">直接读取这个 {effectiveVersion.toUpperCase()} LP NFT，不扫描钱包，也不遍历历史 Transfer 事件。后端会通过链上合约校验 NFT 并读取对应仓位。</p></div> : null}
+              {type === 'uniswap_pool' ? <><div className="space-y-2"><Label htmlFor="uniswap-pool-target">{effectiveVersion === 'v4' ? 'V4 Pool ID' : 'V3 Pool 合约地址'}</Label><Input id="uniswap-pool-target" value={marketSymbol} onChange={(event) => setMarketSymbol(event.target.value)} placeholder={effectiveVersion === 'v4' ? '0x…（64 位十六进制）' : '0x…（40 位十六进制）'} className="font-mono text-xs" /><p className="text-xs text-muted-foreground">{effectiveVersion === 'v4' ? 'Pool ID 是 32 字节池标识，不是 PoolManager 或代币合约地址。V4 可监控当前 Tick、流动性、费率和池事件；仅凭 Pool ID 暂不提供代币名称、TVL 与美元估值。' : '填写 Uniswap V3 Pool 合约地址，或从下方已索引池中选择。'}</p></div><div className="space-y-2"><Label htmlFor="uniswap-pool-search">从已索引池中选择（可选）</Label><div className="relative"><Search className="absolute left-2.5 top-2 size-4 text-muted-foreground" /><Input id="uniswap-pool-search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="搜索交易对、代币或池标识" className="pl-8" /></div><div className="max-h-44 overflow-y-auto rounded-lg border">{poolsQuery.data?.items.map((pool) => { const id = pool.poolAddress ?? pool.poolId ?? ''; return <button type="button" key={id} onClick={() => setMarketSymbol(id)} className={cn('flex w-full items-center justify-between gap-3 border-b px-3 py-2 text-left text-sm last:border-0', marketSymbol === id && 'bg-accent')}><span className="font-medium">{pool.token0.symbol ?? '未知代币'} / {pool.token1.symbol ?? '未知代币'}</span><span className="font-mono text-xs text-muted-foreground">{pool.version.toUpperCase()} · {pool.feeTier ?? pool.tickSpacing ?? '费率未知'}</span></button>; })}{poolsQuery.isFetching ? <p className="p-3 text-xs text-muted-foreground">正在读取已索引池…</p> : poolsQuery.data?.status === 'warming_up' ? <p className="p-3 text-xs text-amber-600">池目录仍在后台索引；不必等待，可直接填写上方标识。</p> : poolsQuery.data?.items.length === 0 ? <p className="p-3 text-xs text-muted-foreground">暂无匹配结果，可直接填写上方标识。</p> : null}</div></div></> : null}
             </div> : null}
 
             {error ? <p role="alert" className="text-sm text-destructive">{error}</p> : null}
