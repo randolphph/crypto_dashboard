@@ -3,6 +3,7 @@
 import { useMemo, useState, type FormEvent } from 'react';
 import { LoaderCircle, Search } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { ProtocolIcon, type ProtocolBrand } from '@/components/monitoring/ProtocolIcon';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -20,13 +21,13 @@ const POOL_ID = /^0x[0-9a-fA-F]{64}$/;
 const TOKEN_ID = /^\d+$/;
 type AvailableType = Exclude<MonitorType, 'aave_position' | 'lp_position'>;
 
-const TYPES: Array<{ id: AvailableType; title: string; description: string }> = [
-  { id: 'market', title: 'Binance 行情', description: '价格、成交量、资金费率和 OI' },
-  { id: 'aave_account', title: 'Aave 地址', description: '账户仓位、健康因子与资金变化' },
-  { id: 'aave_pool', title: 'Aave 池子', description: '大额 Supply / Borrow / Liquidation 事件' },
-  { id: 'uniswap_position', title: 'Uniswap 单个 LP', description: '直接使用 NFT Token ID，不扫描钱包' },
-  { id: 'uniswap_wallet', title: 'Uniswap 地址 LP', description: '跨网络和 V3/V4 自动发现' },
-  { id: 'uniswap_pool', title: 'Uniswap 池子', description: 'V3/V4 池状态、流动性和链上事件' },
+const TYPES: Array<{ id: AvailableType; title: string; description: string; brand: ProtocolBrand }> = [
+  { id: 'market', title: 'Binance 行情', description: '价格、成交量、资金费率和 OI', brand: 'binance' },
+  { id: 'aave_account', title: 'Aave 地址', description: '账户仓位、健康因子与资金变化', brand: 'aave' },
+  { id: 'aave_pool', title: 'Aave 池子', description: '大额 Supply / Borrow / Liquidation 事件', brand: 'aave' },
+  { id: 'uniswap_position', title: 'Uniswap 单个 LP', description: '直接使用 NFT Token ID，不扫描钱包', brand: 'uniswap' },
+  { id: 'uniswap_wallet', title: 'Uniswap 地址 LP', description: '跨网络和 V3/V4 自动发现', brand: 'uniswap' },
+  { id: 'uniswap_pool', title: 'Uniswap 池子', description: 'V3/V4 池状态、流动性和链上事件', brand: 'uniswap' },
 ];
 
 interface Props {
@@ -179,6 +180,7 @@ export function CreateMonitorDialog({ open, onOpenChange, catalog, readiness, on
   };
 
   const typeReady = (candidate: AvailableType) => candidate === 'market' ? readiness.binance.ready : candidate.startsWith('aave') ? readiness.aave.ready : readiness.uniswap?.ready === true;
+  const selectedTypeOption = TYPES.find((item) => item.id === type) ?? TYPES[0];
 
   return (
     <Dialog open={open} onOpenChange={(next) => { if (!next && !submitting && !editing) reset(); onOpenChange(next); }}>
@@ -186,7 +188,7 @@ export function CreateMonitorDialog({ open, onOpenChange, catalog, readiness, on
         <form onSubmit={submit} className="contents">
           <DialogHeader><DialogTitle>{editing ? '编辑监控任务' : '添加监控任务'}</DialogTitle><DialogDescription>{editing ? '可修改监控对象、采样频率和过期阈值；监控类型保持不变。' : '选择监控对象并填写对应信息；Uniswap V4 池需要提供 Pool ID。'}</DialogDescription></DialogHeader>
           <div className="space-y-5 py-1">
-            {editing ? <div className="rounded-lg border bg-muted/35 px-3 py-2 text-sm"><span className="text-muted-foreground">监控类型：</span><span className="font-medium">{TYPES.find((item) => item.id === type)?.title ?? type}</span></div> : <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+            {editing ? <div className="flex items-center gap-3 rounded-lg border bg-muted/35 px-3 py-2 text-sm"><ProtocolIcon brand={selectedTypeOption.brand} className="size-8 rounded-lg" /><span><span className="block text-xs text-muted-foreground">监控类型</span><span className="font-medium">{selectedTypeOption.title}</span></span></div> : <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
               {TYPES.map((item) => <button key={item.id} type="button" disabled={!typeReady(item.id)} onClick={() => {
                 setType(item.id);
                 setSearch('');
@@ -194,7 +196,7 @@ export function CreateMonitorDialog({ open, onOpenChange, catalog, readiness, on
                 setTokenId('');
                 setError(null);
                 if (item.id === 'uniswap_wallet') keepAvailableChains(availableNetworks);
-              }} className={cn('rounded-lg border p-3 text-left disabled:cursor-not-allowed disabled:opacity-45', type === item.id && 'border-primary bg-primary/5 ring-1 ring-primary/20')}><span className="text-sm font-semibold">{item.title}</span><span className="mt-1 block text-xs text-muted-foreground">{typeReady(item.id) ? item.description : '请先配置并测试数据源'}</span></button>)}
+              }} className={cn('flex items-start gap-3 rounded-lg border p-3 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-45', type === item.id && 'border-primary bg-primary/5 ring-1 ring-primary/20')}><ProtocolIcon brand={item.brand} className="size-9 rounded-lg" /><span className="min-w-0"><span className="block text-sm font-semibold">{item.title}</span><span className="mt-1 block text-xs leading-relaxed text-muted-foreground">{typeReady(item.id) ? item.description : '请先配置并测试数据源'}</span></span></button>)}
             </div>}
 
             <div className="grid gap-4 sm:grid-cols-[1fr_180px_180px]">
