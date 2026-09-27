@@ -48,7 +48,7 @@ function metricHelp(metric?: RuleMetricDefinition): string {
   if (!metric) return '请选择要观察的数据。';
   const help: Record<string, string> = {
     price: '监控最新成交价是否到达目标价格。',
-    price_change_percent: '监控所选时间内的价格涨跌幅；上涨为正数，下跌为负数。',
+    price_change_percent: '监控所选时间内价格变化的绝对幅度；无论上涨或下跌，达到阈值都会触发。',
     funding_rate_percent: '监控永续合约资金费率；正数表示多头支付空头。',
     open_interest: '监控市场当前未平仓合约数量。',
     open_interest_change_percent: '监控所选时间内未平仓量的增减幅度。',
@@ -68,13 +68,17 @@ function conditionSummary(condition: RuleCondition, metric?: RuleMetricDefinitio
   if (!metric) return '请选择指标';
   const unit = unitLabel(metric, monitor);
   const formattedUnit = unit === '%' ? '%' : unit ? ` ${unit}` : '';
+  const isPriceMovement = condition.metric === 'price_change_percent';
+  const threshold = isPriceMovement && condition.threshold.trim().startsWith('-')
+    ? condition.threshold.trim().slice(1)
+    : condition.threshold;
   const value = metric.valueType === 'boolean'
     ? condition.threshold === 'true' ? '是' : '否'
-    : `${condition.threshold || '…'}${formattedUnit}`;
+    : `${threshold || '…'}${formattedUnit}`;
   const window = metric.requiresWindow && condition.windowSeconds
     ? `，统计 ${formatSeconds(condition.windowSeconds)}`
     : '';
-  return `${metric.name} ${OPERATOR_LABEL[condition.operator]} ${value}${window}`;
+  return `${metric.name} ${OPERATOR_LABEL[isPriceMovement ? 'gte' : condition.operator]} ${value}${window}`;
 }
 
 function emptyCondition(metric?: RuleMetricDefinition): DraftCondition {
@@ -111,7 +115,9 @@ function metricOptions(catalog: IntegrationCatalog, monitor: CryptoSentryMonitor
     const version = monitor.config.version;
     if (version && metric.versions && !metric.versions.includes(version)) return false;
     return true;
-  });
+  }).map((metric): RuleMetricDefinition => metric.id === 'price_change_percent'
+    ? { ...metric, name: '价格波动幅度', operators: ['gte'] }
+    : metric);
 }
 
 interface RuleDialogProps {
@@ -126,7 +132,12 @@ function RuleDialog({ open, onOpenChange, monitor, catalog, rule, onSave }: Rule
   const [name, setName] = useState(rule?.name ?? '');
   const [combinator, setCombinator] = useState<'and' | 'or'>(rule?.combinator ?? 'and');
   const [conditions, setConditions] = useState<DraftCondition[]>(rule?.conditions.map((condition) => ({
-    ...condition, labelsText: Object.entries(condition.labels).map(([key, value]) => `${key}=${value}`).join(', '),
+    ...condition,
+    ...(condition.metric === 'price_change_percent' ? {
+      operator: 'gte' as const,
+      threshold: condition.threshold.trim().startsWith('-') ? condition.threshold.trim().slice(1) : condition.threshold,
+    } : {}),
+    labelsText: Object.entries(condition.labels).map(([key, value]) => `${key}=${value}`).join(', '),
   })) ?? [emptyCondition(metrics[0])]);
   const [duration, setDuration] = useState(String(rule?.durationSeconds ?? 0));
   const [cooldown, setCooldown] = useState(String(rule?.cooldownSeconds ?? 1800));
@@ -149,6 +160,11 @@ function RuleDialog({ open, onOpenChange, monitor, catalog, rule, onSave }: Rule
     try {
       const normalized = conditions.map(({ labelsText, ...condition }) => {
         if (!condition.metric || !condition.threshold.trim()) throw new Error('每个条件都要选择指标并填写阈值');
+        if (condition.metric === 'price_change_percent') {
+          const threshold = Number(condition.threshold);
+          if (!Number.isFinite(threshold) || threshold < 0) throw new Error('价格波动阈值必须是非负数');
+          return { ...condition, operator: 'gte' as const, labels: parseLabels(labelsText) };
+        }
         return { ...condition, labels: parseLabels(labelsText) };
       });
       const hasEvent = normalized.some((condition) => metrics.find((metric) => metric.id === condition.metric)?.kind === 'event');
@@ -188,8 +204,8 @@ function RuleDialog({ open, onOpenChange, monitor, catalog, rule, onSave }: Rule
                   </div>
                   <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                     <div className="space-y-2 sm:col-span-2"><Label htmlFor={metricId}>监控指标</Label><select id={metricId} value={condition.metric} onChange={(event) => { const next = metrics.find((metric) => metric.id === event.target.value); updateCondition(index, emptyCondition(next)); }} className="h-8 w-full rounded-lg border bg-background px-2 text-sm">{metrics.map((metric) => <option key={metric.id} value={metric.id}>{metric.name}{metric.kind === 'event' ? '（事件）' : unitLabel(metric, monitor) ? `（${unitLabel(metric, monitor)}）` : ''}</option>)}</select><p className="text-xs text-muted-foreground">{metricHelp(definition)}</p></div>
-                    <div className="space-y-2"><Label htmlFor={operatorId}>触发条件</Label><select id={operatorId} value={condition.operator} onChange={(event) => updateCondition(index, { operator: event.target.value as RuleOperator })} className="h-8 w-full rounded-lg border bg-background px-2 text-sm">{definition?.operators.map((operator) => <option key={operator} value={operator}>{OPERATOR_LABEL[operator]}</option>)}</select></div>
-                    <div className="space-y-2"><Label htmlFor={thresholdId}>{definition?.valueType === 'boolean' ? '目标状态' : '目标值'}</Label>{definition?.valueType === 'boolean' ? <select id={thresholdId} value={condition.threshold} onChange={(event) => updateCondition(index, { threshold: event.target.value })} className="h-8 w-full rounded-lg border bg-background px-2 text-sm"><option value="true">是</option><option value="false">否</option></select> : <div className="relative"><Input id={thresholdId} inputMode="decimal" value={condition.threshold} onChange={(event) => updateCondition(index, { threshold: event.target.value })} placeholder="输入数值" className={unitLabel(definition, monitor) ? 'pr-20' : undefined} />{unitLabel(definition, monitor) ? <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-xs text-muted-foreground">{unitLabel(definition, monitor)}</span> : null}</div>}</div>
+                    {condition.metric === 'price_change_percent' ? <div className="space-y-2"><Label>触发方式</Label><div className="flex h-8 items-center rounded-lg border bg-muted/40 px-2.5 text-sm">双向波动达到</div></div> : <div className="space-y-2"><Label htmlFor={operatorId}>触发条件</Label><select id={operatorId} value={condition.operator} onChange={(event) => updateCondition(index, { operator: event.target.value as RuleOperator })} className="h-8 w-full rounded-lg border bg-background px-2 text-sm">{definition?.operators.map((operator) => <option key={operator} value={operator}>{OPERATOR_LABEL[operator]}</option>)}</select></div>}
+                    <div className="space-y-2"><Label htmlFor={thresholdId}>{definition?.valueType === 'boolean' ? '目标状态' : condition.metric === 'price_change_percent' ? '波动阈值' : '目标值'}</Label>{definition?.valueType === 'boolean' ? <select id={thresholdId} value={condition.threshold} onChange={(event) => updateCondition(index, { threshold: event.target.value })} className="h-8 w-full rounded-lg border bg-background px-2 text-sm"><option value="true">是</option><option value="false">否</option></select> : <div className="relative"><Input id={thresholdId} type={condition.metric === 'price_change_percent' ? 'number' : undefined} min={condition.metric === 'price_change_percent' ? 0 : undefined} step={condition.metric === 'price_change_percent' ? 'any' : undefined} inputMode="decimal" value={condition.threshold} onChange={(event) => updateCondition(index, { threshold: event.target.value })} placeholder="输入数值" className={unitLabel(definition, monitor) ? 'pr-20' : undefined} />{unitLabel(definition, monitor) ? <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-xs text-muted-foreground">{unitLabel(definition, monitor)}</span> : null}</div>}</div>
                   </div>
                   {definition?.requiresWindow ? <div className="mt-3 max-w-xs space-y-2"><Label htmlFor={windowId}>统计周期（秒）</Label><Input id={windowId} type="number" min={definition.windowSecondsMin} max={definition.windowSecondsMax} value={condition.windowSeconds ?? definition.windowSecondsMin} onChange={(event) => updateCondition(index, { windowSeconds: Number(event.target.value) })} /><p className="text-xs text-muted-foreground">当前统计 {formatSeconds(condition.windowSeconds ?? definition.windowSecondsMin ?? 0)}，可填写 {definition.windowSecondsMin}–{definition.windowSecondsMax} 秒。</p></div> : null}
                   <details className="mt-3 rounded-lg bg-muted/45 px-3 py-2 text-sm"><summary className="cursor-pointer font-medium">高级选项</summary><div className="mt-3 grid gap-3 sm:grid-cols-2"><div className="space-y-2"><Label htmlFor={hysteresisId}>恢复缓冲</Label><Input id={hysteresisId} inputMode="decimal" value={condition.hysteresis} onChange={(event) => updateCondition(index, { hysteresis: event.target.value })} /><p className="text-xs text-muted-foreground">避免指标在阈值附近波动时反复告警；不需要时保持 0。</p></div><div className="space-y-2"><Label htmlFor={labelsId}>限定特定资产或仓位</Label><Input id={labelsId} value={condition.labelsText} onChange={(event) => updateCondition(index, { labelsText: event.target.value })} placeholder={definition?.labels.filter((label) => label !== 'windowSeconds').slice(0, 3).map((label) => `${label}=…`).join(', ') || '通常留空'} /><p className="text-xs text-muted-foreground">通常留空。只有同一监控包含多个资产或仓位时才需要填写。</p></div></div></details>

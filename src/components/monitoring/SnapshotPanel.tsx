@@ -24,7 +24,7 @@ const EVENT_LABELS: Record<string, string> = {
   swap: '兑换', mint: '增加流动性', burn: '移除流动性', collect: '领取手续费',
 };
 const METRIC_LABELS: Record<string, string> = {
-  price: '最新价格', price_change_percent: '价格涨跌幅', base_volume_24h: '基础资产成交量（24 小时）',
+  price: '最新价格', price_change_percent: '价格波动幅度', base_volume_24h: '基础资产成交量（24 小时）',
   quote_volume_24h: '成交额（24 小时）', funding_rate_percent: '资金费率', next_funding_time: '下次资金费时间',
   open_interest: '未平仓量', open_interest_change_percent: '未平仓量变化率', data_age_seconds: '数据年龄',
   health_factor: '健康因子', health_factor_infinite: '健康因子无限', total_collateral_base: '总抵押价值',
