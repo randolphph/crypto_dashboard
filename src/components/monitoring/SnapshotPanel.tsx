@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { AlertTriangle, CheckCircle2, Circle, Clock3, Coins, Database, RefreshCw, ServerCrash } from 'lucide-react';
+import { AlertTriangle, ArrowLeftRight, CheckCircle2, Circle, Clock3, Coins, Database, RefreshCw, ServerCrash } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -23,6 +23,14 @@ const DISTRIBUTION_SEGMENTS = Array.from({ length: 31 }, (_, index) => index);
 const EVENT_LABELS: Record<string, string> = {
   swap: '兑换', mint: '增加流动性', burn: '移除流动性', collect: '领取手续费',
 };
+const HIDDEN_LP_VALUE_KEYS = new Set([
+  'positionValueUsd', 'feesValueUsd', 'aggregateValueUsd', 'aggregateFeesUsd',
+  'valuationStatus', 'valuationSource', 'valuationObservedAt', 'valuationCoverage',
+]);
+const HIDDEN_LP_VALUE_METRICS = new Set([
+  'position_value_usd', 'fees_value_usd', 'aggregate_value_usd', 'aggregate_fees_usd',
+  'fees_owed_token0', 'fees_owed_token1',
+]);
 const METRIC_LABELS: Record<string, string> = {
   price: '最新价格', price_change_percent: '价格波动幅度', base_volume_24h: '基础资产成交量（24 小时）',
   quote_volume_24h: '成交额（24 小时）', funding_rate_percent: '资金费率', next_funding_time: '下次资金费时间',
@@ -128,13 +136,13 @@ function metricUnit(metric: Record<string, unknown>): string {
 }
 
 function KeyValues({ value, limit = 12 }: { value: Record<string, unknown>; limit?: number }) {
-  const entries = Object.entries(value).filter(([, item]) => ['string', 'number', 'boolean'].includes(typeof item) || item === null).slice(0, limit);
+  const entries = Object.entries(value).filter(([key, item]) => !HIDDEN_LP_VALUE_KEYS.has(key) && (['string', 'number', 'boolean'].includes(typeof item) || item === null)).slice(0, limit);
   if (!entries.length) return null;
   return <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">{entries.map(([key, item]) => { const displayed = displayKeyValue(key, item); return <div key={key} className="min-w-0 rounded-lg bg-muted/55 px-3 py-2.5"><p className="truncate text-xs text-muted-foreground" title={key}>{label(key)}</p><p className="mt-1 truncate font-mono text-sm font-semibold tabular-nums" title={displayed}>{displayed}</p></div>; })}</div>;
 }
 
 function SummaryValues({ value }: { value: Record<string, unknown> }) {
-  const entries = Object.entries(value).filter(([, item]) => ['string', 'number', 'boolean'].includes(typeof item) || item === null).slice(0, 6);
+  const entries = Object.entries(value).filter(([key, item]) => !HIDDEN_LP_VALUE_KEYS.has(key) && (['string', 'number', 'boolean'].includes(typeof item) || item === null)).slice(0, 6);
   if (!entries.length) return null;
   return <div className="flex flex-wrap gap-2">{entries.map(([key, item]) => <div key={key} className="flex items-baseline gap-2 rounded-full bg-muted/65 px-3 py-1.5"><span className="text-[11px] text-muted-foreground">{label(key)}</span><span className="font-mono text-xs font-semibold tabular-nums">{displayKeyValue(key, item)}</span></div>)}</div>;
 }
@@ -173,6 +181,32 @@ function formatApproximatePrice(value: number | null): string {
   return new Intl.NumberFormat('en-US', { maximumSignificantDigits: 6 }).format(value);
 }
 
+function CurrentLpPrice({ tick, token0, token1 }: {
+  tick: unknown;
+  token0: Record<string, unknown>;
+  token1: Record<string, unknown>;
+}) {
+  const [inverted, setInverted] = useState(false);
+  const token0Symbol = String(token0.symbol ?? 'Token0');
+  const token1Symbol = String(token1.symbol ?? 'Token1');
+  const token1PerToken0 = priceAtTick(tick, token0, token1);
+  if (token1PerToken0 === null) return <p className="mt-2 text-xs text-muted-foreground">当前价格暂不可用</p>;
+
+  const price = inverted ? 1 / token1PerToken0 : token1PerToken0;
+  const baseSymbol = inverted ? token1Symbol : token0Symbol;
+  const quoteSymbol = inverted ? token0Symbol : token1Symbol;
+  return <button
+    type="button"
+    onClick={() => setInverted((value) => !value)}
+    className="mt-2 inline-flex max-w-full items-center gap-1.5 rounded-full bg-muted/65 px-2.5 py-1 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+    aria-label={`切换为 1 ${quoteSymbol} 兑换 ${baseSymbol} 的价格`}
+    title="点击查看反比"
+  >
+    <span className="truncate"><span className="font-medium text-foreground">1 {baseSymbol}</span> = <span className="font-mono font-semibold tabular-nums text-foreground">{formatApproximatePrice(price)}</span> {quoteSymbol}</span>
+    <ArrowLeftRight className="size-3 shrink-0" aria-hidden="true" />
+  </button>;
+}
+
 function formatFeeTier(position: Record<string, unknown>): string | null {
   const fee = numberValue(position.version === 'v4' ? position.lpFee : position.feeTier);
   if (fee === null) return null;
@@ -200,7 +234,7 @@ function V4PositionDetails({ position }: { position: Record<string, unknown> }) 
     { label: 'Tick 间隔', value: technicalValue(position.tickSpacing), mono: true },
     { label: 'Hooks', value: noHooks ? '未配置' : technicalValue(hooksAddress), mono: true },
   ];
-  return <div className="col-span-2 grid gap-2 border-t pt-4 sm:grid-cols-2 lg:grid-cols-4 xl:col-span-5">{items.map((item) => <div key={item.label} className="min-w-0 rounded-lg bg-muted/45 px-3 py-2"><p className="text-xs text-muted-foreground">{item.label}</p><p className={cn('mt-1 truncate text-xs font-medium', item.mono && 'font-mono')} title={item.value}>{item.value}</p></div>)}</div>;
+  return <div className="col-span-2 grid gap-2 border-t pt-4 sm:grid-cols-2 lg:grid-cols-4 xl:col-span-3">{items.map((item) => <div key={item.label} className="min-w-0 rounded-lg bg-muted/45 px-3 py-2"><p className="text-xs text-muted-foreground">{item.label}</p><p className={cn('mt-1 truncate text-xs font-medium', item.mono && 'font-mono')} title={item.value}>{item.value}</p></div>)}</div>;
 }
 
 function DiscoveryProgress({ discovery }: { discovery: Record<string, unknown> | null }) {
@@ -212,20 +246,8 @@ function DiscoveryProgress({ discovery }: { discovery: Record<string, unknown> |
   return <Card className={caughtUp ? 'border-emerald-500/20' : 'border-amber-500/30'}><CardContent className="py-4"><div className="flex flex-wrap items-center justify-between gap-3"><div><p className="text-sm font-semibold">{caughtUp ? 'V4 索引已同步' : 'V4 首次同步中'}</p><p className="mt-1 text-xs text-muted-foreground">已同步至区块 <span className="font-mono text-foreground">{display(scanned)}</span></p></div><div className="text-right"><p className="text-xs text-muted-foreground">目标区块</p><p className="mt-1 font-mono text-sm font-semibold">{display(tip)}</p></div></div></CardContent></Card>;
 }
 
-function formatUsd(value: unknown): string {
-  return typeof value === 'string' ? `US$${formatDecimalString(value, 2)}` : '—';
-}
-
 function isStablecoin(symbol: unknown): boolean {
   return typeof symbol === 'string' && STABLECOIN_SYMBOLS.has(symbol.toUpperCase());
-}
-
-function UsdValue({ value, availableLabel, unavailableLabel }: { value: unknown; availableLabel: string; unavailableLabel: string }) {
-  const available = typeof value === 'string';
-  return <div className="min-w-0">
-    <p className={cn('truncate tabular-nums', available ? 'text-xl font-semibold tracking-tight' : 'text-base font-medium text-muted-foreground')}>{available ? formatUsd(value) : '待估值'}</p>
-    <p className="mt-1 truncate text-xs text-muted-foreground">{available ? availableLabel : unavailableLabel}</p>
-  </div>;
 }
 
 function UniPositions({ positions }: { positions: Array<Record<string, unknown>> }) {
@@ -240,8 +262,8 @@ function UniPositions({ positions }: { positions: Array<Record<string, unknown>>
       {closedCount > 0 ? <Button type="button" size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={() => setShowClosed((value) => !value)}>{showClosed ? '隐藏已关闭仓位' : `查看已关闭仓位（${closedCount}）`}</Button> : null}
     </div>
     {visiblePositions.length > 0 ? <>
-      <div className="hidden grid-cols-[minmax(200px,1.1fr)_minmax(225px,1.25fr)_minmax(235px,1.15fr)_minmax(145px,.7fr)_minmax(130px,.65fr)] gap-4 bg-muted/[0.5] px-5 py-3 text-sm font-medium text-muted-foreground xl:grid">
-        <p>资金池</p><p>头寸</p><p>分布</p><p className="text-right">价值</p><p className="text-right">费用</p>
+      <div className="hidden grid-cols-[minmax(200px,1fr)_minmax(225px,1.1fr)_minmax(280px,1.35fr)] gap-5 bg-muted/[0.5] px-5 py-3 text-sm font-medium text-muted-foreground xl:grid">
+        <p>资金池</p><p>头寸</p><p>分布</p>
       </div>
       <div className="divide-y">{visiblePositions.map((position, index) => {
       const token0 = record(position.token0) ?? {};
@@ -266,7 +288,7 @@ function UniPositions({ positions }: { positions: Array<Record<string, unknown>>
         ? Math.max(0, Math.min(100, ((currentTick - lowerTick) / (upperTick - lowerTick)) * 100)) : null;
       const rangeProgress = rawRangeProgress === null ? null : reversePair ? 100 - rawRangeProgress : rawRangeProgress;
       const feeTier = formatFeeTier(position);
-      return <article key={`${String(position.chainId)}-${String(position.version)}-${String(position.tokenId ?? index)}`} className={cn('grid grid-cols-2 gap-x-4 gap-y-5 px-5 py-5 transition-colors hover:bg-muted/[0.18] xl:grid-cols-[minmax(200px,1.1fr)_minmax(225px,1.25fr)_minmax(235px,1.15fr)_minmax(145px,.7fr)_minmax(130px,.65fr)] xl:items-center', closed && 'bg-muted/[0.22] opacity-70')}>
+      return <article key={`${String(position.chainId)}-${String(position.version)}-${String(position.tokenId ?? index)}`} className={cn('grid grid-cols-2 gap-x-4 gap-y-5 px-5 py-5 transition-colors hover:bg-muted/[0.18] xl:grid-cols-[minmax(200px,1fr)_minmax(225px,1.1fr)_minmax(280px,1.35fr)] xl:items-center xl:gap-x-5', closed && 'bg-muted/[0.22] opacity-70')}>
         <div className="col-span-2 min-w-0 xl:col-span-1">
           <p className="mb-2 text-xs font-medium text-muted-foreground xl:hidden">资金池</p>
           <div className="flex items-center gap-3"><div className="flex size-10 shrink-0 items-center justify-center rounded-xl border bg-muted/60 text-foreground"><Coins className="size-[18px]" strokeWidth={1.75} /></div><div className="min-w-0"><p className="truncate text-[17px] font-semibold tracking-tight">{pair}</p><p className="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground"><span>{String(position.version ?? 'v3').toUpperCase()}</span>{feeTier ? <><span className="text-border">•</span><span>{feeTier}</span></> : null}<span className="text-border">•</span><span className="font-mono">#{String(position.tokenId ?? '—')}</span></p></div></div>
@@ -274,14 +296,13 @@ function UniPositions({ positions }: { positions: Array<Record<string, unknown>>
         <div className="col-span-2 min-w-0 xl:col-span-1">
           <p className="mb-2 text-xs font-medium text-muted-foreground xl:hidden">头寸</p>
           <p className="truncate text-[17px] font-semibold tracking-tight tabular-nums">{formatApproximatePrice(lowerPrice)} <span className="mx-0.5 text-muted-foreground">→</span> {formatApproximatePrice(upperPrice)} <span className="text-sm font-medium text-muted-foreground">{String(quoteToken.symbol ?? '')}</span></p>
+          <CurrentLpPrice tick={position.currentTick} token0={token0} token1={token1} />
           <p className={cn('mt-1.5 flex items-center gap-1.5 text-sm font-medium', closed ? 'text-muted-foreground' : position.inRange === true ? 'text-emerald-600' : 'text-amber-600')}><Circle className="size-2.5 fill-current" />{closed ? '已关闭' : position.inRange === true ? '在范围内' : position.inRange === false ? '范围外' : '范围未知'}</p>
         </div>
         <div className="col-span-2 min-w-0 xl:col-span-1">
           <p className="mb-2 text-xs font-medium text-muted-foreground xl:hidden">分布</p>
           {rangeProgress === null ? <p className="text-sm text-muted-foreground">暂无价格区间进度</p> : <><div className="mb-1 flex items-center justify-between"><span className="text-[11px] text-muted-foreground">价格区间位置</span><span className="font-mono text-xs font-semibold tabular-nums text-foreground">{rangeProgress.toFixed(1)}%</span></div><div className="flex h-1.5 items-center gap-[3px]" role="progressbar" aria-label={`${pair} 价格区间位置`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(rangeProgress)}>{DISTRIBUTION_SEGMENTS.map((segment) => <span key={segment} className={cn('h-full min-w-0 flex-1 rounded-[1px]', ((segment + 0.5) / DISTRIBUTION_SEGMENTS.length) * 100 <= rangeProgress ? 'bg-lime-700/80' : 'bg-foreground/75')} />)}</div><div className="mt-2 flex justify-between gap-3 text-xs text-muted-foreground"><span className="truncate">{formatDecimalString(typeof baseAmount === 'string' ? baseAmount : null, 4)} {String(baseToken.symbol ?? '')}</span><span className="truncate text-right">{formatDecimalString(typeof quoteAmount === 'string' ? quoteAmount : null, 4)} {String(quoteToken.symbol ?? '')}</span></div></>}
         </div>
-        <div className="min-w-0 xl:text-right"><p className="mb-2 text-xs font-medium text-muted-foreground xl:hidden">价值</p><UsdValue value={position.positionValueUsd} availableLabel="链上估值" unavailableLabel="后端暂未返回 USD 估值" /></div>
-        <div className="min-w-0 xl:text-right"><p className="mb-2 text-xs font-medium text-muted-foreground xl:hidden">费用</p><UsdValue value={position.feesValueUsd} availableLabel="可用费用估值" unavailableLabel={position.feeStatus === 'tokens_owed_recorded_only' ? '仅记录待领取费用' : '后端暂未返回费用估值'} /></div>
         {position.version === 'v4' ? <V4PositionDetails position={position} /> : null}
       </article>;
     })}</div></> : <div className="p-8 text-center"><p className="text-sm font-medium">当前没有活跃 LP 仓位</p><p className="mt-1 text-xs text-muted-foreground">已关闭仓位默认隐藏，不会影响新仓位监控。</p></div>}
@@ -312,7 +333,7 @@ export function SnapshotPanel({ snapshot, loading, fetching, error, onRefresh }:
   const status = STATUS[snapshot.status];
   const positions = list(snapshot.data.positions);
   const events = list(snapshot.data.recentEvents);
-  const metrics = list(snapshot.data.metrics);
+  const metrics = list(snapshot.data.metrics).filter((metric) => !HIDDEN_LP_VALUE_METRICS.has(String(metric.name)));
   const pool = record(snapshot.data.pool);
   const discovery = record(snapshot.data.discovery);
   const volumes = list(snapshot.data.volumes);

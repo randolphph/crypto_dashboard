@@ -25,6 +25,10 @@ const UNIT_LABEL: Record<string, string> = {
   token: '代币', token0: 'Token0', token1: 'Token1', tick: 'Tick', liquidity: '流动性单位',
   positions: '个', USD: 'USD',
 };
+const HIDDEN_LP_METRICS = new Set([
+  'position_value_usd', 'fees_value_usd', 'aggregate_value_usd', 'aggregate_fees_usd',
+  'fees_owed_token0', 'fees_owed_token1',
+]);
 type DraftCondition = RuleCondition & { labelsText: string };
 
 function unitLabel(metric?: RuleMetricDefinition, monitor?: CryptoSentryMonitor): string {
@@ -127,7 +131,8 @@ interface RuleDialogProps {
 }
 
 function RuleDialog({ open, onOpenChange, monitor, catalog, rule, onSave }: RuleDialogProps) {
-  const metrics = useMemo(() => metricOptions(catalog, monitor), [catalog, monitor]);
+  const allMetrics = useMemo(() => metricOptions(catalog, monitor), [catalog, monitor]);
+  const metrics = useMemo(() => allMetrics.filter((metric) => !HIDDEN_LP_METRICS.has(metric.id)), [allMetrics]);
   const telegramQuery = useTelegramIntegrations();
   const [name, setName] = useState(rule?.name ?? '');
   const [combinator, setCombinator] = useState<'and' | 'or'>(rule?.combinator ?? 'and');
@@ -167,7 +172,7 @@ function RuleDialog({ open, onOpenChange, monitor, catalog, rule, onSave }: Rule
         }
         return { ...condition, labels: parseLabels(labelsText) };
       });
-      const hasEvent = normalized.some((condition) => metrics.find((metric) => metric.id === condition.metric)?.kind === 'event');
+      const hasEvent = normalized.some((condition) => allMetrics.find((metric) => metric.id === condition.metric)?.kind === 'event');
       if (hasEvent && durationSeconds > 0) throw new Error('事件类指标只能选择“满足后立即告警”（0 秒）');
       setSubmitting(true); setError(null);
       await onSave({ monitorId: monitor.id, name: name.trim(), combinator, conditions: normalized, durationSeconds, cooldownSeconds, severity, notificationIntegrationIds: notificationIds, enabled: rule?.enabled ?? true });
@@ -190,7 +195,8 @@ function RuleDialog({ open, onOpenChange, monitor, catalog, rule, onSave }: Rule
 
             <div className="space-y-3">
               {conditions.map((condition, index) => {
-                const definition = metrics.find((metric) => metric.id === condition.metric) ?? metrics[0];
+                const definition = allMetrics.find((metric) => metric.id === condition.metric) ?? metrics[0];
+                const selectableMetrics = allMetrics.filter((metric) => !HIDDEN_LP_METRICS.has(metric.id) || metric.id === condition.metric);
                 const metricId = `rule-metric-${index}`;
                 const operatorId = `rule-operator-${index}`;
                 const thresholdId = `rule-threshold-${index}`;
@@ -203,7 +209,7 @@ function RuleDialog({ open, onOpenChange, monitor, catalog, rule, onSave }: Rule
                     {conditions.length > 1 ? <Button type="button" variant="ghost" size="icon-sm" aria-label={`删除条件 ${index + 1}`} onClick={() => setConditions((current) => current.filter((_, itemIndex) => itemIndex !== index))}><Trash2 /></Button> : null}
                   </div>
                   <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                    <div className="space-y-2 sm:col-span-2"><Label htmlFor={metricId}>监控指标</Label><select id={metricId} value={condition.metric} onChange={(event) => { const next = metrics.find((metric) => metric.id === event.target.value); updateCondition(index, emptyCondition(next)); }} className="h-8 w-full rounded-lg border bg-background px-2 text-sm">{metrics.map((metric) => <option key={metric.id} value={metric.id}>{metric.name}{metric.kind === 'event' ? '（事件）' : unitLabel(metric, monitor) ? `（${unitLabel(metric, monitor)}）` : ''}</option>)}</select><p className="text-xs text-muted-foreground">{metricHelp(definition)}</p></div>
+                    <div className="space-y-2 sm:col-span-2"><Label htmlFor={metricId}>监控指标</Label><select id={metricId} value={condition.metric} onChange={(event) => { const next = selectableMetrics.find((metric) => metric.id === event.target.value); updateCondition(index, emptyCondition(next)); }} className="h-8 w-full rounded-lg border bg-background px-2 text-sm">{selectableMetrics.map((metric) => <option key={metric.id} value={metric.id}>{metric.name}{HIDDEN_LP_METRICS.has(metric.id) ? '（已有规则）' : metric.kind === 'event' ? '（事件）' : unitLabel(metric, monitor) ? `（${unitLabel(metric, monitor)}）` : ''}</option>)}</select><p className="text-xs text-muted-foreground">{metricHelp(definition)}</p></div>
                     {condition.metric === 'price_change_percent' ? <div className="space-y-2"><Label>触发方式</Label><div className="flex h-8 items-center rounded-lg border bg-muted/40 px-2.5 text-sm">双向波动达到</div></div> : <div className="space-y-2"><Label htmlFor={operatorId}>触发条件</Label><select id={operatorId} value={condition.operator} onChange={(event) => updateCondition(index, { operator: event.target.value as RuleOperator })} className="h-8 w-full rounded-lg border bg-background px-2 text-sm">{definition?.operators.map((operator) => <option key={operator} value={operator}>{OPERATOR_LABEL[operator]}</option>)}</select></div>}
                     <div className="space-y-2"><Label htmlFor={thresholdId}>{definition?.valueType === 'boolean' ? '目标状态' : condition.metric === 'price_change_percent' ? '波动阈值' : '目标值'}</Label>{definition?.valueType === 'boolean' ? <select id={thresholdId} value={condition.threshold} onChange={(event) => updateCondition(index, { threshold: event.target.value })} className="h-8 w-full rounded-lg border bg-background px-2 text-sm"><option value="true">是</option><option value="false">否</option></select> : <div className="relative"><Input id={thresholdId} type={condition.metric === 'price_change_percent' ? 'number' : undefined} min={condition.metric === 'price_change_percent' ? 0 : undefined} step={condition.metric === 'price_change_percent' ? 'any' : undefined} inputMode="decimal" value={condition.threshold} onChange={(event) => updateCondition(index, { threshold: event.target.value })} placeholder="输入数值" className={unitLabel(definition, monitor) ? 'pr-20' : undefined} />{unitLabel(definition, monitor) ? <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-xs text-muted-foreground">{unitLabel(definition, monitor)}</span> : null}</div>}</div>
                   </div>
