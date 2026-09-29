@@ -7,6 +7,9 @@ export type MonitorType =
   | 'uniswap_position'
   | 'uniswap_wallet'
   | 'uniswap_pool'
+  | 'pancake_position'
+  | 'pancake_wallet'
+  | 'pancake_pool'
   | 'aave_position'
   | 'lp_position';
 export type UniswapVersion = 'v3' | 'v4';
@@ -117,7 +120,7 @@ export interface IntegrationCatalog {
     routingModes: Array<{ id: RpcRoutingMode; name: string }>;
     networks: Array<{
       chainId: number; name: string; productEnabled: boolean;
-      capabilities: { aaveV3: string; uniswapV3: string; uniswapV4: string };
+      capabilities: { aaveV3: string; uniswapV3: string; uniswapV4: string; pancakeV3: string };
       defaultRpcUrl?: string; explorerUrl?: string;
     }>;
     configDefaults: { timeoutMilliseconds: number; multicallBatchSizeBytes: number };
@@ -130,6 +133,13 @@ export interface IntegrationCatalog {
     deployments: Array<{
       chainId: number; chainName: string; version: UniswapVersion; deploymentBlock: string; explorerUrl?: string;
     }>;
+  };
+  pancakeswap?: {
+    deployments: Array<{
+      chainId: number; chainName: string; version: 'v3'; deploymentBlock: string; explorerUrl?: string;
+      factoryAddress: string; positionManagerAddress: string;
+    }>;
+    limitations: { stakedMasterChefPositions: boolean };
   };
 }
 
@@ -147,6 +157,12 @@ export interface IntegrationReadiness {
       chainId: number; name: string; versions: Record<UniswapVersion, boolean>; integrationIds: string[];
     }>;
   };
+  pancakeswap: {
+    ready: boolean; configuredNetworkCount: number;
+    networks: Array<{
+      chainId: number; name: string; versions: { v3: boolean; v4?: boolean }; integrationIds: string[];
+    }>;
+  };
   binance: {
     ready: boolean;
     sources: Array<{ integrationId: string; name: string; enabled: boolean; marketCount: number }>;
@@ -158,7 +174,7 @@ export interface IntegrationNetworkTest {
   chainName: string;
   ok: boolean;
   blockNumber: string | null;
-  connectivity: Partial<Record<'rpc' | 'aaveV3' | 'uniswapV3' | 'uniswapV4', 'ok' | 'error' | 'unknown'>>;
+  connectivity: Partial<Record<'rpc' | 'aaveV3' | 'uniswapV3' | 'uniswapV4' | 'pancakeV3', 'ok' | 'error' | 'unknown'>>;
   aaveCapabilities?: Partial<Record<'accountRead' | 'reserveCatalog' | 'eventLogs', 'ok' | 'error' | 'unknown'>>;
   capabilityErrors?: Record<string, { code: string; message: string } | null>;
   error: { code: string; message: string } | null;

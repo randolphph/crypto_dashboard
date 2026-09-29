@@ -91,7 +91,7 @@ function label(key: string): string {
     scannedChainCount: '扫描网络', successfulChainCount: '成功网络', failedChainCount: '失败网络', positionChainCount: '仓位网络',
     totalCollateralBase: '总抵押', totalDebtBase: '总债务', availableBorrowsBase: '可借额度', healthFactor: '健康因子',
     currentTick: '当前 Tick', activeLiquidity: '活跃流动性', tvlUsd: 'TVL (USD)', price: '价格', dataAgeSeconds: '数据年龄',
-    chainId: '网络 ID', version: 'Uniswap 版本', poolAddress: 'V3 Pool 地址', poolId: 'V4 Pool ID',
+    chainId: '网络 ID', version: '协议版本', poolAddress: 'V3 Pool 地址', poolId: 'V4 Pool ID',
     token0Price: 'Token0 价格', token1Price: 'Token1 价格', tvlToken0: 'Token0 锁仓量', tvlToken1: 'Token1 锁仓量',
     lpFee: 'LP 费率', protocolFee: '协议费率', feeStatus: '费率状态', valuationStatus: '估值状态',
     valuationSource: '估值来源', valuationObservedAt: '估值时间', tickSpacing: 'Tick 间隔', hooksAddress: 'Hooks 地址',
@@ -312,6 +312,9 @@ function UniPositions({ positions }: { positions: Array<Record<string, unknown>>
 function snapshotErrorText(code: string, message: string): string {
   if (code === 'UNISWAP_POSITION_READ_FAILED') {
     return '本轮未能完整读取 Uniswap 仓位，已读取数据仍会展示，后端将在下一个采样周期自动重试。';
+  }
+  if (code === 'PANCAKE_POSITION_READ_FAILED') {
+    return '本轮未能完整读取 PancakeSwap 仓位，已读取数据仍会展示，后端将在下一个采样周期自动重试。';
   }
   if (code === 'VALUATION_UNAVAILABLE') {
     return 'V4 仅凭 Pool ID 无法还原代币信息，因此 TVL、成交额和美元估值暂不可用；Tick、流动性、费率和池事件不受影响。';

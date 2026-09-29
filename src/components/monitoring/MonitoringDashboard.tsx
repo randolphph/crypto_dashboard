@@ -50,6 +50,7 @@ const STATUS: Record<MonitorStatus, { label: string; className: string; surfaceC
 const TYPE_LABEL: Record<MonitorType, string> = {
   market: 'Binance 行情', aave_account: 'Aave 地址', aave_pool: 'Aave 池子',
   uniswap_position: 'Uniswap LP', uniswap_wallet: 'Uniswap 地址', uniswap_pool: 'Uniswap 池子',
+  pancake_position: 'PancakeSwap LP', pancake_wallet: 'PancakeSwap 地址', pancake_pool: 'PancakeSwap 池子',
   aave_position: 'Aave（旧版）', lp_position: 'Uniswap（旧版）',
 };
 

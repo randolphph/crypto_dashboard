@@ -56,6 +56,7 @@ export function EvmRpcManager({ catalog, readiness }: Props) {
             <p className="font-semibold">EVM RPC</p>
             <Badge variant={readiness.aave.ready ? 'default' : 'secondary'}>Aave {readiness.aave.ready ? '就绪' : '未就绪'}</Badge>
             <Badge variant={readiness.uniswap?.ready ? 'default' : 'secondary'}>Uniswap {readiness.uniswap?.ready ? '就绪' : '未就绪'}</Badge>
+            <Badge variant={readiness.pancakeswap?.ready ? 'default' : 'secondary'}>PancakeSwap {readiness.pancakeswap?.ready ? '就绪' : '未就绪'}</Badge>
           </div>
           <p className="mt-1 text-xs text-muted-foreground">一个 RPC Integration 可通过 URL、Header 或 Query 路由多条链。</p>
         </div>
@@ -98,7 +99,7 @@ export function EvmRpcManager({ catalog, readiness }: Props) {
               {lastTest ? (
                 <div className="mt-3 space-y-1 border-t pt-2 text-[11px] text-muted-foreground">
                   {lastTest.networks?.map((network) => (
-                    <p key={network.chainId}>{network.chainName}：RPC {network.connectivity.rpc ?? 'unknown'} · Aave {network.connectivity.aaveV3 ?? '不适用'} · Uni V3 {network.connectivity.uniswapV3 ?? '不适用'} · Uni V4 {network.connectivity.uniswapV4 ?? '不适用'} · 区块 {network.blockNumber ?? '—'}</p>
+                    <p key={network.chainId}>{network.chainName}：RPC {network.connectivity.rpc ?? 'unknown'} · Aave {network.connectivity.aaveV3 ?? '不适用'} · Uni V3 {network.connectivity.uniswapV3 ?? '不适用'} · Uni V4 {network.connectivity.uniswapV4 ?? '不适用'} · Pancake V3 {network.connectivity.pancakeV3 ?? '不适用'} · 区块 {network.blockNumber ?? '—'}</p>
                   )) ?? <p>连接测试{lastTest.ok ? '通过' : '未完全通过'}</p>}
                 </div>
               ) : null}

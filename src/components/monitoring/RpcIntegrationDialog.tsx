@@ -36,11 +36,12 @@ function parseHeaders(value: string): Record<string, string> | null {
 
 export function RpcIntegrationDialog({ open, onOpenChange, catalog, integration, onCreate, onUpdate }: Props) {
   const existing = integration?.config;
+  const defaultNetwork = catalog.networks.find((network) => network.productEnabled);
   const [provider, setProvider] = useState<EvmRpcProvider>((integration?.provider as EvmRpcProvider) ?? 'custom');
-  const [name, setName] = useState(integration?.name ?? 'EVM 多链 RPC');
+  const [name, setName] = useState(integration?.name ?? `${defaultNetwork?.name ?? 'EVM'} RPC`);
   const [rpcUrl, setRpcUrl] = useState(existing?.rpcUrl ?? '');
-  const [chainIds, setChainIds] = useState<number[]>(existing?.chainIds ?? [catalog.networks.find((n) => n.productEnabled)?.chainId ?? 1]);
-  const [routingMode, setRoutingMode] = useState<RpcRoutingMode>(existing?.routing.mode ?? 'url_template');
+  const [chainIds, setChainIds] = useState<number[]>(existing?.chainIds ?? [defaultNetwork?.chainId ?? 1]);
+  const [routingMode, setRoutingMode] = useState<RpcRoutingMode>(existing?.routing.mode ?? 'fixed');
   const [placeholder, setPlaceholder] = useState(existing?.routing.mode === 'url_template' ? existing.routing.chainIdPlaceholder ?? '{chainId}' : '{chainId}');
   const [headerName, setHeaderName] = useState(existing?.routing.mode === 'header' ? existing.routing.headerName : 'X-Chain-Id');
   const [valueTemplate, setValueTemplate] = useState(existing?.routing.mode === 'header' ? existing.routing.valueTemplate ?? '{chainId}' : '{chainId}');
@@ -53,9 +54,26 @@ export function RpcIntegrationDialog({ open, onOpenChange, catalog, integration,
   const [submitting, setSubmitting] = useState(false);
 
   const productNetworks = useMemo(() => catalog.networks.filter((network) => network.productEnabled), [catalog.networks]);
+  const selectedNetwork = chainIds.length === 1
+    ? productNetworks.find((network) => network.chainId === chainIds[0])
+    : undefined;
 
   const toggleChain = (chainId: number) => {
-    setChainIds((current) => current.includes(chainId) ? current.filter((id) => id !== chainId) : [...current, chainId]);
+    if (routingMode === 'fixed') {
+      setChainIds([chainId]);
+      if (!integration && (name === 'EVM RPC' || name === 'EVM 多链 RPC' || name === `${selectedNetwork?.name ?? 'EVM'} RPC`)) {
+        const network = productNetworks.find((item) => item.chainId === chainId);
+        setName(`${network?.name ?? 'EVM'} RPC`);
+      }
+    } else {
+      setChainIds((current) => current.includes(chainId) ? current.filter((id) => id !== chainId) : [...current, chainId]);
+    }
+    setError(null);
+  };
+
+  const changeRoutingMode = (nextMode: RpcRoutingMode) => {
+    setRoutingMode(nextMode);
+    if (nextMode === 'fixed' && chainIds.length > 1) setChainIds([chainIds[0]]);
     setError(null);
   };
 
@@ -106,7 +124,7 @@ export function RpcIntegrationDialog({ open, onOpenChange, catalog, integration,
           <DialogHeader>
             <DialogTitle>{integration ? '编辑 EVM RPC' : '添加 EVM RPC'}</DialogTitle>
             <DialogDescription>
-              一个 Integration 可覆盖多条链；URL 与认证 Header 只提交给后端加密保存，不写入浏览器存储。
+              单链 RPC 可直接添加 Ethereum、BNB Chain 或 Robinhood Chain；多链网关可使用 URL、Header 或 Query 选链。
             </DialogDescription>
           </DialogHeader>
 
@@ -129,8 +147,8 @@ export function RpcIntegrationDialog({ open, onOpenChange, catalog, integration,
               <div className="grid gap-2 sm:grid-cols-2">
                 {productNetworks.map((network) => (
                   <label key={network.chainId} className="flex cursor-pointer items-start gap-3 rounded-lg border p-3">
-                    <input type="checkbox" className="mt-0.5 size-4 accent-foreground" checked={chainIds.includes(network.chainId)} onChange={() => toggleChain(network.chainId)} />
-                    <span><span className="block text-sm font-medium">{network.name}</span><span className="font-mono text-xs text-muted-foreground">Chain ID {network.chainId}</span></span>
+                    <input type={routingMode === 'fixed' ? 'radio' : 'checkbox'} name={routingMode === 'fixed' ? 'rpc-network' : undefined} className="mt-0.5 size-4 accent-foreground" checked={chainIds.includes(network.chainId)} onChange={() => toggleChain(network.chainId)} />
+                    <span><span className="block text-sm font-medium">{network.name}</span><span className="font-mono text-xs text-muted-foreground">Chain ID {network.chainId}</span>{network.capabilities.pancakeV3 === 'available' ? <span className="mt-1 block text-xs font-medium text-[#168F98] dark:text-[#1FC7D4]">PancakeSwap V3</span> : null}</span>
                   </label>
                 ))}
               </div>
@@ -139,7 +157,7 @@ export function RpcIntegrationDialog({ open, onOpenChange, catalog, integration,
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
                 <Label htmlFor="rpc-routing">选链方式</Label>
-                <select id="rpc-routing" value={routingMode} onChange={(event) => setRoutingMode(event.target.value as RpcRoutingMode)} className="h-8 w-full rounded-lg border border-input bg-background px-2.5 text-sm">
+                <select id="rpc-routing" value={routingMode} onChange={(event) => changeRoutingMode(event.target.value as RpcRoutingMode)} className="h-8 w-full rounded-lg border border-input bg-background px-2.5 text-sm">
                   {catalog.routingModes.map((mode) => <option key={mode.id} value={mode.id}>{mode.name}</option>)}
                 </select>
               </div>
@@ -149,13 +167,13 @@ export function RpcIntegrationDialog({ open, onOpenChange, catalog, integration,
                 <div className="grid grid-cols-2 gap-2"><div className="space-y-2"><Label htmlFor="rpc-header-name">Header</Label><Input id="rpc-header-name" value={headerName} onChange={(event) => setHeaderName(event.target.value)} /></div><div className="space-y-2"><Label htmlFor="rpc-header-template">值模板</Label><Input id="rpc-header-template" value={valueTemplate} onChange={(event) => setValueTemplate(event.target.value)} /></div></div>
               ) : routingMode === 'query' ? (
                 <div className="space-y-2"><Label htmlFor="rpc-query-name">Query 参数名</Label><Input id="rpc-query-name" value={parameterName} onChange={(event) => setParameterName(event.target.value)} /></div>
-              ) : <p className="self-end pb-2 text-xs text-muted-foreground">普通 RPC URL，仅允许一条链。</p>}
+              ) : <p className="self-end pb-2 text-xs text-muted-foreground">普通 RPC URL，仅连接当前选择的 {selectedNetwork?.name ?? '网络'}。</p>}
             </div>
 
             <div className="space-y-2">
               <Label htmlFor="rpc-url">RPC URL{routingMode === 'url_template' ? ' 模板' : ''}</Label>
               <div className="relative">
-                <Input id="rpc-url" type={showUrl ? 'text' : 'password'} value={rpcUrl} onChange={(event) => setRpcUrl(event.target.value)} placeholder={routingMode === 'url_template' ? 'https://gateway.example/{chainId}/rpc' : 'https://…'} className="pr-9 font-mono text-xs" autoComplete="new-password" spellCheck={false} />
+                <Input id="rpc-url" type={showUrl ? 'text' : 'password'} value={rpcUrl} onChange={(event) => setRpcUrl(event.target.value)} placeholder={routingMode === 'url_template' ? 'https://gateway.example/{chainId}/rpc' : selectedNetwork?.chainId === 56 ? 'https://your-bsc-rpc.example' : 'https://…'} className="pr-9 font-mono text-xs" autoComplete="new-password" spellCheck={false} />
                 <button type="button" onClick={() => setShowUrl((value) => !value)} className="absolute inset-y-0 right-0 flex w-9 items-center justify-center text-muted-foreground" aria-label={showUrl ? '隐藏 RPC URL' : '显示 RPC URL'}>{showUrl ? <EyeOff className="size-4" /> : <Eye className="size-4" />}</button>
               </div>
             </div>

@@ -52,10 +52,16 @@ export function DataSourceSetup({
     configuredNetworkCount: 0,
     networks: [],
   };
+  const pancakeReadiness = readiness?.pancakeswap ?? {
+    ready: false,
+    configuredNetworkCount: 0,
+    networks: [],
+  };
   const readyCount =
     Number(readiness?.aave.ready === true) +
     Number(readiness?.binance.ready === true) +
-    Number(uniswapReadiness.ready);
+    Number(uniswapReadiness.ready) +
+    Number(pancakeReadiness.ready);
 
   return (
     <div className="space-y-4">
@@ -72,7 +78,7 @@ export function DataSourceSetup({
           </div>
           <div className="flex items-center gap-2">
             {readiness ? (
-              <Badge variant="outline">{readyCount}/3 已就绪</Badge>
+              <Badge variant="outline">{readyCount}/4 已就绪</Badge>
             ) : null}
             <Button variant="ghost" size="sm" onClick={onRefresh} disabled={isFetching}>
               <RefreshCw className={isFetching ? 'animate-spin' : undefined} />

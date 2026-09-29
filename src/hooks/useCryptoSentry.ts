@@ -54,6 +54,8 @@ export const cryptoSentryKeys = {
     ['crypto-sentry', 'pools', id, chainId, version, q] as const,
   walletPositions: (id: string, chainId: number, version: UniswapVersion, wallet: string, q: string) =>
     ['crypto-sentry', 'wallet-positions', id, chainId, version, wallet, q] as const,
+  pancakeWalletPositions: (id: string, wallet: string) =>
+    ['crypto-sentry', 'pancake-wallet-positions', id, wallet] as const,
 };
 
 function normalizeCatalog(value: IntegrationCatalog): IntegrationCatalog {
@@ -69,6 +71,7 @@ function normalizeCatalog(value: IntegrationCatalog): IntegrationCatalog {
     monitorTypes: value.monitorTypes ?? [],
     aave: value.aave ?? { deployments: [] },
     uniswap: value.uniswap ?? { deployments: [] },
+    pancakeswap: value.pancakeswap ?? { deployments: [], limitations: { stakedMasterChefPositions: false } },
     evmRpc: {
       ...value.evmRpc,
       routingModes: value.evmRpc.routingModes ?? [
@@ -79,11 +82,12 @@ function normalizeCatalog(value: IntegrationCatalog): IntegrationCatalog {
       ],
       networks: legacyNetworks.map((network) => ({
         ...network,
-        productEnabled: network.productEnabled ?? [1, 4_663].includes(network.chainId),
-        capabilities: network.capabilities ?? {
-          aaveV3: network.protocols?.includes('aave_v3') ? 'available' : 'unsupported',
-          uniswapV3: network.protocols?.includes('uniswap_v3') ? 'available' : 'unsupported',
-          uniswapV4: network.protocols?.includes('uniswap_v4') ? 'available' : 'unsupported',
+        productEnabled: network.productEnabled ?? [1, 56, 4_663].includes(network.chainId),
+        capabilities: {
+          aaveV3: network.capabilities?.aaveV3 ?? (network.protocols?.includes('aave_v3') ? 'available' : 'unsupported'),
+          uniswapV3: network.capabilities?.uniswapV3 ?? (network.protocols?.includes('uniswap_v3') ? 'available' : 'unsupported'),
+          uniswapV4: network.capabilities?.uniswapV4 ?? (network.protocols?.includes('uniswap_v4') ? 'available' : 'unsupported'),
+          pancakeV3: network.capabilities?.pancakeV3 ?? (network.protocols?.includes('pancake_v3') ? 'available' : 'unsupported'),
         },
       })),
     },
@@ -132,7 +136,14 @@ export function useIntegrationCatalog() {
 export function useIntegrationReadiness() {
   return useQuery({
     queryKey: cryptoSentryKeys.readiness,
-    queryFn: () => cryptoSentryRequest<IntegrationReadiness>('integrations/readiness'),
+    queryFn: async () => {
+      const value = await cryptoSentryRequest<IntegrationReadiness>('integrations/readiness');
+      return {
+        ...value,
+        uniswap: value.uniswap ?? { ready: false, configuredNetworkCount: 0, networks: [] },
+        pancakeswap: value.pancakeswap ?? { ready: false, configuredNetworkCount: 0, networks: [] },
+      };
+    },
     staleTime: 5_000,
     refetchInterval: 15_000,
   });
@@ -566,6 +577,22 @@ export function useUniswapWalletPositions(
     queryKey: cryptoSentryKeys.walletPositions(integrationId ?? '', chainId, version, walletAddress, q),
     queryFn: () => cryptoSentryRequest<UniswapWalletPositionsResponse>(
       `integrations/${encodeURIComponent(integrationId ?? '')}/uniswap/wallet-positions?${query}`,
+    ),
+    enabled: integrationId !== null && enabled,
+    staleTime: 10_000,
+  });
+}
+
+export function usePancakeWalletPositions(
+  integrationId: string | null,
+  walletAddress: string,
+  enabled: boolean,
+) {
+  const query = new URLSearchParams({ chainId: '56', version: 'v3', walletAddress, limit: '50' });
+  return useQuery({
+    queryKey: cryptoSentryKeys.pancakeWalletPositions(integrationId ?? '', walletAddress),
+    queryFn: () => cryptoSentryRequest<UniswapWalletPositionsResponse>(
+      `integrations/${encodeURIComponent(integrationId ?? '')}/pancakeswap/wallet-positions?${query}`,
     ),
     enabled: integrationId !== null && enabled,
     staleTime: 10_000,
