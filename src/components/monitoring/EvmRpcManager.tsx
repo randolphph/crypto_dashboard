@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { CheckCircle2, CircleOff, LoaderCircle, Pencil, Plus, RadioTower, RefreshCw, Trash2, XCircle } from 'lucide-react';
+import { ChainIcon } from '@/components/monitoring/ChainIcon';
 import { RpcIntegrationDialog } from '@/components/monitoring/RpcIntegrationDialog';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -14,6 +15,7 @@ import type {
   EvmRpcIntegration, IntegrationCatalog, IntegrationReadiness, IntegrationTestResult,
   RpcIntegrationInput, RpcIntegrationUpdateInput, RpcSetupResult,
 } from '@/types/cryptoSentry';
+import { cn } from '@/lib/utils';
 
 interface Props { catalog: IntegrationCatalog['evmRpc']; readiness: IntegrationReadiness }
 
@@ -85,7 +87,7 @@ export function EvmRpcManager({ catalog, readiness }: Props) {
                     {integration.config.chainIds.map((chainId) => {
                       const network = catalog.networks.find((item) => item.chainId === chainId);
                       const result = lastTest?.networks?.find((item) => item.chainId === chainId);
-                      return <Badge key={chainId} variant="outline" className={result?.ok ? 'border-emerald-500/40' : result && !result.ok ? 'border-destructive/40' : undefined}>{result?.ok ? <CheckCircle2 /> : result ? <XCircle /> : null}{network?.name ?? chainId}</Badge>;
+                      return <Badge key={chainId} variant="outline" className={cn('gap-1 pl-1', result?.ok ? 'border-emerald-500/40' : result && !result.ok ? 'border-destructive/40' : undefined)}><ChainIcon chainId={chainId} className="size-5" />{network?.name ?? chainId}{result?.ok ? <CheckCircle2 /> : result ? <XCircle /> : null}</Badge>;
                     })}
                   </div>
                 </div>

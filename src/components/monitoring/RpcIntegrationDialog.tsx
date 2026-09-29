@@ -2,6 +2,7 @@
 
 import { useMemo, useState, type FormEvent } from 'react';
 import { Eye, EyeOff, LoaderCircle } from 'lucide-react';
+import { ChainIcon } from '@/components/monitoring/ChainIcon';
 import { Button } from '@/components/ui/button';
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
@@ -148,7 +149,8 @@ export function RpcIntegrationDialog({ open, onOpenChange, catalog, integration,
                 {productNetworks.map((network) => (
                   <label key={network.chainId} className="flex cursor-pointer items-start gap-3 rounded-lg border p-3">
                     <input type={routingMode === 'fixed' ? 'radio' : 'checkbox'} name={routingMode === 'fixed' ? 'rpc-network' : undefined} className="mt-0.5 size-4 accent-foreground" checked={chainIds.includes(network.chainId)} onChange={() => toggleChain(network.chainId)} />
-                    <span><span className="block text-sm font-medium">{network.name}</span><span className="font-mono text-xs text-muted-foreground">Chain ID {network.chainId}</span>{network.capabilities.pancakeV3 === 'available' ? <span className="mt-1 block text-xs font-medium text-[#168F98] dark:text-[#1FC7D4]">PancakeSwap V3</span> : null}</span>
+                    <ChainIcon chainId={network.chainId} className="mt-0.5" />
+                    <span className="min-w-0"><span className="block text-sm font-medium">{network.name}</span><span className="font-mono text-xs text-muted-foreground">Chain ID {network.chainId}</span></span>
                   </label>
                 ))}
               </div>
