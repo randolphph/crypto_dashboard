@@ -125,7 +125,7 @@ export function RpcIntegrationDialog({ open, onOpenChange, catalog, integration,
           <DialogHeader>
             <DialogTitle>{integration ? '编辑 EVM RPC' : '添加 EVM RPC'}</DialogTitle>
             <DialogDescription>
-              单链 RPC 可直接添加 Ethereum、BNB Chain 或 Robinhood Chain；多链网关可使用 URL、Header 或 Query 选链。
+              单链 RPC 可直接添加 Ethereum、Plasma、BNB Chain 或 Robinhood Chain；多链网关可使用 URL、Header 或 Query 选链。
             </DialogDescription>
           </DialogHeader>
 

@@ -1,7 +1,11 @@
 'use client';
 
 import { useState } from 'react';
-import { AlertTriangle, ArrowLeftRight, CheckCircle2, Circle, Clock3, Coins, Database, RefreshCw, ServerCrash } from 'lucide-react';
+import {
+  AlertTriangle, ArrowLeftRight, Banknote, CheckCircle2, Circle, Clock3, Coins,
+  Database, HandCoins, RefreshCw, ServerCrash, ShieldCheck, type LucideIcon,
+} from 'lucide-react';
+import { ChainIcon } from '@/components/monitoring/ChainIcon';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -31,6 +35,10 @@ const HIDDEN_LP_VALUE_METRICS = new Set([
   'position_value_usd', 'fees_value_usd', 'aggregate_value_usd', 'aggregate_fees_usd',
   'fees_owed_token0', 'fees_owed_token1',
 ]);
+const AAVE_RATE_METRIC_KEYS = new Set([
+  'supply_apr_percent', 'supply_apy_percent',
+  'variable_borrow_apr_percent', 'variable_borrow_apy_percent',
+]);
 const METRIC_LABELS: Record<string, string> = {
   price: '最新价格', price_change_percent: '价格波动幅度', base_volume_24h: '基础资产成交量（24 小时）',
   quote_volume_24h: '成交额（24 小时）', funding_rate_percent: '资金费率', next_funding_time: '下次资金费时间',
@@ -43,6 +51,8 @@ const METRIC_LABELS: Record<string, string> = {
   account_supply: '存入事件', account_withdraw: '提取事件', account_borrow: '借款事件', account_repay: '还款事件',
   account_liquidation: '清算事件', account_position_opened: '仓位开启', account_position_closed: '仓位关闭',
   aave_event_amount_token: 'Aave 事件代币数量', aave_event_amount_usd: 'Aave 事件金额',
+  supply_apr_percent: '存款 APR', supply_apy_percent: '存款 APY',
+  variable_borrow_apr_percent: '浮动借款 APR', variable_borrow_apy_percent: '浮动借款 APY',
   in_range: '是否在价格区间', current_tick: '当前 Tick', tick_lower: '区间下界 Tick', tick_upper: '区间上界 Tick',
   distance_to_lower_tick: '距下界 Tick', distance_to_upper_tick: '距上界 Tick',
   distance_to_nearest_boundary_percent: '距最近边界', liquidity: '流动性', token0_amount: 'Token0 数量',
@@ -78,6 +88,7 @@ function display(value: unknown): string {
 }
 
 function displayKeyValue(key: string, value: unknown): string {
+  if (AAVE_RATE_METRIC_KEYS.has(key)) return formatRateNumber(value);
   if (['lpFee', 'protocolFee', 'lp_fee', 'protocol_fee'].includes(key)) {
     const fee = numberValue(value);
     if (fee !== null) return `${Number((fee / 10_000).toFixed(4))}%`;
@@ -147,12 +158,96 @@ function SummaryValues({ value }: { value: Record<string, unknown> }) {
   return <div className="flex flex-wrap gap-2">{entries.map(([key, item]) => <div key={key} className="flex items-baseline gap-2 rounded-full bg-muted/65 px-3 py-1.5"><span className="text-[11px] text-muted-foreground">{label(key)}</span><span className="font-mono text-xs font-semibold tabular-nums">{displayKeyValue(key, item)}</span></div>)}</div>;
 }
 
+const AAVE_METRIC_TONES = {
+  emerald: { surface: 'bg-emerald-500/[0.08] ring-emerald-500/15', icon: 'bg-emerald-500/12 text-emerald-600', value: 'text-emerald-700 dark:text-emerald-300' },
+  blue: { surface: 'bg-blue-500/[0.07] ring-blue-500/15', icon: 'bg-blue-500/12 text-blue-600', value: 'text-blue-700 dark:text-blue-300' },
+  violet: { surface: 'bg-violet-500/[0.07] ring-violet-500/15', icon: 'bg-violet-500/12 text-violet-600', value: 'text-violet-700 dark:text-violet-300' },
+  rose: { surface: 'bg-rose-500/[0.07] ring-rose-500/15', icon: 'bg-rose-500/12 text-rose-600', value: 'text-rose-700 dark:text-rose-300' },
+  amber: { surface: 'bg-amber-500/[0.08] ring-amber-500/15', icon: 'bg-amber-500/12 text-amber-600', value: 'text-amber-700 dark:text-amber-300' },
+} as const;
+
+function compactAaveValue(value: unknown, maximumFractionDigits = 4): string {
+  if (typeof value === 'number' || (typeof value === 'string' && /^-?\d+(\.\d+)?$/.test(value))) {
+    return formatDecimalString(String(value), maximumFractionDigits);
+  }
+  return display(value);
+}
+
+function AaveMetricCard({ label: metricLabel, value, helper, icon: Icon, tone }: {
+  label: string;
+  value: unknown;
+  helper?: string;
+  icon: LucideIcon;
+  tone: keyof typeof AAVE_METRIC_TONES;
+}) {
+  const styles = AAVE_METRIC_TONES[tone];
+  const compactValue = compactAaveValue(value);
+  const fullValue = display(value);
+  return <div className={cn('min-w-0 rounded-xl p-3.5 ring-1', styles.surface)}>
+    <div className="flex items-center gap-2"><span className={cn('flex size-7 items-center justify-center rounded-lg', styles.icon)}><Icon className="size-4" aria-hidden="true" /></span><p className="text-xs font-medium text-muted-foreground">{metricLabel}</p></div>
+    <p data-aave-metric-value className={cn('mt-3 truncate font-mono text-lg font-semibold tracking-tight tabular-nums', styles.value)} title={fullValue}>{compactValue}</p>
+    {helper ? <p className="mt-1 text-[11px] text-muted-foreground">{helper}</p> : null}
+  </div>;
+}
+
+function formatRateNumber(value: unknown): string {
+  const rate = numberValue(value);
+  if (rate === null) return '暂不可用';
+  return new Intl.NumberFormat('zh-CN', { maximumFractionDigits: 3 }).format(rate);
+}
+
+function formatRatePercent(value: unknown): string {
+  const rate = formatRateNumber(value);
+  return rate === '暂不可用' ? rate : `${rate}%`;
+}
+
+function AaveRatePair({ title, apr, apy }: { title?: string; apr: unknown; apy: unknown }) {
+  return <div className="min-w-0">
+    {title ? <p className="mb-2 text-xs font-medium text-muted-foreground">{title}</p> : null}
+    <div className="space-y-1.5">
+      <div className="flex items-center justify-between gap-3"><span className="text-[10px] font-medium text-muted-foreground">APR</span><span data-aave-rate className="font-mono text-xs font-semibold tabular-nums">{formatRatePercent(apr)}</span></div>
+      <div className="flex items-center justify-between gap-3"><span className="text-[10px] font-medium text-muted-foreground">APY</span><span data-aave-rate className="font-mono text-xs font-semibold tabular-nums">{formatRatePercent(apy)}</span></div>
+    </div>
+  </div>;
+}
+
+function compactAddress(value: unknown): string | null {
+  if (typeof value !== 'string' || !/^0x[0-9a-f]+$/i.test(value)) return null;
+  return `${value.slice(0, 6)}…${value.slice(-4)}`;
+}
+
 function AavePositions({ positions }: { positions: Array<Record<string, unknown>> }) {
   return <div className="space-y-3">{positions.map((position, index) => {
     const account = record(position.account) ?? {};
     const assets = list(position.assets);
     const infinite = account.healthFactorInfinite === true;
-    return <Card key={`${String(position.chainId)}-${index}`} className="gap-0 py-0"><CardHeader className="border-b py-4"><div className="flex items-center justify-between"><CardTitle>{String(position.chainName ?? 'Aave Position')}</CardTitle><Badge variant="outline">区块 {String(position.blockNumber ?? '—')}</Badge></div></CardHeader><CardContent className="space-y-4 py-4"><div className="grid grid-cols-2 gap-2 lg:grid-cols-4"><div className="rounded-lg bg-muted/55 px-3 py-2.5"><p className="text-xs text-muted-foreground">健康因子</p><p className={cn('mt-1 font-mono text-lg font-bold', infinite ? 'text-emerald-600' : 'text-foreground')}>{infinite ? '∞' : display(account.healthFactor)}</p>{infinite ? <p className="text-xs text-emerald-600">无借款</p> : null}</div><KeyValues value={{ totalCollateralBase: account.totalCollateralBase, totalDebtBase: account.totalDebtBase, availableBorrowsBase: account.availableBorrowsBase }} limit={3} /></div>{assets.length ? <div className="overflow-x-auto"><table className="w-full min-w-[650px] text-sm"><thead><tr className="border-b text-left text-xs text-muted-foreground"><th className="pb-2">资产</th><th className="pb-2 text-right">存入</th><th className="pb-2 text-right">债务</th><th className="pb-2 text-right">存入价值</th><th className="pb-2 text-right">债务价值</th><th className="pb-2 text-right">抵押</th></tr></thead><tbody>{assets.map((asset, assetIndex) => <tr key={String(asset.assetAddress ?? assetIndex)} className="border-b last:border-0"><td className="py-2 font-medium">{String(asset.symbol ?? '—')}</td><td className="py-2 text-right font-mono">{display(asset.suppliedAmount)}</td><td className="py-2 text-right font-mono">{display(asset.totalDebtAmount)}</td><td className="py-2 text-right font-mono">{display(asset.suppliedBase)}</td><td className="py-2 text-right font-mono">{display(asset.debtBase)}</td><td className="py-2 text-right">{display(asset.usageAsCollateral)}</td></tr>)}</tbody></table></div> : null}</CardContent></Card>;
+    const healthFactor = numberValue(account.healthFactor);
+    const healthTone = infinite || (healthFactor !== null && healthFactor >= 1.5)
+      ? 'emerald'
+      : healthFactor !== null && healthFactor < 1.1 ? 'rose' : 'amber';
+    const chainId = numberValue(position.chainId);
+    return <Card key={`${String(position.chainId)}-${index}`} className="gap-0 overflow-hidden py-0">
+      <CardHeader className="border-b bg-muted/[0.22] px-4 py-3.5 sm:px-5">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex min-w-0 items-center gap-3">{chainId !== null ? <ChainIcon chainId={chainId} className="size-9" /> : null}<div className="min-w-0"><CardTitle className="truncate">{String(position.chainName ?? 'Aave Position')}</CardTitle><p className="mt-0.5 text-xs text-muted-foreground">Aave V3 账户仓位 · {assets.length} 种资产</p></div></div>
+          <Badge variant="outline" className="shrink-0 rounded-full bg-background/80 font-mono">区块 {compactAaveValue(position.blockNumber, 0)}</Badge>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-5 p-4 sm:p-5">
+        <div className="grid gap-2.5 sm:grid-cols-2 xl:grid-cols-4">
+          <AaveMetricCard label="健康因子" value={infinite ? '∞' : account.healthFactor} helper={infinite ? '无借款，暂无清算风险' : '数值越高越安全'} icon={ShieldCheck} tone={healthTone} />
+          <AaveMetricCard label="总抵押价值" value={account.totalCollateralBase} icon={Coins} tone="violet" />
+          <AaveMetricCard label="总债务价值" value={account.totalDebtBase} icon={Banknote} tone="rose" />
+          <AaveMetricCard label="可借额度" value={account.availableBorrowsBase} icon={HandCoins} tone="blue" />
+        </div>
+
+        {assets.length ? <section className="overflow-hidden rounded-xl border">
+          <div className="flex items-center justify-between gap-3 border-b bg-muted/[0.28] px-4 py-3"><div><h4 className="text-sm font-semibold">资产明细</h4><p className="mt-0.5 text-xs text-muted-foreground">存入、债务与抵押状态</p></div><Badge variant="secondary" className="rounded-full">{assets.length} 项</Badge></div>
+          <div className="hidden overflow-x-auto md:block"><table className="w-full min-w-[960px] text-sm"><thead><tr className="border-b bg-muted/[0.16] text-left text-[11px] font-medium text-muted-foreground"><th className="px-4 py-2.5">资产</th><th className="px-3 py-2.5">仓位数量</th><th className="px-3 py-2.5">仓位价值</th><th className="px-3 py-2.5">存款利率</th><th className="px-3 py-2.5">浮动借款利率</th><th className="px-4 py-2.5 text-right">抵押</th></tr></thead><tbody>{assets.map((asset, assetIndex) => { const address = compactAddress(asset.assetAddress); const rateObservedAt = typeof asset.rateObservedAt === 'string' ? formatDateTime(asset.rateObservedAt) : null; return <tr key={String(asset.assetAddress ?? assetIndex)} className="border-b align-top last:border-0 hover:bg-muted/[0.18]"><td className="px-4 py-3"><p className="font-semibold">{String(asset.symbol ?? '—')}</p>{address ? <p className="mt-0.5 font-mono text-[10px] text-muted-foreground" title={String(asset.assetAddress)}>{address}</p> : null}<p className="mt-1 text-[10px] text-muted-foreground">{rateObservedAt ? `利率更新 ${rateObservedAt}` : '利率时间暂不可用'}</p></td><td className="px-3 py-3"><div className="space-y-1.5 text-xs"><div className="flex justify-between gap-3"><span className="text-muted-foreground">存入</span><span className="font-mono font-semibold tabular-nums">{compactAaveValue(asset.suppliedAmount, 6)}</span></div><div className="flex justify-between gap-3"><span className="text-muted-foreground">债务</span><span className="font-mono font-semibold tabular-nums">{compactAaveValue(asset.totalDebtAmount, 6)}</span></div></div></td><td className="px-3 py-3"><div className="space-y-1.5 text-xs"><div className="flex justify-between gap-3"><span className="text-muted-foreground">存入</span><span className="font-mono font-semibold tabular-nums">{compactAaveValue(asset.suppliedBase, 4)}</span></div><div className="flex justify-between gap-3"><span className="text-muted-foreground">债务</span><span className="font-mono font-semibold tabular-nums">{compactAaveValue(asset.debtBase, 4)}</span></div></div></td><td className="px-3 py-3"><AaveRatePair apr={asset.supplyAprPercent} apy={asset.supplyApyPercent} /></td><td className="px-3 py-3"><AaveRatePair apr={asset.variableBorrowAprPercent} apy={asset.variableBorrowApyPercent} /></td><td className="px-4 py-3 text-right"><Badge variant={asset.usageAsCollateral === true ? 'default' : 'secondary'} className="rounded-full">{asset.usageAsCollateral === true ? '已抵押' : '未抵押'}</Badge></td></tr>; })}</tbody></table></div>
+          <div className="divide-y md:hidden">{assets.map((asset, assetIndex) => { const rateObservedAt = typeof asset.rateObservedAt === 'string' ? formatDateTime(asset.rateObservedAt) : null; return <div key={String(asset.assetAddress ?? assetIndex)} className="space-y-4 p-4"><div className="flex items-center justify-between gap-3"><div><p className="font-semibold">{String(asset.symbol ?? '—')}</p>{compactAddress(asset.assetAddress) ? <p className="mt-0.5 font-mono text-[10px] text-muted-foreground">{compactAddress(asset.assetAddress)}</p> : null}</div><Badge variant={asset.usageAsCollateral === true ? 'default' : 'secondary'} className="rounded-full">{asset.usageAsCollateral === true ? '已抵押' : '未抵押'}</Badge></div><div className="grid grid-cols-2 gap-x-4 gap-y-3 text-xs"><div><p className="text-muted-foreground">存入数量</p><p className="mt-1 font-mono font-semibold tabular-nums">{compactAaveValue(asset.suppliedAmount, 6)}</p></div><div><p className="text-muted-foreground">债务数量</p><p className="mt-1 font-mono font-semibold tabular-nums">{compactAaveValue(asset.totalDebtAmount, 6)}</p></div><div><p className="text-muted-foreground">存入价值</p><p className="mt-1 font-mono font-semibold tabular-nums">{compactAaveValue(asset.suppliedBase, 4)}</p></div><div><p className="text-muted-foreground">债务价值</p><p className="mt-1 font-mono font-semibold tabular-nums">{compactAaveValue(asset.debtBase, 4)}</p></div></div><div className="grid grid-cols-2 gap-5 border-t pt-3"><AaveRatePair title="存款利率" apr={asset.supplyAprPercent} apy={asset.supplyApyPercent} /><AaveRatePair title="浮动借款利率" apr={asset.variableBorrowAprPercent} apy={asset.variableBorrowApyPercent} /></div><p className="text-[10px] text-muted-foreground">{rateObservedAt ? `利率更新 ${rateObservedAt}` : '利率时间暂不可用'}</p></div>; })}</div>
+        </section> : <div className="rounded-xl border border-dashed p-6 text-center text-sm text-muted-foreground">当前网络没有可展示的 Aave 资产仓位。</div>}
+      </CardContent>
+    </Card>;
   })}</div>;
 }
 
@@ -354,7 +449,7 @@ export function SnapshotPanel({ snapshot, loading, fetching, error, onRefresh }:
     <Card className="gap-0 py-0"><CardContent className="space-y-3 p-4"><div className="flex flex-wrap items-center justify-between gap-3"><div className="flex min-w-0 items-center gap-3"><div className={cn('flex size-10 shrink-0 items-center justify-center rounded-full bg-muted', status.className)}><StatusIcon className={cn('size-5', snapshot.status === 'warming_up' && 'animate-pulse')} /></div><div className="min-w-0"><p className="font-semibold">{status.label}</p><p className="mt-0.5 truncate text-xs text-muted-foreground">{formatDateTime(snapshot.observedAt)} · {dataAgeLabel} {displayedDataAgeSeconds === null ? '—' : `${formatDecimalString(String(displayedDataAgeSeconds), 3)}s`}</p></div></div><Button variant="ghost" size="icon-sm" onClick={onRefresh} disabled={fetching} aria-label="刷新快照"><RefreshCw className={fetching ? 'animate-spin' : undefined} /></Button></div><SummaryValues value={snapshot.summary} />{snapshot.error ? <p className="rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive"><span className="font-mono text-xs">{snapshot.error.code}</span><span className="mt-1 block">{snapshotErrorText(snapshot.error.code, snapshot.error.message)}</span></p> : null}{!snapshot.capability.available ? <p className="rounded-lg bg-muted p-3 text-sm text-muted-foreground">{snapshot.capability.reason ?? '当前能力暂不可用'}</p> : null}</CardContent></Card>
     <DiscoveryProgress discovery={discovery} />
     {pool ? <Card><CardHeader><CardTitle>Pool 快照</CardTitle></CardHeader><CardContent className="space-y-3"><KeyValues value={pool} limit={16} />{volumes.length ? <div><p className="mb-2 text-sm font-medium">滚动成交量</p><div className="grid gap-2 md:grid-cols-2">{volumes.map((volume, index) => <div key={String(volume.windowSeconds ?? index)} className="rounded-lg border p-3"><p className="mb-2 text-xs font-medium text-muted-foreground">窗口 {display(volume.windowSeconds)} 秒</p><KeyValues value={volume} /></div>)}</div></div> : null}</CardContent></Card> : null}
-    {metrics.length ? <Card><CardHeader><div className="flex items-center justify-between"><CardTitle className="flex items-center gap-2"><span className="flex size-7 items-center justify-center rounded-lg bg-violet-500/10 text-violet-600"><Database className="size-4" /></span>核心指标</CardTitle><Badge variant="secondary" className="rounded-full">{metrics.length} 项</Badge></div></CardHeader><CardContent><div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">{metrics.map((metric, index) => <div key={`${String(metric.name)}-${index}`} className="rounded-xl bg-muted/45 p-3.5 ring-1 ring-foreground/[0.06] transition-colors hover:bg-muted/65"><p className="text-[11px] font-medium text-muted-foreground">{metricLabel(metric)}</p><p className="mt-1.5 truncate font-mono text-base font-semibold tracking-tight tabular-nums" title={displayKeyValue(String(metric.name), metric.value)}>{displayKeyValue(String(metric.name), metric.value)}{metricUnit(metric) && !['lp_fee', 'protocol_fee'].includes(String(metric.name)) ? <span className="ml-1.5 text-xs font-normal text-muted-foreground">{metricUnit(metric)}</span> : null}</p></div>)}</div></CardContent></Card> : null}
+    {metrics.length ? <Card><CardHeader><div className="flex items-center justify-between"><CardTitle className="flex items-center gap-2"><span className="flex size-7 items-center justify-center rounded-lg bg-violet-500/10 text-violet-600"><Database className="size-4" /></span>核心指标</CardTitle><Badge variant="secondary" className="rounded-full">{metrics.length} 项</Badge></div></CardHeader><CardContent><div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">{metrics.map((metric, index) => { const displayedMetric = displayKeyValue(String(metric.name), metric.value); const unit = metricUnit(metric); const showUnit = unit && displayedMetric !== '暂不可用' && !['lp_fee', 'protocol_fee'].includes(String(metric.name)); return <div key={`${String(metric.name)}-${index}`} className="rounded-xl bg-muted/45 p-3.5 ring-1 ring-foreground/[0.06] transition-colors hover:bg-muted/65"><p className="text-[11px] font-medium text-muted-foreground">{metricLabel(metric)}</p><p className="mt-1.5 truncate font-mono text-base font-semibold tracking-tight tabular-nums" title={displayedMetric}>{displayedMetric}{showUnit ? <span className="ml-1.5 text-xs font-normal text-muted-foreground">{unit}</span> : null}</p></div>; })}</div></CardContent></Card> : null}
     {positions.length ? isAave ? <AavePositions positions={positions} /> : <UniPositions key={snapshot.monitorId} positions={positions} /> : null}
     <Events events={events} />
   </div>;

@@ -39,5 +39,16 @@ export function ChainIcon({ chainId, className }: { chainId: number; className?:
     );
   }
 
+  if (chainId === 9745) {
+    return (
+      <span
+        className={cn('inline-flex size-8 shrink-0 bg-contain bg-center bg-no-repeat', className)}
+        style={{ backgroundImage: "url('/brands/plasma-xpl-mark.svg')" }}
+        aria-hidden="true"
+        data-chain-logo="9745"
+      />
+    );
+  }
+
   return <Network aria-hidden="true" className={cn('size-8 shrink-0 text-muted-foreground', className)} />;
 }

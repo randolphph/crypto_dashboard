@@ -76,6 +76,22 @@ export function CreateMonitorDialog({ open, onOpenChange, catalog, readiness, on
   const isPositionMonitor = type === 'uniswap_position' || type === 'pancake_position';
   const isPoolMonitor = type === 'uniswap_pool' || type === 'pancake_pool';
 
+  const catalogSupportsType = (candidate: AvailableType) => catalog.monitorTypes.some(
+    (monitorType) => monitorType.id === candidate && monitorType.status === 'available',
+  );
+  const aaveNetworksFor = (candidate: AvailableType) => {
+    const monitorType = catalog.monitorTypes.find((item) => item.id === candidate);
+    if (!candidate.startsWith('aave') || monitorType?.status !== 'available') return [];
+    const supportedChainIds = monitorType.chainIds ? new Set(monitorType.chainIds) : null;
+    const seen = new Set<number>();
+    return catalog.aave.deployments.filter((deployment) => {
+      if (supportedChainIds && !supportedChainIds.has(deployment.chainId)) return false;
+      if (seen.has(deployment.chainId)) return false;
+      seen.add(deployment.chainId);
+      return true;
+    });
+  };
+
   const rpcQuery = useEvmRpcIntegrations();
   const readyRpcIds = useMemo(() => {
     const ids = new Set<string>();
@@ -92,8 +108,23 @@ export function CreateMonitorDialog({ open, onOpenChange, catalog, readiness, on
   const protocolRpcOptions = rpcOptions.filter((rpc) => protocolRpcIds.has(rpc.id));
   const selectedRpc = protocolRpcOptions.find((rpc) => rpc.id === rpcId) ?? protocolRpcOptions[0] ?? null;
   const selectedRpcId = selectedRpc?.id ?? null;
-  const aaveNetwork = readiness.aave.networks.find((network) => network.chainId === 1);
-  const aaveRpcId = aaveNetwork?.integrationIds.includes(rpcId) ? rpcId : aaveNetwork?.integrationIds[0] ?? null;
+  const aaveNetworks = aaveNetworksFor(type);
+  const firstReadyAaveNetwork = aaveNetworks.find((network) => readiness.aave.networks.some(
+    (readyNetwork) => readyNetwork.chainId === network.chainId && readyNetwork.ready,
+  ));
+  const selectedAaveNetwork = aaveNetworks.find((network) => network.chainId === chainId)
+    ?? firstReadyAaveNetwork
+    ?? aaveNetworks[0];
+  const aaveChainId = selectedAaveNetwork?.chainId ?? chainId;
+  const aaveReadinessNetwork = readiness.aave.networks.find((network) => network.chainId === aaveChainId);
+  const aaveRpcOptions = rpcOptions.filter((rpc) => (
+    aaveReadinessNetwork?.integrationIds.includes(rpc.id) === true
+    && rpc.config.chainIds.includes(aaveChainId)
+  ));
+  const aaveRpcId = aaveRpcOptions.some((rpc) => rpc.id === rpcId)
+    ? rpcId
+    : aaveRpcOptions[0]?.id ?? null;
+  const aaveNetworkReady = aaveReadinessNetwork?.ready === true && aaveRpcId !== null;
   const availableNetworks = protocolNetworks.filter((network) => selectedRpcId && network.integrationIds.includes(selectedRpcId));
   const keepAvailableChains = (networks: typeof availableNetworks) => {
     setSelectedChains((current) => {
@@ -110,8 +141,8 @@ export function CreateMonitorDialog({ open, onOpenChange, catalog, readiness, on
 
   const marketsQuery = useBinanceMarkets(type === 'market' ? binanceId : null);
   const reservesQuery = useAaveReserves(
-    type.startsWith('aave') ? aaveRpcId : null,
-    1,
+    type === 'aave_pool' && aaveNetworkReady ? aaveRpcId : null,
+    aaveChainId,
   );
   const poolsQuery = useUniswapPools(type === 'uniswap_pool' ? selectedRpcId : null, effectiveChainId, effectiveVersion, search);
   const pancakeWalletQuery = usePancakeWalletPositions(
@@ -140,12 +171,13 @@ export function CreateMonitorDialog({ open, onOpenChange, catalog, readiness, on
       return { integrationId: binanceId, marketType, providerSymbol: market.providerSymbol, canonicalSymbol: market.canonicalSymbol, priceType: marketType === 'spot' ? 'last' : 'mark' };
     }
     if (type === 'aave_account') {
-      if (!aaveRpcId || !ADDRESS.test(wallet.trim())) throw new Error('请选择就绪的 Ethereum RPC 并填写有效钱包地址');
-      return { rpcIntegrationId: aaveRpcId, chainId: 1, walletAddress: wallet.trim() };
+      if (!aaveNetworkReady || !aaveRpcId) throw new Error('所选网络的 Aave RPC 尚未测试就绪');
+      if (!ADDRESS.test(wallet.trim())) throw new Error('请填写有效钱包地址');
+      return { rpcIntegrationId: aaveRpcId, chainId: aaveChainId, walletAddress: wallet.trim() };
     }
     if (type === 'aave_pool') {
-      if (!aaveRpcId) throw new Error('Aave 数据源尚未就绪');
-      return { rpcIntegrationId: aaveRpcId, chainId: 1, reserveAssetAddresses: selectedReserves };
+      if (!aaveNetworkReady || !aaveRpcId) throw new Error('所选网络的 Aave RPC 尚未测试就绪');
+      return { rpcIntegrationId: aaveRpcId, chainId: aaveChainId, reserveAssetAddresses: selectedReserves };
     }
     if (!selectedRpcId) throw new Error('请选择可用的 EVM RPC');
     if (isPositionMonitor) {
@@ -210,13 +242,19 @@ export function CreateMonitorDialog({ open, onOpenChange, catalog, readiness, on
     finally { setSubmitting(false); }
   };
 
-  const typeReady = (candidate: AvailableType) => candidate === 'market'
-    ? readiness.binance.ready
-    : candidate.startsWith('aave')
-      ? readiness.aave.ready
-      : candidate.startsWith('pancake_')
-        ? readiness.pancakeswap?.ready === true
-        : readiness.uniswap?.ready === true;
+  const typeReady = (candidate: AvailableType) => {
+    if (!catalogSupportsType(candidate)) return false;
+    if (candidate === 'market') return readiness.binance.ready;
+    if (candidate.startsWith('aave')) return aaveNetworksFor(candidate).some((network) => (
+      readiness.aave.networks.some((readyNetwork) => (
+        readyNetwork.chainId === network.chainId
+        && readyNetwork.ready
+        && readyNetwork.integrationIds.length > 0
+      ))
+    ));
+    if (candidate.startsWith('pancake_')) return readiness.pancakeswap?.ready === true;
+    return readiness.uniswap?.ready === true;
+  };
   const selectedTypeOption = TYPES.find((item) => item.id === type) ?? TYPES[0];
 
   return (
@@ -232,7 +270,17 @@ export function CreateMonitorDialog({ open, onOpenChange, catalog, readiness, on
                 setMarketSymbol('');
                 setTokenId('');
                 setError(null);
-                if (item.id.startsWith('pancake_')) {
+                if (item.id.startsWith('aave')) {
+                  const supportedNetworks = aaveNetworksFor(item.id);
+                  const firstReadyNetwork = supportedNetworks.find((network) => readiness.aave.networks.some(
+                    (readyNetwork) => readyNetwork.chainId === network.chainId && readyNetwork.ready && readyNetwork.integrationIds.length > 0,
+                  ));
+                  const nextNetwork = firstReadyNetwork ?? supportedNetworks[0];
+                  const readyNetwork = readiness.aave.networks.find((network) => network.chainId === nextNetwork?.chainId);
+                  setChainId(nextNetwork?.chainId ?? 1);
+                  setRpcId(readyNetwork?.integrationIds[0] ?? '');
+                  setSelectedReserves([]);
+                } else if (item.id.startsWith('pancake_')) {
                   const pancakeNetworks = readiness.pancakeswap?.networks ?? [];
                   const firstRpcId = pancakeNetworks[0]?.integrationIds[0] ?? '';
                   setRpcId(firstRpcId);
@@ -261,9 +309,36 @@ export function CreateMonitorDialog({ open, onOpenChange, catalog, readiness, on
 
             {type === 'market' ? <div className="space-y-3 rounded-xl border p-4"><div className="flex gap-2"><select value={marketType} onChange={(event) => { setMarketType(event.target.value as 'spot' | 'perpetual'); setMarketSymbol(''); }} className="h-8 rounded-lg border bg-background px-2.5 text-sm"><option value="spot">现货</option><option value="perpetual">永续</option></select><Input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="搜索 BTCUSDT 或 BTC/USD" /></div><div className="max-h-48 overflow-y-auto rounded-lg border">{markets.map((market) => <button key={`${market.marketType}-${market.providerSymbol}`} type="button" onClick={() => setMarketSymbol(market.providerSymbol)} className={cn('flex w-full items-center justify-between border-b px-3 py-2 text-left text-sm last:border-0', marketSymbol === market.providerSymbol && 'bg-accent')}><span className="font-medium">{market.canonicalSymbol}</span><span className="font-mono text-xs text-muted-foreground">{market.providerSymbol}</span></button>)}</div></div> : null}
 
-            {type === 'aave_account' ? <div className="space-y-3 rounded-xl border p-4"><div className="space-y-2"><Label htmlFor="aave-rpc">Ethereum RPC</Label><select id="aave-rpc" value={aaveRpcId ?? ''} onChange={(event) => setRpcId(event.target.value)} className="h-8 w-full rounded-lg border bg-background px-2 text-sm">{rpcOptions.filter((rpc) => aaveNetwork?.integrationIds.includes(rpc.id)).map((rpc) => <option key={rpc.id} value={rpc.id}>{rpc.name}</option>)}</select></div><div className="space-y-2"><Label htmlFor="aave-wallet">Ethereum 钱包地址</Label><Input id="aave-wallet" value={wallet} onChange={(event) => setWallet(event.target.value)} placeholder="0x…" className="font-mono text-xs" /></div><p className="text-xs text-muted-foreground">只监控 Ethereum Aave V3。</p></div> : null}
+            {type === 'aave_account' ? <div className="space-y-3 rounded-xl border p-4">
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="space-y-2"><Label htmlFor="aave-account-network">网络</Label><select id="aave-account-network" value={aaveChainId} onChange={(event) => {
+                  const nextChainId = Number(event.target.value);
+                  const readyNetwork = readiness.aave.networks.find((network) => network.chainId === nextChainId);
+                  setChainId(nextChainId);
+                  setRpcId(readyNetwork?.integrationIds[0] ?? '');
+                  setSelectedReserves([]);
+                }} className="h-8 w-full rounded-lg border bg-background px-2 text-sm">{aaveNetworks.map((network) => { const ready = readiness.aave.networks.some((item) => item.chainId === network.chainId && item.ready && item.integrationIds.length > 0); return <option key={network.chainId} value={network.chainId} disabled={!ready}>{network.chainName}{ready ? '' : '（需先测试 RPC）'}</option>; })}</select></div>
+                <div className="space-y-2"><Label htmlFor="aave-rpc">RPC</Label><select id="aave-rpc" value={aaveRpcId ?? ''} onChange={(event) => setRpcId(event.target.value)} disabled={!aaveNetworkReady} className="h-8 w-full rounded-lg border bg-background px-2 text-sm">{aaveRpcOptions.map((rpc) => <option key={rpc.id} value={rpc.id}>{rpc.name}</option>)}</select></div>
+              </div>
+              <div className="space-y-2"><Label htmlFor="aave-wallet">钱包地址</Label><Input id="aave-wallet" value={wallet} onChange={(event) => setWallet(event.target.value)} placeholder="0x…" className="font-mono text-xs" /></div>
+              <p className="text-xs text-muted-foreground">监控 {selectedAaveNetwork?.chainName ?? `Chain ${aaveChainId}`} Aave V3 账户仓位。</p>
+              {!aaveNetworkReady ? <p className="text-xs text-amber-600">请先添加并测试该网络的 RPC；readiness 就绪后才能创建监控。</p> : null}
+            </div> : null}
 
-            {type === 'aave_pool' ? <div className="space-y-3 rounded-xl border p-4"><div className="space-y-2"><Label htmlFor="aave-pool-rpc">Ethereum RPC</Label><select id="aave-pool-rpc" value={aaveRpcId ?? ''} onChange={(event) => setRpcId(event.target.value)} className="h-8 w-full rounded-lg border bg-background px-2 text-sm">{rpcOptions.filter((rpc) => aaveNetwork?.integrationIds.includes(rpc.id)).map((rpc) => <option key={rpc.id} value={rpc.id}>{rpc.name}</option>)}</select></div><div><p className="text-sm font-medium">选择 Reserve</p><p className="text-xs text-muted-foreground">不选择表示监控全部 Reserve；无需填写 Aave 合约地址。</p></div>{reservesQuery.isLoading ? <p className="text-sm text-muted-foreground">正在读取 Aave 资源目录…</p> : <div className="grid max-h-52 gap-2 overflow-y-auto sm:grid-cols-2">{reservesQuery.data?.items.map((reserve) => <label key={reserve.underlyingAsset} className="flex items-center gap-2 rounded-lg border p-2 text-sm"><input type="checkbox" checked={selectedReserves.includes(reserve.underlyingAsset)} onChange={() => setSelectedReserves((current) => current.includes(reserve.underlyingAsset) ? current.filter((address) => address !== reserve.underlyingAsset) : [...current, reserve.underlyingAsset])} /><span className="font-medium">{reserve.symbol}</span><span className="truncate text-xs text-muted-foreground">{reserve.name}</span></label>)}</div>}</div> : null}
+            {type === 'aave_pool' ? <div className="space-y-3 rounded-xl border p-4">
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="space-y-2"><Label htmlFor="aave-pool-network">网络</Label><select id="aave-pool-network" value={aaveChainId} onChange={(event) => {
+                  const nextChainId = Number(event.target.value);
+                  const readyNetwork = readiness.aave.networks.find((network) => network.chainId === nextChainId);
+                  setChainId(nextChainId);
+                  setRpcId(readyNetwork?.integrationIds[0] ?? '');
+                  setSelectedReserves([]);
+                }} className="h-8 w-full rounded-lg border bg-background px-2 text-sm">{aaveNetworks.map((network) => { const ready = readiness.aave.networks.some((item) => item.chainId === network.chainId && item.ready && item.integrationIds.length > 0); return <option key={network.chainId} value={network.chainId} disabled={!ready}>{network.chainName}{ready ? '' : '（需先测试 RPC）'}</option>; })}</select></div>
+                <div className="space-y-2"><Label htmlFor="aave-pool-rpc">RPC</Label><select id="aave-pool-rpc" value={aaveRpcId ?? ''} onChange={(event) => setRpcId(event.target.value)} disabled={!aaveNetworkReady} className="h-8 w-full rounded-lg border bg-background px-2 text-sm">{aaveRpcOptions.map((rpc) => <option key={rpc.id} value={rpc.id}>{rpc.name}</option>)}</select></div>
+              </div>
+              <div><p className="text-sm font-medium">选择 Reserve</p><p className="text-xs text-muted-foreground">不选择表示监控该网络全部 Reserve；切换网络会清空当前选择。</p></div>
+              {!aaveNetworkReady ? <p className="text-xs text-amber-600">请先添加并测试该网络的 RPC；readiness 就绪后才能读取 Reserve。</p> : reservesQuery.isLoading ? <p className="text-sm text-muted-foreground">正在读取 {selectedAaveNetwork?.chainName ?? 'Aave'} Reserve…</p> : reservesQuery.error ? <p className="text-sm text-destructive">Reserve 加载失败：{reservesQuery.error.message}</p> : <div className="grid max-h-52 gap-2 overflow-y-auto sm:grid-cols-2">{reservesQuery.data?.items.map((reserve) => <label key={reserve.underlyingAsset} className="flex items-center gap-2 rounded-lg border p-2 text-sm"><input type="checkbox" checked={selectedReserves.includes(reserve.underlyingAsset)} onChange={() => setSelectedReserves((current) => current.includes(reserve.underlyingAsset) ? current.filter((address) => address !== reserve.underlyingAsset) : [...current, reserve.underlyingAsset])} /><span className="font-medium">{reserve.symbol}</span><span className="truncate text-xs text-muted-foreground">{reserve.name}</span></label>)}</div>}
+            </div> : null}
 
             {isDex ? <div className="space-y-4 rounded-xl border p-4">
               <div className="grid gap-3 sm:grid-cols-3">
@@ -309,7 +384,7 @@ export function CreateMonitorDialog({ open, onOpenChange, catalog, readiness, on
 
             {error ? <p role="alert" className="text-sm text-destructive">{error}</p> : null}
           </div>
-          <DialogFooter><Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={submitting}>取消</Button><Button type="submit" disabled={submitting}>{submitting ? <LoaderCircle className="animate-spin" /> : null}{submitting ? editing ? '正在保存' : '正在创建' : editing ? '保存修改' : '创建监控'}</Button></DialogFooter>
+          <DialogFooter><Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={submitting}>取消</Button><Button type="submit" disabled={submitting || (type.startsWith('aave') && !aaveNetworkReady)}>{submitting ? <LoaderCircle className="animate-spin" /> : null}{submitting ? editing ? '正在保存' : '正在创建' : editing ? '保存修改' : '创建监控'}</Button></DialogFooter>
         </form>
       </DialogContent>
     </Dialog>
