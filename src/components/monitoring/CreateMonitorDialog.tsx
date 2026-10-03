@@ -3,6 +3,7 @@
 import { useMemo, useState, type FormEvent } from 'react';
 import { LoaderCircle, Search } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { ChainIcon } from '@/components/monitoring/ChainIcon';
 import { ProtocolIcon, type ProtocolBrand } from '@/components/monitoring/ProtocolIcon';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -21,6 +22,7 @@ const ADDRESS = /^0x[0-9a-fA-F]{40}$/;
 const POOL_ID = /^0x[0-9a-fA-F]{64}$/;
 const TOKEN_ID = /^\d+$/;
 type AvailableType = Exclude<MonitorType, 'aave_position' | 'lp_position'>;
+type DexType = Extract<AvailableType, `uniswap_${string}` | `pancake_${string}`>;
 
 const TYPES: Array<{ id: AvailableType; title: string; description: string; brand: ProtocolBrand }> = [
   { id: 'market', title: 'Binance 行情', description: '价格、成交量、资金费率和 OI', brand: 'binance' },
@@ -91,6 +93,24 @@ export function CreateMonitorDialog({ open, onOpenChange, catalog, readiness, on
       return true;
     });
   };
+  const protocolNetworksFor = (candidate: DexType) => {
+    const definition = catalog.monitorTypes.find((item) => item.id === candidate);
+    if (definition?.status !== 'available') return [];
+    const supportedChainIds = definition.chainIds ? new Set(definition.chainIds) : null;
+    const supportedVersions = definition.versions ? new Set(definition.versions) : null;
+    const source = candidate.startsWith('pancake_')
+      ? (readiness.pancakeswap?.networks ?? [])
+      : (readiness.uniswap?.networks ?? []);
+
+    return source.flatMap((network) => {
+      if (supportedChainIds && !supportedChainIds.has(network.chainId)) return [];
+      const versions: Record<UniswapVersion, boolean> = {
+        v3: network.versions.v3 === true && (!supportedVersions || supportedVersions.has('v3')),
+        v4: network.versions.v4 === true && (!supportedVersions || supportedVersions.has('v4')),
+      };
+      return versions.v3 || versions.v4 ? [{ ...network, versions }] : [];
+    });
+  };
 
   const rpcQuery = useEvmRpcIntegrations();
   const readyRpcIds = useMemo(() => {
@@ -103,7 +123,7 @@ export function CreateMonitorDialog({ open, onOpenChange, catalog, readiness, on
   const rpcOptions = (rpcQuery.data ?? []).filter((rpc) => rpc.enabled && (
     readyRpcIds.has(rpc.id) || rpc.id === monitor?.config.rpcIntegrationId
   ));
-  const protocolNetworks = isPancake ? (readiness.pancakeswap?.networks ?? []) : (readiness.uniswap?.networks ?? []);
+  const protocolNetworks = isDex ? protocolNetworksFor(type as DexType) : [];
   const protocolRpcIds = new Set(protocolNetworks.flatMap((network) => network.integrationIds));
   const protocolRpcOptions = rpcOptions.filter((rpc) => protocolRpcIds.has(rpc.id));
   const selectedRpc = protocolRpcOptions.find((rpc) => rpc.id === rpcId) ?? protocolRpcOptions[0] ?? null;
@@ -252,8 +272,10 @@ export function CreateMonitorDialog({ open, onOpenChange, catalog, readiness, on
         && readyNetwork.integrationIds.length > 0
       ))
     ));
-    if (candidate.startsWith('pancake_')) return readiness.pancakeswap?.ready === true;
-    return readiness.uniswap?.ready === true;
+    if (candidate.startsWith('pancake_') || candidate.startsWith('uniswap_')) {
+      return protocolNetworksFor(candidate as DexType).some((network) => network.integrationIds.length > 0);
+    }
+    return false;
   };
   const selectedTypeOption = TYPES.find((item) => item.id === type) ?? TYPES[0];
 
@@ -281,7 +303,7 @@ export function CreateMonitorDialog({ open, onOpenChange, catalog, readiness, on
                   setRpcId(readyNetwork?.integrationIds[0] ?? '');
                   setSelectedReserves([]);
                 } else if (item.id.startsWith('pancake_')) {
-                  const pancakeNetworks = readiness.pancakeswap?.networks ?? [];
+                  const pancakeNetworks = protocolNetworksFor(item.id as DexType);
                   const firstRpcId = pancakeNetworks[0]?.integrationIds[0] ?? '';
                   setRpcId(firstRpcId);
                   setChainId(56);
@@ -289,7 +311,7 @@ export function CreateMonitorDialog({ open, onOpenChange, catalog, readiness, on
                   setVersion('v3');
                   setSelectedVersions(['v3']);
                 } else if (item.id.startsWith('uniswap_')) {
-                  const uniswapNetworks = readiness.uniswap?.networks ?? [];
+                  const uniswapNetworks = protocolNetworksFor(item.id as DexType);
                   const firstRpcId = uniswapNetworks[0]?.integrationIds[0] ?? '';
                   const rpcNetworks = uniswapNetworks.filter((network) => network.integrationIds.includes(firstRpcId));
                   setRpcId(firstRpcId);
@@ -352,7 +374,7 @@ export function CreateMonitorDialog({ open, onOpenChange, catalog, readiness, on
                   if (isWalletMonitor) keepAvailableChains(nextNetworks);
                 }} className="h-8 w-full rounded-lg border bg-background px-2 text-sm">{protocolRpcOptions.map((rpc) => <option key={rpc.id} value={rpc.id}>{rpc.name}</option>)}</select></div>
                 {!isWalletMonitor ? <>
-                  <div className="space-y-2"><Label>网络</Label><select value={effectiveChainId} onChange={(event) => { setChainId(Number(event.target.value)); setMarketSymbol(''); setTokenId(''); }} className="h-8 w-full rounded-lg border bg-background px-2 text-sm">{availableNetworks.map((network) => <option key={network.chainId} value={network.chainId}>{network.name}</option>)}</select></div>
+                  <div className="space-y-2"><Label className="flex items-center gap-1.5"><ChainIcon chainId={effectiveChainId} className="size-5" />网络</Label><select value={effectiveChainId} onChange={(event) => { setChainId(Number(event.target.value)); setMarketSymbol(''); setTokenId(''); }} className="h-8 w-full rounded-lg border bg-background px-2 text-sm">{availableNetworks.map((network) => <option key={network.chainId} value={network.chainId}>{network.name}</option>)}</select></div>
                   <div className="space-y-2"><Label>版本</Label><select value={effectiveVersion} onChange={(event) => { setVersion(event.target.value as UniswapVersion); setMarketSymbol(''); setTokenId(''); }} className="h-8 w-full rounded-lg border bg-background px-2 text-sm">{(['v3', 'v4'] as const).filter((item) => selectedNetwork?.versions[item]).map((item) => <option key={item} value={item}>{item.toUpperCase()}</option>)}</select></div>
                 </> : null}
               </div>
@@ -369,7 +391,7 @@ export function CreateMonitorDialog({ open, onOpenChange, catalog, readiness, on
                     </>}
                   </div> : null}
                 </> : <>
-                  <div className="grid gap-3 sm:grid-cols-2"><div><Label>网络（可多选）</Label><div className="mt-2 flex flex-wrap gap-2">{availableNetworks.map((network) => <label key={network.chainId} className="flex items-center gap-2 rounded-lg border px-3 py-2 text-sm"><input type="checkbox" checked={selectedChains.includes(network.chainId)} onChange={() => setSelectedChains((current) => current.includes(network.chainId) ? current.filter((id) => id !== network.chainId) : [...current, network.chainId])} />{network.name}</label>)}</div></div><div><Label>版本（可多选）</Label><div className="mt-2 flex gap-2">{(['v3', 'v4'] as const).map((item) => { const unavailable = selectedChains.some((id) => availableNetworks.find((network) => network.chainId === id)?.versions[item] !== true); const selected = selectedVersions.includes(item); return <label key={item} className={cn('flex items-center gap-2 rounded-lg border px-3 py-2 text-sm', unavailable && !selected && 'opacity-45')}><input type="checkbox" disabled={unavailable && !selected} checked={selected} onChange={() => setSelectedVersions((current) => current.includes(item) ? current.filter((value) => value !== item) : [...current, item])} />{item.toUpperCase()}</label>; })}</div></div></div>
+                  <div className="grid gap-3 sm:grid-cols-2"><div><Label>网络（可多选）</Label><div className="mt-2 flex flex-wrap gap-2">{availableNetworks.map((network) => <label key={network.chainId} className="flex items-center gap-2 rounded-lg border px-3 py-2 text-sm"><input type="checkbox" checked={selectedChains.includes(network.chainId)} onChange={() => setSelectedChains((current) => current.includes(network.chainId) ? current.filter((id) => id !== network.chainId) : [...current, network.chainId])} /><ChainIcon chainId={network.chainId} className="size-5" />{network.name}</label>)}</div></div><div><Label>版本（可多选）</Label><div className="mt-2 flex gap-2">{(['v3', 'v4'] as const).map((item) => { const unavailable = selectedChains.some((id) => availableNetworks.find((network) => network.chainId === id)?.versions[item] !== true); const selected = selectedVersions.includes(item); return <label key={item} className={cn('flex items-center gap-2 rounded-lg border px-3 py-2 text-sm', unavailable && !selected && 'opacity-45')}><input type="checkbox" disabled={unavailable && !selected} checked={selected} onChange={() => setSelectedVersions((current) => current.includes(item) ? current.filter((value) => value !== item) : [...current, item])} />{item.toUpperCase()}</label>; })}</div></div></div>
                   {selectedVersions.includes('v4') ? <p className="text-xs text-muted-foreground">V4 首次扫描会从 PositionManager 历史事件建立钱包仓位索引，期间会显示“首次同步中”，完成后自动持续更新。</p> : null}
                 </>}
               </> : null}
