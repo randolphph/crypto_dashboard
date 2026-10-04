@@ -1,13 +1,29 @@
 'use client';
 
-import { useState, useMemo, useEffect, useId } from 'react';
-import { Plus, Trash2, Pencil, Check, X } from 'lucide-react';
+import { useState, useMemo, useEffect, useId, useRef } from 'react';
+import {
+  Plus,
+  Trash2,
+  Pencil,
+  Check,
+  X,
+  Sparkles,
+  RefreshCw,
+} from 'lucide-react';
 import { usePrivacyFormat } from '@/hooks/usePrivacyFormat';
 import { useCustomAssetStore, type CustomAsset } from '@/stores/customAssetStore';
 import { usePortfolioHistoryStore } from '@/stores/portfolioHistoryStore';
 import { useCashFlowStore, netFlowInRange } from '@/stores/cashFlowStore';
 import { PortfolioChart } from './PortfolioChart';
 import { SourceIcon } from './SourceIcon';
+import { useApiKeyStore } from '@/stores/apiKeyStore';
+import { useEconomicAllocationStore } from '@/stores/economicAllocationStore';
+import {
+  analyzeEconomicAllocation,
+  applyEconomicAnalysis,
+  type EconomicAllocationInput,
+  type EconomicCategory,
+} from '@/lib/ai/portfolioAllocation';
 
 interface BreakdownItem {
   label: string;
@@ -19,7 +35,7 @@ interface PortfolioSummaryProps {
   totalValue: number;
   breakdown: BreakdownItem[];
   categoryBreakdown: BreakdownItem[];
-  positionBreakdown: BreakdownItem[];
+  economicAllocationInput: EconomicAllocationInput;
   isLoading: boolean;
 }
 
@@ -47,20 +63,16 @@ function categoryColor(label: string, fallbackIdx: number): string {
   return CATEGORY_COLORS[label] ?? COLORS[fallbackIdx % COLORS.length];
 }
 
-// Direction-aware palette: greens for longs, reds for shorts, neutral hues
-// for spot. Picked so the eye can tell at a glance whether exposure is net
-// long or net short before reading any labels.
-const POSITION_COLORS: Record<string, string> = {
-  加密现货: '#f59e0b', // amber — matches the 加密 category color
-  做多合约: '#10b981', // emerald
-  做空合约: '#ef4444', // red
-  交易期权: '#06b6d4', // cyan
-  股票现货: '#3b82f6', // blue — matches the 股票 category color
-  股票空仓: '#8b5cf6', // violet
+const ECONOMIC_COLORS: Record<EconomicCategory, string> = {
+  类现金: '#10b981',
+  股票: '#3b82f6',
+  加密资产: '#f59e0b',
+  衍生品: '#06b6d4',
+  其它: '#8b5cf6',
 };
 
-function positionColor(label: string, fallbackIdx: number): string {
-  return POSITION_COLORS[label] ?? COLORS[fallbackIdx % COLORS.length];
+function economicColor(label: string, fallbackIdx: number): string {
+  return ECONOMIC_COLORS[label as EconomicCategory] ?? COLORS[fallbackIdx % COLORS.length];
 }
 
 // "今日" delta = current total vs. the snapshot closest to 24h ago,
@@ -280,12 +292,31 @@ function PieChart({
 function CategoryTooltip({
   category,
   color,
+  groupBelowUsd = 0,
 }: {
   category: BreakdownItem;
   color: string;
+  groupBelowUsd?: number;
 }) {
   const { fmtUsd, hidden } = usePrivacyFormat();
-  const details = (category.details ?? []).filter((d) => d.value > 0);
+  const rawDetails = (category.details ?? []).filter((d) => d.value > 0);
+  const details = (() => {
+    if (groupBelowUsd <= 0) return rawDetails;
+
+    const visible: BreakdownItem[] = [];
+    let otherValue = 0;
+    for (const detail of rawDetails) {
+      if (detail.value < groupBelowUsd || detail.label === '其它') {
+        otherValue += detail.value;
+      } else {
+        visible.push(detail);
+      }
+    }
+    if (otherValue > 0) {
+      visible.push({ label: '其它', value: otherValue });
+    }
+    return visible;
+  })();
   if (details.length === 0) return null;
   const categoryTotal = category.value;
 
@@ -332,6 +363,157 @@ function CategoryTooltip({
           );
         })}
       </div>
+    </div>
+  );
+}
+
+function AiEconomicAllocation({
+  input,
+}: {
+  input: EconomicAllocationInput;
+}) {
+  const apiKey = useApiKeyStore((state) => state.deepseekApiKey);
+  const analysis = useEconomicAllocationStore((state) => state.analysis);
+  const analysisSignature = useEconomicAllocationStore(
+    (state) => state.signature
+  );
+  const saveAnalysis = useEconomicAllocationStore(
+    (state) => state.saveAnalysis
+  );
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [hoveredEconomic, setHoveredEconomic] = useState<string | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
+
+  const signature = useMemo(
+    () =>
+      JSON.stringify({
+        baseline: input.baseline.map((item) => item.label),
+        candidates: input.candidates.map((item) => [
+          item.id,
+          item.label,
+          item.baseCategory,
+          item.description,
+        ]),
+      }),
+    [input]
+  );
+  const currentAnalysis =
+    analysisSignature === signature ? analysis : null;
+  const breakdown = useMemo(
+    () =>
+      currentAnalysis
+        ? applyEconomicAnalysis(input, currentAnalysis)
+        : input.baseline,
+    [currentAnalysis, input]
+  );
+  const economicTotal = breakdown.reduce((sum, item) => sum + item.value, 0);
+  const hoveredEconomicDetail = hoveredEconomic
+    ? breakdown.find((item) => item.label === hoveredEconomic)
+    : null;
+
+  useEffect(
+    () => () => {
+      abortRef.current?.abort();
+    },
+    []
+  );
+
+  const runAnalysis = async () => {
+    if (loading) return;
+    if (!apiKey) {
+      setError('尚未配置 DeepSeek API Key，请先到“设置 → API 密钥”填写。');
+      return;
+    }
+    setError(null);
+    setLoading(true);
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
+    try {
+      const next = await analyzeEconomicAllocation({
+        apiKey,
+        input,
+        signal: controller.signal,
+      });
+      saveAnalysis(signature, next);
+    } catch (cause) {
+      if ((cause as Error).name !== 'AbortError') {
+        setError(
+          cause instanceof Error ? cause.message : 'AI 分析失败，请稍后重试'
+        );
+      }
+    } finally {
+      if (abortRef.current === controller) {
+        abortRef.current = null;
+        setLoading(false);
+      }
+    }
+  };
+
+  return (
+    <div className="border-t pt-5 md:w-[460px] md:shrink-0 md:border-l md:border-t-0 md:pl-6 md:pt-0">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <div className="flex items-center gap-2">
+            <Sparkles className="h-4 w-4 text-violet-500" />
+            <h2 className="text-sm font-semibold">资产分布</h2>
+            <span className="rounded-full bg-violet-500/10 px-2 py-0.5 text-[10px] font-medium text-violet-600 dark:text-violet-400">
+              DeepSeek
+            </span>
+          </div>
+          <p className="mt-1 text-xs text-muted-foreground">
+            按实际风险与流动性重新归类，金额仍来自真实仓位。
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={runAnalysis}
+          disabled={loading || input.totalValue <= 0}
+          className="inline-flex items-center gap-1.5 rounded-md border bg-background px-3 py-1.5 text-xs font-medium transition-colors hover:bg-secondary disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          {currentAnalysis ? (
+            <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
+          ) : (
+            <Sparkles className={`h-3.5 w-3.5 ${loading ? 'animate-pulse' : ''}`} />
+          )}
+          {loading ? '分析中…' : currentAnalysis ? '重新分析' : 'AI 分析'}
+        </button>
+      </div>
+
+      {error && (
+        <p className="mt-3 rounded-md border border-red-500/25 bg-red-500/5 px-3 py-2 text-xs text-red-600 dark:text-red-400">
+          {error}
+        </p>
+      )}
+
+      {currentAnalysis ? (
+        <div className="mt-3 space-y-3">
+          <div className="relative flex justify-center md:justify-start">
+            {hoveredEconomicDetail && (
+              <CategoryTooltip
+                category={hoveredEconomicDetail}
+                color={economicColor(hoveredEconomicDetail.label, 0)}
+                groupBelowUsd={1000}
+              />
+            )}
+            <PieChart
+              breakdown={breakdown}
+              totalValue={economicTotal}
+              colorFor={economicColor}
+              activeLabel={hoveredEconomic}
+              onHover={setHoveredEconomic}
+            />
+          </div>
+          <p className="text-[10px] text-muted-foreground">
+            “类现金”仍可能包含信用、脱锚或智能合约风险。
+          </p>
+        </div>
+      ) : (
+        <div className="mt-3 rounded-lg border border-dashed px-4 py-5 text-center text-xs text-muted-foreground">
+          点击“AI 分析”，生成经济属性分布。
+        </div>
+      )}
     </div>
   );
 }
@@ -414,31 +596,18 @@ export function PortfolioSummary({
   totalValue,
   breakdown,
   categoryBreakdown,
-  positionBreakdown,
+  economicAllocationInput,
   isLoading,
 }: PortfolioSummaryProps) {
   const { assets, addAsset, removeAsset, updateAsset } = useCustomAssetStore();
   const { fmtUsd, hidden } = usePrivacyFormat();
   const [adding, setAdding] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [hoveredCategory, setHoveredCategory] = useState<string | null>(null);
-  const [hoveredPosition, setHoveredPosition] = useState<string | null>(null);
 
   // Split breakdown into API items and custom items
   const customLabels = new Set(assets.map((a) => a.name));
   const apiBreakdown = breakdown.filter((b) => !customLabels.has(b.label));
   const showCategoryStrip = categoryBreakdown.length > 0 && totalValue > 0;
-  // Position pie has its own total — slices are sized relative to the sum of
-  // non-cash exposure, not the global portfolio total, so percentages add to
-  // 100% within the pie regardless of how much cash sits on the side.
-  const positionTotal = positionBreakdown.reduce((s, p) => s + p.value, 0);
-
-  const hoveredDetail = hoveredCategory
-    ? categoryBreakdown.find((c) => c.label === hoveredCategory)
-    : null;
-  const hoveredPositionDetail = hoveredPosition
-    ? positionBreakdown.find((p) => p.label === hoveredPosition)
-    : null;
 
   const todayDelta = useTodayDelta(totalValue);
 
@@ -461,25 +630,15 @@ export function PortfolioSummary({
             )}
           </div>
 
-          {/* Category strip — the "where are my eggs" answer in one row.
-              Items with `details` reveal a hover tooltip beside the pie. */}
+          {/* Category strip — the compact "where are my eggs" answer. */}
           {showCategoryStrip && (
             <div className="mt-4 flex flex-wrap gap-x-6 gap-y-2">
               {categoryBreakdown.map((item, i) => {
                 const pct = (item.value / totalValue) * 100;
-                const drillable = !!item.details?.length;
-                const isActive = hoveredCategory === item.label;
-                const dim = hoveredCategory != null && !isActive;
                 return (
                   <div
                     key={item.label}
-                    onMouseEnter={() =>
-                      drillable && setHoveredCategory(item.label)
-                    }
-                    onMouseLeave={() => setHoveredCategory(null)}
-                    className={`flex items-center gap-2 -mx-1 px-1 rounded-sm transition-opacity ${
-                      drillable ? 'hover:bg-secondary/60' : ''
-                    } ${dim ? 'opacity-50' : ''}`}
+                    className="flex items-center gap-2"
                   >
                     <span
                       className="inline-block h-2.5 w-2.5 rounded-sm shrink-0"
@@ -501,53 +660,8 @@ export function PortfolioSummary({
           )}
         </div>
 
-        {/* Position pie — non-cash exposure broken down by direction. Sits
-            to the left of the category pie so the eye reads "what kinds of
-            positions do I have" before the higher-level category split.
-            Each bucket carries `details` so hovering reveals where the
-            exposure actually lives (which exchange, which symbol). */}
-        {!isLoading && positionBreakdown.length > 0 && positionTotal > 0 && (
-          <div className="relative">
-            {hoveredPositionDetail && (
-              <CategoryTooltip
-                category={hoveredPositionDetail}
-                color={positionColor(hoveredPositionDetail.label, 0)}
-              />
-            )}
-            <p className="mb-2 text-[10px] font-medium uppercase tracking-wider text-muted-foreground/70">
-              仓位构成
-            </p>
-            <PieChart
-              breakdown={positionBreakdown}
-              totalValue={positionTotal}
-              colorFor={positionColor}
-              activeLabel={hoveredPosition}
-              onHover={setHoveredPosition}
-            />
-          </div>
-        )}
-
-        {/* Right: category pie + floating drill-down tooltip on its left.
-            `relative` here anchors the tooltip's `right-full` positioning. */}
-        {!isLoading && categoryBreakdown.length > 0 && (
-          <div className="relative">
-            {hoveredDetail && (
-              <CategoryTooltip
-                category={hoveredDetail}
-                color={categoryColor(hoveredDetail.label, 0)}
-              />
-            )}
-            <p className="mb-2 text-[10px] font-medium uppercase tracking-wider text-muted-foreground/70">
-              资产分布
-            </p>
-            <PieChart
-              breakdown={categoryBreakdown}
-              totalValue={totalValue}
-              colorFor={categoryColor}
-              activeLabel={hoveredCategory}
-              onHover={setHoveredCategory}
-            />
-          </div>
+        {!isLoading && totalValue > 0 && (
+          <AiEconomicAllocation input={economicAllocationInput} />
         )}
       </div>
 

@@ -37,7 +37,7 @@ import {
   classifyDeribit,
   classifyOnchain,
 } from '@/lib/portfolio/category';
-import { buildPositionBreakdown } from '@/lib/portfolio/positions';
+import { buildEconomicAllocationInput } from '@/lib/ai/portfolioAllocation';
 import { cn } from '@/lib/utils';
 
 type AddDialog = 'wallet' | 'stock-position' | 'stock-cash' | 'bank-account';
@@ -259,17 +259,6 @@ export function Dashboard() {
     { label: '其它', value: otherValue, details: otherDetails },
   ].filter((c) => c.value > 0);
 
-  // Position composition (non-cash). Split by direction so long/short futures
-  // and long/short options are visible at a glance — the user wants to see
-  // exposure shape, not just asset class.
-  const positionBreakdown = buildPositionBreakdown({
-    binance: binance.data,
-    okx: okx.data,
-    deribit: deribit.data,
-    onchain: onchain.data,
-    stocks: stocks.data,
-  });
-
   const totalValue = breakdown.reduce((sum, item) => sum + item.value, 0);
 
   // Track custom assets changes: when they change, refresh API data + record snapshot
@@ -358,13 +347,30 @@ export function Dashboard() {
     setLatestSnapshotPayload(snapshotPayload, snapshotHasWarnings);
   }, [snapshotPayload, snapshotHasWarnings, setLatestSnapshotPayload]);
 
+  const economicAllocationInput = buildEconomicAllocationInput({
+    totalValue,
+    categoryBreakdown,
+    stocks: stocks.data,
+    binance: binance.data,
+    okx: okx.data,
+    onchain: onchain.data,
+    deribit: deribit.data,
+    bankCash: bankAccounts.map((account) => ({
+      id: account.id,
+      bank: account.bank,
+      currency: account.currency,
+      valueUsd: bankCashUsd(account.currency, account.amount),
+    })),
+    customAssets,
+  });
+
   return (
     <div className="space-y-6">
       <PortfolioSummary
         totalValue={totalValue}
         breakdown={breakdown}
         categoryBreakdown={categoryBreakdown}
-        positionBreakdown={positionBreakdown}
+        economicAllocationInput={economicAllocationInput}
         isLoading={isLoading}
       />
 

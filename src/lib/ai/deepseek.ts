@@ -17,6 +17,14 @@ export interface StreamOptions {
   signal?: AbortSignal;
 }
 
+export interface JsonCompletionOptions {
+  apiKey: string;
+  model?: string;
+  messages: ChatMessage[];
+  signal?: AbortSignal;
+  maxTokens?: number;
+}
+
 const DEFAULT_MODEL = 'deepseek-chat';
 
 interface DeltaChunk {
@@ -24,6 +32,49 @@ interface DeltaChunk {
     delta?: { content?: string };
     finish_reason?: string | null;
   }>;
+}
+
+interface CompletionResponse {
+  choices?: Array<{
+    message?: { content?: string | null };
+    finish_reason?: string | null;
+  }>;
+}
+
+export async function completeDeepseekJson<T>(
+  opts: JsonCompletionOptions
+): Promise<T> {
+  const res = await fetch('https://api.deepseek.com/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${opts.apiKey}`,
+    },
+    body: JSON.stringify({
+      model: opts.model ?? DEFAULT_MODEL,
+      messages: opts.messages,
+      response_format: { type: 'json_object' },
+      max_tokens: opts.maxTokens ?? 2400,
+      stream: false,
+    }),
+    signal: opts.signal,
+  });
+
+  if (!res.ok) {
+    throw new Error(`DeepSeek 调用失败 (${res.status})`);
+  }
+
+  const payload = (await res.json()) as CompletionResponse;
+  const content = payload.choices?.[0]?.message?.content?.trim();
+  if (!content) {
+    throw new Error('DeepSeek 未返回分类结果，请重试');
+  }
+
+  try {
+    return JSON.parse(content) as T;
+  } catch {
+    throw new Error('DeepSeek 返回的分类结果无法解析，请重试');
+  }
 }
 
 export async function* streamDeepseek(
