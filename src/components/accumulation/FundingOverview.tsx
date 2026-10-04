@@ -201,9 +201,14 @@ export function FundingOverview({
         </Popover.Portal>
       </Popover.Root>
       <Stat
+        label="已有 AI 仓位"
+        value={hidden ? '****' : fmtUsd(funding.aiCurrentTotal)}
+        sub={`占总资产 ${hidden ? '****' : `${sharePct}%`}`}
+      />
+      <Stat
         label="待加额度"
         value={hidden ? '****' : fmtUsd(funding.pendingBudget)}
-        sub="按各标的目标权重分配"
+        sub="目标仓位 − 当前真实仓位"
       />
     </div>
   );

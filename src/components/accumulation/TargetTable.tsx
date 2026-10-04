@@ -26,16 +26,9 @@ type SortKey =
   | 'symbol'
   | 'sector'
   | 'currentValue'
-  | 'targetValue'
-  | 'remaining'
   | 'tier';
 
 const NUM = (v: number) => v.toLocaleString('en-US', { maximumFractionDigits: 2 });
-
-const ROW_PROGRESS_MARKERS = [
-  'repeating-linear-gradient(to bottom, var(--accumulation-row-progress-marker-20) 0 2px, transparent 2px 5px)',
-  'repeating-linear-gradient(to bottom, var(--accumulation-row-progress-marker-50) 0 2px, transparent 2px 5px)',
-].join(', ');
 
 function sortValue(d: DerivedTarget, key: SortKey): number | string {
   switch (key) {
@@ -45,10 +38,6 @@ function sortValue(d: DerivedTarget, key: SortKey): number | string {
       return d.target.sector;
     case 'currentValue':
       return d.currentValue;
-    case 'targetValue':
-      return d.target.targetValue;
-    case 'remaining':
-      return d.remaining;
     case 'tier':
       return d.nearestTierLevel ?? 4;
   }
@@ -107,7 +96,7 @@ function TierCell({
         return (
           <span
             key={tier.level}
-            title={`档${tier.level} · 锚价 ${NUM(tier.price)} · 接近 ${(proximity * 100).toFixed(0)}% · 预算 $${NUM(tier.amount)}${tier.relToTier1 !== null ? ` · 较档1 ↓${PCT(tier.relToTier1)}%` : ''}${tier.gapPct !== null ? ` · 距 ${(tier.gapPct * 100).toFixed(1)}%` : ''}`}
+            title={`档${tier.level} · 锚价 ${NUM(tier.price)} · 接近 ${(proximity * 100).toFixed(0)}%${tier.relToTier1 !== null ? ` · 较档1 ↓${PCT(tier.relToTier1)}%` : ''}${tier.gapPct !== null ? ` · 距 ${(tier.gapPct * 100).toFixed(1)}%` : ''}`}
             className="relative isolate inline-flex items-center gap-1 overflow-hidden rounded border bg-background px-1.5 py-0.5 text-[11px] text-foreground tabular-nums"
             style={{
               borderColor: `color-mix(in srgb, ${color} var(--accumulation-tier-border-opacity), transparent)`,
@@ -267,9 +256,7 @@ export function TargetTable({
             <SortHeader label="板块" k="sector" sortKey={sortKey} asc={asc} onSort={onSort} />
             <TableHead className="text-right">盈亏</TableHead>
             <TableHead className="text-right">今日%</TableHead>
-            <SortHeader label="目标" k="targetValue" sortKey={sortKey} asc={asc} onSort={onSort} className="text-right" />
-            <SortHeader label="现值" k="currentValue" sortKey={sortKey} asc={asc} onSort={onSort} className="text-right" />
-            <SortHeader label="待加" k="remaining" sortKey={sortKey} asc={asc} onSort={onSort} className="text-right" />
+            <SortHeader label="现有仓位" k="currentValue" sortKey={sortKey} asc={asc} onSort={onSort} className="text-right" />
             <TableHead className="text-right">现价</TableHead>
             <SortHeader label="三档锚价" k="tier" sortKey={sortKey} asc={asc} onSort={onSort} />
             <TableHead className="w-10">
@@ -281,8 +268,6 @@ export function TargetTable({
           {rows.map((d) => {
             const sectorColor =
               sectorColors.get(d.target.sector || '未分类') ?? '#64748b';
-            const progress = (d.progressPct * 100).toFixed(1);
-            const progressColor = `color-mix(in srgb, ${sectorColor} var(--accumulation-row-progress-opacity), transparent)`;
             const sectorActive =
               !!activeSector && d.target.sector === activeSector;
             const sectorDimmed =
@@ -290,16 +275,11 @@ export function TargetTable({
             return (
             <TableRow
               key={d.target.id}
-              title={`加仓进度 ${progress}% · 刻度线 20% / 50%`}
               className={cn(
                 'transition-opacity',
                 sectorDimmed && 'opacity-40'
               )}
               style={{
-                backgroundImage: `${ROW_PROGRESS_MARKERS}, linear-gradient(to right, ${progressColor} 0%, ${progressColor} ${progress}%, transparent ${progress}%, transparent 100%)`,
-                backgroundPosition: '20% 0, 50% 0, 0 0',
-                backgroundRepeat: 'no-repeat',
-                backgroundSize: '1px 100%, 1px 100%, 100% 100%',
                 boxShadow: sectorActive
                   ? `inset 3px 0 0 ${sectorColor}`
                   : undefined,
@@ -372,13 +352,7 @@ export function TargetTable({
                 )}
               </TableCell>
               <TableCell className="text-right tabular-nums">
-                {hidden ? '****' : fmtUsd(d.target.targetValue)}
-              </TableCell>
-              <TableCell className="text-right tabular-nums">
                 {d.isHeld ? hidden ? '****' : fmtUsd(d.currentValue) : '—'}
-              </TableCell>
-              <TableCell className="text-right tabular-nums">
-                {hidden ? '****' : fmtUsd(d.remaining)}
               </TableCell>
               <TableCell className="text-right tabular-nums">
                 {d.livePrice !== null ? (

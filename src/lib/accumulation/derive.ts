@@ -1,9 +1,4 @@
-import {
-  DEFAULT_BUDGET_RATIOS,
-  isSectorArmed,
-  type AccumulationTarget,
-  type GateState,
-} from '@/types/accumulation';
+import { isSectorArmed, type AccumulationTarget, type GateState } from '@/types/accumulation';
 import type {
   StocksData,
   EnrichedPosition,
@@ -27,9 +22,6 @@ export interface DerivedTier {
   // Relative drop off 档1's anchor price, (tier1Price − price)/tier1Price.
   // null for 档1 itself. This is what the inline 比例 editor reads/writes.
   relToTier1: number | null;
-  ratio: number;
-  // remaining * ratio — the USD budget allocated to this rung.
-  amount: number;
   // (livePrice − price) / price. ≤ 0 means price is at/through the anchor.
   gapPct: number | null;
   triggered: boolean;
@@ -55,8 +47,6 @@ export interface DerivedTarget {
   pnlPct: number | null;
   changePct: number | null;
   costBasisLocal: number | null;
-  remaining: number;
-  progressPct: number;
   tiers: DerivedTier[];
   // 0..1 closeness to the nearest not-yet-triggered tier (1 = at/through an
   // anchor). Independent of the gate so sorting/coloring still works when the
@@ -72,22 +62,20 @@ export interface SectorMember {
   // Display label (stock name for A/HK, else symbol).
   label: string;
   currentValue: number;
-  targetValue: number;
 }
 
 export interface SectorRollup {
   sector: string;
-  targetValue: number;
   currentValue: number;
-  // Every plan target in this sector, sorted by targetValue desc — powers the
-  // tooltip that shows both current-holding share and target share per symbol.
+  // Every plan target in this sector, sorted by current value — powers the
+  // tooltip that shows each symbol's share of the sector's existing holdings.
   members: SectorMember[];
 }
 
 export interface FundingOverview {
   aiCurrentTotal: number;
   aiTargetTotal: number;
-  pendingBudget: number; // 待加额度 = Σ remaining
+  pendingBudget: number; // 待加额度 = AI 总目标 − AI 当前真实仓位
   aiShareOfPortfolio: number; // AI 现值 / 总资产
   availableAmmo: number; // 可用现金（弹药）
   ammoCoverage: number; // 弹药 / 待加额度，Infinity when nothing pending
@@ -211,13 +199,6 @@ export function deriveTarget(
   const ma20IsLive =
     typeof ma20Override === 'number' && Number.isFinite(ma20Override) && ma20Override > 0;
   const ma20 = ma20IsLive ? ma20Override! : target.ma20;
-  const remaining = Math.max(0, target.targetValue - currentValue);
-  const progressPct =
-    target.targetValue > 0
-      ? Math.min(1, currentValue / target.targetValue)
-      : 0;
-  const ratios = target.budgetRatios ?? DEFAULT_BUDGET_RATIOS;
-
   // 档1 anchors off ma20; 档2/档3 either drop a relative ratio off 档1's price
   // (when relRatios is set) or fall back to their own ma20-relative offset.
   const tier1Price = ma20 * (1 + target.tierOffsets[0]);
@@ -237,8 +218,6 @@ export function deriveTarget(
       offset: ma20 !== 0 ? price / ma20 - 1 : offset,
       price,
       relToTier1,
-      ratio: ratios[i] ?? 0,
-      amount: remaining * (ratios[i] ?? 0),
       gapPct,
       triggered: gapPct !== null && gapPct <= 0,
     };
@@ -286,8 +265,6 @@ export function deriveTarget(
     pnlPct,
     changePct,
     costBasisLocal,
-    remaining,
-    progressPct,
     tiers,
     proximity,
     nearestTierLevel,
@@ -370,38 +347,31 @@ export function rollupSectors(derived: DerivedTarget[]): SectorRollup[] {
     const key = d.target.sector || '未分类';
     const row = map.get(key) ?? {
       sector: key,
-      targetValue: 0,
       currentValue: 0,
       members: [],
     };
-    row.targetValue += d.target.targetValue;
     row.currentValue += d.currentValue;
     row.members.push({
       symbol: d.target.symbol,
       label: displayName(d.target.market, d.target.symbol, d.name),
       currentValue: d.currentValue,
-      targetValue: d.target.targetValue,
     });
     map.set(key, row);
   }
   const out = [...map.values()];
   for (const r of out)
-    r.members.sort((a, b) => b.targetValue - a.targetValue);
-  return out.sort((a, b) => b.targetValue - a.targetValue);
+    r.members.sort((a, b) => b.currentValue - a.currentValue);
+  return out.sort((a, b) => b.currentValue - a.currentValue);
 }
 
 export function deriveFunding(
-  derived: DerivedTarget[],
+  rollups: SectorRollup[],
+  aiTargetTotal: number,
   totalPortfolioUsd: number,
-  availableAmmo: number,
-  unassignedTargetValue = 0
+  availableAmmo: number
 ): FundingOverview {
-  const aiCurrentTotal = derived.reduce((s, d) => s + d.currentValue, 0);
-  const aiTargetTotal =
-    derived.reduce((s, d) => s + d.target.targetValue, 0) +
-    unassignedTargetValue;
-  const pendingBudget =
-    derived.reduce((s, d) => s + d.remaining, 0) + unassignedTargetValue;
+  const aiCurrentTotal = rollups.reduce((sum, sector) => sum + sector.currentValue, 0);
+  const pendingBudget = aiTargetTotal - aiCurrentTotal;
   return {
     aiCurrentTotal,
     aiTargetTotal,

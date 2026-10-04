@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useMemo, useEffect, useCallback } from 'react';
-import { Target, Power, FileJson, X, Plus, ChartPie } from 'lucide-react';
+import { Target, Power, FileJson, X, Plus } from 'lucide-react';
 import { useAccumulationStore } from '@/stores/accumulationStore';
 import { useGate } from '@/hooks/useGate';
 import { useExchangeData } from '@/hooks/useExchangeData';
@@ -20,15 +20,10 @@ import {
   displayName,
   type OrphanHolding,
 } from '@/lib/accumulation/derive';
-import {
-  DEFAULT_BUDGET_RATIOS,
-  type AccumulationTarget,
-  type SectorAllocation,
-} from '@/types/accumulation';
+import { type AccumulationTarget } from '@/types/accumulation';
 import { usePrivacyFormat } from '@/hooks/usePrivacyFormat';
 import { SectorDonut } from './SectorDonut';
 import { FundingOverview } from './FundingOverview';
-import { SectorAllocationDialog } from './SectorAllocationDialog';
 import { TargetTable } from './TargetTable';
 import { buildSectorColorMap } from './sectorColors';
 import { cn } from '@/lib/utils';
@@ -48,97 +43,13 @@ function bankUsd(
   return 0;
 }
 
-function normalizeSectorAllocations(
-  allocations: SectorAllocation[]
-): SectorAllocation[] {
-  const bySector = new Map<string, number>();
-  for (const allocation of allocations) {
-    const sector = allocation.sector.trim();
-    if (!sector) continue;
-    bySector.set(
-      sector,
-      (bySector.get(sector) ?? 0) + Math.max(0, allocation.ratio)
-    );
-  }
-  const total = [...bySector.values()].reduce((sum, ratio) => sum + ratio, 0);
-  if (bySector.size === 0) return [];
-  return [...bySector.entries()].map(([sector, ratio]) => ({
-    sector,
-    ratio: total > 0 ? ratio / total : 1 / bySector.size,
-  }));
-}
-
-function resolveSectorAllocations(
-  targets: AccumulationTarget[],
-  configured: SectorAllocation[]
-): SectorAllocation[] {
-  const baseBySector = new Map<string, number>();
-  for (const target of targets) {
-    const sector = target.sector || '未分类';
-    baseBySector.set(
-      sector,
-      (baseBySector.get(sector) ?? 0) + Math.max(0, target.targetValue)
-    );
-  }
-  if (configured.length === 0) {
-    return normalizeSectorAllocations(
-      [...baseBySector.entries()].map(([sector, targetValue]) => ({
-        sector,
-        ratio: targetValue,
-      }))
-    );
-  }
-  const configuredSectors = new Set(configured.map((item) => item.sector));
-  return normalizeSectorAllocations([
-    ...configured,
-    ...[...baseBySector.keys()]
-      .filter((sector) => !configuredSectors.has(sector))
-      .map((sector) => ({ sector, ratio: 0 })),
-  ]);
-}
-
-function scaleTargetsToPortfolioShare(
-  targets: AccumulationTarget[],
-  totalPortfolioUsd: number,
-  targetPortfolioShare: number,
-  allocations: SectorAllocation[]
-): AccumulationTarget[] {
-  if (totalPortfolioUsd <= 0) return targets;
-  const baseBySector = new Map<string, number>();
-  for (const target of targets) {
-    const sector = target.sector || '未分类';
-    baseBySector.set(
-      sector,
-      (baseBySector.get(sector) ?? 0) + Math.max(0, target.targetValue)
-    );
-  }
-  const allocationBySector = new Map(
-    allocations.map((allocation) => [allocation.sector, allocation.ratio])
-  );
-  const targetTotal = totalPortfolioUsd * targetPortfolioShare;
-  return targets.map((target) => ({
-    ...target,
-    targetValue:
-      targetTotal *
-      (allocationBySector.get(target.sector || '未分类') ?? 0) *
-      (Math.max(0, target.targetValue) /
-        (baseBySector.get(target.sector || '未分类') || 1)),
-  }));
-}
-
 export function AccumulationView() {
   const targets = useAccumulationStore((s) => s.targets);
   const targetPortfolioShare = useAccumulationStore(
     (s) => s.targetPortfolioShare
   );
-  const configuredSectorAllocations = useAccumulationStore(
-    (s) => s.sectorAllocations
-  );
   const setTargetPortfolioShare = useAccumulationStore(
     (s) => s.setTargetPortfolioShare
-  );
-  const applySectorAllocations = useAccumulationStore(
-    (s) => s.applySectorAllocations
   );
   const replaceAll = useAccumulationStore((s) => s.replaceAll);
   const addTarget = useAccumulationStore((s) => s.addTarget);
@@ -235,143 +146,53 @@ export function AccumulationView() {
   }, [targets]);
   const ma20 = useMa20(ma20Symbols);
 
-  const sectorAllocations = useMemo(
-    () => resolveSectorAllocations(targets, configuredSectorAllocations),
-    [targets, configuredSectorAllocations]
-  );
   const portfolioTargetTotal = useMemo(
-    () =>
-      totalPortfolioUsd > 0
-        ? totalPortfolioUsd * targetPortfolioShare
-        : targets.reduce((sum, target) => sum + target.targetValue, 0),
-    [totalPortfolioUsd, targetPortfolioShare, targets]
-  );
-
-  const dynamicTargets = useMemo(
-    () =>
-      scaleTargetsToPortfolioShare(
-        targets,
-        totalPortfolioUsd,
-        targetPortfolioShare,
-        sectorAllocations
-      ),
-    [targets, totalPortfolioUsd, targetPortfolioShare, sectorAllocations]
+    () => totalPortfolioUsd * targetPortfolioShare,
+    [totalPortfolioUsd, targetPortfolioShare]
   );
 
   const derived = useMemo(
     () =>
       deriveTargets(
-        dynamicTargets,
+        targets,
         stocks.data,
         gate,
         watchQuotes.data ?? [],
         ma20.data ?? {}
       ),
-    [dynamicTargets, stocks.data, gate, watchQuotes.data, ma20.data]
+    [targets, stocks.data, gate, watchQuotes.data, ma20.data]
   );
   const orphans = useMemo(
     () => orphanHoldings(targets, stocks.data),
     [targets, stocks.data]
   );
-  const rollups = useMemo(() => {
-    const next = rollupSectors(derived);
-    const existing = new Set(next.map((rollup) => rollup.sector));
-    for (const allocation of sectorAllocations) {
-      if (existing.has(allocation.sector)) continue;
-      next.push({
-        sector: allocation.sector,
-        targetValue: portfolioTargetTotal * allocation.ratio,
-        currentValue: 0,
-        members: [],
-      });
-    }
-    return next.sort((a, b) => b.targetValue - a.targetValue);
-  }, [derived, sectorAllocations, portfolioTargetTotal]);
+  const rollups = useMemo(() => rollupSectors(derived), [derived]);
   const sectorColors = useMemo(
     () => buildSectorColorMap(rollups),
     [rollups]
   );
-  const unassignedTargetValue = useMemo(() => {
-    if (totalPortfolioUsd <= 0) return 0;
-    const sectorsWithTargets = new Set(
-      targets.map((target) => target.sector || '未分类')
-    );
-    return sectorAllocations.reduce(
-      (sum, allocation) =>
-        sum +
-        (sectorsWithTargets.has(allocation.sector)
-          ? 0
-          : portfolioTargetTotal * allocation.ratio),
-      0
-    );
-  }, [targets, sectorAllocations, portfolioTargetTotal, totalPortfolioUsd]);
   const funding = useMemo(
     () =>
       deriveFunding(
-        derived,
+        rollups,
+        portfolioTargetTotal,
         totalPortfolioUsd,
-        availableAmmo,
-        unassignedTargetValue
+        availableAmmo
       ),
-    [derived, totalPortfolioUsd, availableAmmo, unassignedTargetValue]
+    [rollups, portfolioTargetTotal, totalPortfolioUsd, availableAmmo]
   );
   const getFundingPreview = useCallback(
     (share: number) => {
-      const previewTargets = scaleTargetsToPortfolioShare(
-        targets,
-        totalPortfolioUsd,
-        share,
-        sectorAllocations
-      );
-      const currentValueById = new Map(
-        derived.map((item) => [item.target.id, item.currentValue])
-      );
-      const previewTargetTotal =
-        totalPortfolioUsd > 0
-          ? totalPortfolioUsd * share
-          : previewTargets.reduce((sum, target) => sum + target.targetValue, 0);
-      const sectorsWithTargets = new Set(
-        targets.map((target) => target.sector || '未分类')
-      );
-      const previewUnassigned = sectorAllocations.reduce(
-        (sum, allocation) =>
-          sum +
-          (sectorsWithTargets.has(allocation.sector)
-            ? 0
-            : previewTargetTotal * allocation.ratio),
-        0
-      );
+      const previewTargetTotal = totalPortfolioUsd * share;
       return {
-        aiTargetTotal: previewTargets.reduce(
-          (sum, target) => sum + target.targetValue,
-          0
-        ) + previewUnassigned,
-        pendingBudget:
-          previewTargets.reduce(
-            (sum, target) =>
-              sum +
-              Math.max(
-                0,
-                target.targetValue - (currentValueById.get(target.id) ?? 0)
-              ),
-            0
-          ) + previewUnassigned,
+        aiTargetTotal: previewTargetTotal,
+        pendingBudget: previewTargetTotal - funding.aiCurrentTotal,
       };
     },
-    [targets, totalPortfolioUsd, derived, sectorAllocations]
+    [totalPortfolioUsd, funding.aiCurrentTotal]
   );
 
-  const targetCounts = useMemo(() => {
-    const counts = new Map<string, number>();
-    for (const target of targets) {
-      const sector = target.sector || '未分类';
-      counts.set(sector, (counts.get(sector) ?? 0) + 1);
-    }
-    return counts;
-  }, [targets]);
-
   const [showImport, setShowImport] = useState(false);
-  const [showSectorAllocations, setShowSectorAllocations] = useState(false);
   // Sector highlight lights up both rings, the legend dot, and the matching
   // table rows. Hover previews; click pins. Effective = hover falls back to
   // pin, so hovering elsewhere previews without losing the lock.
@@ -390,8 +211,6 @@ export function AccumulationView() {
       sector: '未分类',
       ma20: o.priceLocal ?? 0,
       tierOffsets: [-0.03, -0.06, -0.1],
-      budgetRatios: DEFAULT_BUDGET_RATIOS,
-      targetValue: Math.round(o.currentValue),
       currentValueSnapshot: o.currentValue,
       status: 'active',
     });
@@ -402,16 +221,9 @@ export function AccumulationView() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2">
           <Target className="h-6 w-6 text-blue-500" />
-          <h1 className="text-xl font-bold">AI 加仓计划</h1>
+          <h1 className="text-xl font-bold">AI 仓位</h1>
         </div>
         <div className="flex items-center gap-2">
-          <button
-            onClick={() => setShowSectorAllocations(true)}
-            className="inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
-          >
-            <ChartPie className="h-4 w-4" />
-            板块占比
-          </button>
           <button
             onClick={() => setShowImport(true)}
             className="inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-sm text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors"
@@ -491,20 +303,6 @@ export function AccumulationView() {
         />
       )}
 
-      {showSectorAllocations && (
-        <SectorAllocationDialog
-          allocations={sectorAllocations}
-          targetCounts={targetCounts}
-          targetTotalUsd={portfolioTargetTotal}
-          sectorColors={sectorColors}
-          onClose={() => setShowSectorAllocations(false)}
-          onApply={(next, removedSectors) => {
-            applySectorAllocations(next, removedSectors);
-            setPinnedSector(null);
-            setShowSectorAllocations(false);
-          }}
-        />
-      )}
     </div>
   );
 }
@@ -552,8 +350,6 @@ const SAMPLE: AccumulationTarget[] = [
     sector: 'AI 算力',
     ma20: 170,
     tierOffsets: [-0.03, -0.06, -0.1],
-    budgetRatios: [0.3, 0.3, 0.4],
-    targetValue: 40000,
     status: 'active',
   },
   {
@@ -563,10 +359,23 @@ const SAMPLE: AccumulationTarget[] = [
     sector: '消费',
     ma20: 1500,
     tierOffsets: [-0.04, -0.08, -0.12],
-    targetValue: 20000,
     status: 'active',
   },
 ];
+
+function editablePlanTarget(target: AccumulationTarget) {
+  return {
+    id: target.id,
+    symbol: target.symbol,
+    market: target.market,
+    sector: target.sector,
+    ma20: target.ma20,
+    tierOffsets: target.tierOffsets,
+    ...(target.relRatios ? { relRatios: target.relRatios } : {}),
+    status: target.status,
+    ...(target.note ? { note: target.note } : {}),
+  };
+}
 
 function ImportDialog({
   current,
@@ -578,7 +387,11 @@ function ImportDialog({
   onApply: (targets: AccumulationTarget[]) => void;
 }) {
   const [text, setText] = useState(() =>
-    JSON.stringify(current.length ? current : SAMPLE, null, 2)
+    JSON.stringify(
+      current.length ? current.map(editablePlanTarget) : SAMPLE,
+      null,
+      2
+    )
   );
   const [error, setError] = useState<string | null>(null);
 
@@ -603,8 +416,7 @@ function ImportDialog({
         typeof t.market !== 'string' ||
         typeof t.ma20 !== 'number' ||
         !Array.isArray(t.tierOffsets) ||
-        t.tierOffsets.length !== 3 ||
-        typeof t.targetValue !== 'number'
+        t.tierOffsets.length !== 3
       ) {
         setError(`标的字段不完整: ${JSON.stringify(raw).slice(0, 60)}…`);
         return;
@@ -620,9 +432,6 @@ function ImportDialog({
           Array.isArray(t.relRatios) && t.relRatios.length === 2
             ? (t.relRatios as [number, number])
             : undefined,
-        budgetRatios: t.budgetRatios,
-        targetValue: t.targetValue,
-        currentValueSnapshot: t.currentValueSnapshot,
         status: (t.status as AccumulationTarget['status']) ?? 'active',
         note: t.note,
       });
@@ -650,8 +459,9 @@ function ImportDialog({
         </div>
         <p className="mb-2 text-xs text-muted-foreground">
           A 股手动维护:每个标的 symbol / market(A·HK·US·KR) / sector / ma20 /
-          tierOffsets[3] / targetValue / status。锚价与各档预算自动算出。档2/档3
-          也可在表格内直接编辑「相对档1的下跌比例」(对应 relRatios[2])。
+          tierOffsets[3] / status。总待加额度按「目标仓位 − 当前真实仓位」计算；
+          板块仅展示当前持仓构成，个股只维护候选标的和三档锚价。档2/档3也可在表格内直接编辑
+          「相对档1的下跌比例」(对应 relRatios[2])。
         </p>
         <textarea
           value={text}

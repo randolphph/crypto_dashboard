@@ -1,13 +1,12 @@
 import type { StockMarket } from '@/types/stocks';
 
 // ── AI 加仓计划 (read-only) ────────────────────────────────────────────────
-// A target is the *plan* for one symbol: where you want to end up (targetValue)
-// and at which prices you'd add (three dynamic anchors derived from the 20-day
-// moving average). It is hand-maintained — everything that can drift (tier
-// prices, per-tier budget, gap-to-target, trigger proximity) is DERIVED at
-// render time in `lib/accumulation/derive.ts`, never stored, so a single edit
-// to `ma20` reprices the whole ladder and live value movement keeps budgets
-// honest.
+// A target is an eligible symbol inside a sector plus the prices where it may
+// be added. The portfolio has one overall target; sectors only describe the
+// current holding mix, and individual symbols intentionally have no target
+// amount. Everything that can
+// drift (tier prices, gap-to-anchor, trigger proximity) is derived at render
+// time in `lib/accumulation/derive.ts`.
 //
 // There is intentionally NO order/execution field anywhere in this module —
 // it is a visualization only.
@@ -34,11 +33,10 @@ export interface AccumulationTarget {
   // precedence over tierOffsets[1]/[2]; 档1 is unaffected. Edited inline in the
   // 三档锚价 column.
   relRatios?: [number, number];
-  // How the *remaining* budget (targetValue − liveCurrentValue) is split across
-  // the three tiers. Defaults to [0.3, 0.3, 0.4] when omitted.
+  // Legacy fields kept only so previously saved plans can still hydrate. They
+  // no longer affect any amount shown in the UI.
   budgetRatios?: [number, number, number];
-  // Target USD market value for this name once fully built.
-  targetValue: number;
+  targetValue?: number;
   // Optional snapshot of current value at edit time — purely informational.
   // The number shown in the UI is always the LIVE value from useStockData().
   currentValueSnapshot?: number;
@@ -46,12 +44,6 @@ export interface AccumulationTarget {
   note?: string;
 }
 
-export interface SectorAllocation {
-  sector: string;
-  ratio: number;
-}
-
-export const DEFAULT_BUDGET_RATIOS: [number, number, number] = [0.3, 0.3, 0.4];
 export const DEFAULT_AI_TARGET_PORTFOLIO_SHARE = 0.4;
 
 export const TARGET_STATUS_LABEL: Record<TargetStatus, string> = {

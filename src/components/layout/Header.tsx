@@ -14,7 +14,7 @@ const navItems = [
   { href: '/', label: '资产看板', icon: BarChart3 },
   { href: '/monitoring', label: '监控', icon: Activity },
   { href: '/transactions', label: '交易账本', icon: ScrollText },
-  { href: '/accumulation', label: 'AI 加仓', icon: Target },
+  { href: '/accumulation', label: 'AI 仓位', icon: Target },
   { href: '/settings', label: '设置', icon: Settings },
 ];
 
@@ -34,7 +34,7 @@ export function Header() {
               key={item.href}
               href={item.href}
               className={cn(
-                'flex items-center gap-1.5 rounded-md px-2 py-2 text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground sm:px-3',
+                'flex items-center gap-1.5 whitespace-nowrap rounded-md px-2 py-2 text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground sm:px-3',
                 pathname === item.href
                   ? 'bg-accent text-accent-foreground'
                   : 'text-muted-foreground'

@@ -3,18 +3,12 @@ import { persist } from 'zustand/middleware';
 import {
   DEFAULT_AI_TARGET_PORTFOLIO_SHARE,
   type AccumulationTarget,
-  type SectorAllocation,
 } from '@/types/accumulation';
 
 interface State {
   targets: AccumulationTarget[];
   targetPortfolioShare: number;
-  sectorAllocations: SectorAllocation[];
   setTargetPortfolioShare: (share: number) => void;
-  applySectorAllocations: (
-    allocations: SectorAllocation[],
-    removedSectors: string[]
-  ) => void;
   addTarget: (t: Omit<AccumulationTarget, 'id'>) => void;
   removeTarget: (id: string) => void;
   updateTarget: (
@@ -29,8 +23,8 @@ function makeId(): string {
 }
 
 // The加仓计划 is hand-maintained locally (per the chosen design). Mirrors
-// stockPositionStore: a persisted target list plus portfolio and sector
-// allocation settings used to scale the whole plan. Targets support
+// stockPositionStore: a persisted target list plus the overall portfolio
+// target used to scale the whole plan. Targets support
 // add/remove/update and bulk replace for paste/import-a-whole-plan-JSON
 // workflows.
 export const useAccumulationStore = create<State>()(
@@ -38,41 +32,11 @@ export const useAccumulationStore = create<State>()(
     (set) => ({
       targets: [],
       targetPortfolioShare: DEFAULT_AI_TARGET_PORTFOLIO_SHARE,
-      sectorAllocations: [],
       setTargetPortfolioShare: (share) =>
         set({
           targetPortfolioShare: Number.isFinite(share)
             ? Math.min(1, Math.max(0, share))
             : DEFAULT_AI_TARGET_PORTFOLIO_SHARE,
-        }),
-      applySectorAllocations: (allocations, removedSectors) =>
-        set((s) => {
-          const removed = new Set(removedSectors);
-          const bySector = new Map<string, number>();
-          for (const allocation of allocations) {
-            const sector = allocation.sector.trim();
-            if (!sector) continue;
-            bySector.set(
-              sector,
-              (bySector.get(sector) ?? 0) + Math.max(0, allocation.ratio)
-            );
-          }
-          const total = [...bySector.values()].reduce(
-            (sum, ratio) => sum + ratio,
-            0
-          );
-          const normalized = [...bySector.entries()].map(([sector, ratio]) => ({
-            sector,
-            ratio: total > 0 ? ratio / total : 0,
-          }));
-          return {
-            targets: s.targets.map((target) =>
-              target.sector !== '未分类' && removed.has(target.sector)
-                ? { ...target, sector: '未分类' }
-                : target
-            ),
-            sectorAllocations: normalized,
-          };
         }),
       addTarget: (t) =>
         set((s) => ({ targets: [...s.targets, { ...t, id: makeId() }] })),
@@ -91,8 +55,17 @@ export const useAccumulationStore = create<State>()(
     }),
     {
       name: 'crypto-dashboard-accumulation-plan',
-      version: 1,
-      migrate: (state) => state as State,
+      version: 2,
+      migrate: (persistedState) => {
+        const previous = persistedState as Partial<State>;
+        return {
+          targets: Array.isArray(previous.targets) ? previous.targets : [],
+          targetPortfolioShare:
+            typeof previous.targetPortfolioShare === 'number'
+              ? previous.targetPortfolioShare
+              : DEFAULT_AI_TARGET_PORTFOLIO_SHARE,
+        } as State;
+      },
     }
   )
 );

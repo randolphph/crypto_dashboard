@@ -17,20 +17,17 @@ const RAINBOW_STOPS = [
   ['100%', 'var(--accumulation-rainbow-red)'],
 ] as const;
 
-const FILLED_OPACITY = 1;
-const REMAINING_OPACITY = 0.3;
-// Angular gap between sectors, as a fraction of total target. Inserted as a
+const HOLDING_OPACITY = 1;
+// Angular gap between sectors, as a fraction of current holdings. Inserted as a
 // transparent spacer slice so wedges separate WITHOUT splitting each sector's
-// filled/remaining halves (which a paddingAngle would do).
+// current-value share (which a paddingAngle would do).
 const GAP_RATIO = 0.025;
 
-// One ring. Each sector's wedge is sized by its TARGET weight; within the wedge
-// the achieved part (current) is drawn in saturated color and the gap (target −
-// current) in a faded tint of the same hue — so the color alone reads as that
-// sector's加仓进度.
+// One ring. Each sector's wedge is sized only by its current real position, so
+// the chart reads as the current portfolio mix without implying sector targets.
 interface RingSlice {
   sector: string; // '' for spacer
-  kind: 'filled' | 'remaining' | 'gap';
+  kind: 'holding' | 'gap';
   value: number;
   color: string;
 }
@@ -61,35 +58,29 @@ export function SectorDonut({
 }: Props) {
   const { fmtUsd, hidden } = usePrivacyFormat();
 
-  const { ring, labels, rollupBySector, totalTarget, hasData } =
+  const { ring, labels, rollupBySector, totalCurrent, hasData } =
     useMemo(() => {
       const rollupBySector = new Map<string, SectorRollup>();
       rollups.forEach((r) => {
         rollupBySector.set(r.sector, r);
       });
-      const withTarget = rollups.filter((r) => r.targetValue > 0);
-      const totalTarget = withTarget.reduce((s, r) => s + r.targetValue, 0);
-      const gapValue = totalTarget * GAP_RATIO;
+      const withHoldings = rollups.filter((r) => r.currentValue > 0);
+      const totalCurrent = withHoldings.reduce((s, r) => s + r.currentValue, 0);
+      const gapValue = totalCurrent * GAP_RATIO;
 
       const ring: RingSlice[] = [];
       const labels: LabelSlice[] = [];
-      withTarget.forEach((r, idx) => {
+      withHoldings.forEach((r, idx) => {
         const color = sectorColors.get(r.sector) ?? '#64748b';
-        const filled = Math.min(Math.max(r.currentValue, 0), r.targetValue);
-        const remaining = Math.max(r.targetValue - filled, 0);
-        // Keep filled then remaining adjacent so they read as one wedge.
-        if (filled > 0)
-          ring.push({ sector: r.sector, kind: 'filled', value: filled, color });
-        if (remaining > 0)
-          ring.push({
-            sector: r.sector,
-            kind: 'remaining',
-            value: remaining,
-            color,
-          });
-        labels.push({ sector: r.sector, value: r.targetValue });
+        ring.push({
+          sector: r.sector,
+          kind: 'holding',
+          value: r.currentValue,
+          color,
+        });
+        labels.push({ sector: r.sector, value: r.currentValue });
         // Spacer after every sector (including the last → uniform gaps).
-        if (gapValue > 0 && idx < withTarget.length) {
+        if (gapValue > 0 && idx < withHoldings.length) {
           ring.push({ sector: '', kind: 'gap', value: gapValue, color: '' });
           labels.push({ sector: '', value: gapValue });
         }
@@ -98,8 +89,8 @@ export function SectorDonut({
         ring,
         labels,
         rollupBySector,
-        totalTarget,
-        hasData: withTarget.length > 0,
+        totalCurrent,
+        hasData: withHoldings.length > 0,
       };
     }, [rollups, sectorColors]);
 
@@ -111,10 +102,10 @@ export function SectorDonut({
     );
   }
 
-  const sliceOpacity = (sector: string, kind: 'filled' | 'remaining') => {
-    const base = kind === 'filled' ? FILLED_OPACITY : REMAINING_OPACITY;
-    return activeSector && activeSector !== sector ? base * 0.35 : base;
-  };
+  const sliceOpacity = (sector: string) =>
+    activeSector && activeSector !== sector
+      ? HOLDING_OPACITY * 0.35
+      : HOLDING_OPACITY;
 
   // Sector names printed just outside the ring (replaces the legend). Rendered
   // on an invisible carrier pie (one slice per sector + matching gaps) so each
@@ -126,23 +117,27 @@ export function SectorDonut({
     const { cx, cy, midAngle, outerRadius, payload, value } = props;
     const sector: string = payload?.sector ?? '';
     if (!sector) return null;
-    const r = outerRadius + 18;
+    const compact = cx < 220;
+    const r = compact ? outerRadius - 18 : outerRadius + 18;
     const x = cx + r * Math.cos(-midAngle * RADIAN);
     const y = cy + r * Math.sin(-midAngle * RADIAN);
-    const anchor = x >= cx ? 'start' : 'end';
+    const anchor = compact ? 'middle' : x >= cx ? 'start' : 'end';
     const dim = activeSector && activeSector !== sector;
-    // Share of total target = this sector's wedge size in the ring.
+    // Share of current real holdings = this sector's wedge size in the ring.
     const pct =
-      totalTarget > 0 ? Math.round((value / totalTarget) * 100) : 0;
+      totalCurrent > 0 ? Math.round((value / totalCurrent) * 100) : 0;
     return (
       <text
         x={x}
         y={y}
         textAnchor={anchor}
         dominantBaseline="central"
-        fontSize={19}
+        fontSize={compact ? 12 : 19}
         fontWeight={activeSector === sector ? 800 : 700}
-        fill={sectorColors.get(sector)}
+        fill={compact ? '#fff' : sectorColors.get(sector)}
+        stroke={compact ? 'rgba(0, 0, 0, 0.24)' : 'none'}
+        strokeWidth={compact ? 2 : 0}
+        paintOrder="stroke"
         opacity={dim ? 0.3 : 1}
         className="cursor-pointer"
         onMouseEnter={() => onHover(sector)}
@@ -150,7 +145,12 @@ export function SectorDonut({
         onClick={() => onTogglePin(sector)}
       >
         {sector}
-        <tspan dx={7} fontSize={16} fontWeight={600} opacity={0.8}>
+        <tspan
+          dx={compact ? 4 : 7}
+          fontSize={compact ? 11 : 16}
+          fontWeight={600}
+          opacity={compact ? 1 : 0.8}
+        >
           {pct}%
         </tspan>
       </text>
@@ -181,8 +181,8 @@ export function SectorDonut({
             nameKey="sector"
             cx="50%"
             cy="50%"
-            innerRadius={124}
-            outerRadius={188}
+            innerRadius="60%"
+            outerRadius="85%"
             paddingAngle={0}
             startAngle={90}
             endAngle={-270}
@@ -207,7 +207,7 @@ export function SectorDonut({
                 <Cell
                   key={`${s.sector}-${s.kind}-${i}`}
                   fill={s.color}
-                  fillOpacity={sliceOpacity(s.sector, s.kind)}
+                  fillOpacity={sliceOpacity(s.sector)}
                   stroke="var(--background)"
                   strokeWidth={1.5}
                 />
@@ -222,8 +222,8 @@ export function SectorDonut({
             nameKey="sector"
             cx="50%"
             cy="50%"
-            innerRadius={124}
-            outerRadius={188}
+            innerRadius="60%"
+            outerRadius="85%"
             startAngle={90}
             endAngle={-270}
             fill="none"
@@ -239,10 +239,8 @@ export function SectorDonut({
               if (!sector) return null;
               const r = rollupBySector.get(sector);
               if (!r) return null;
-              const progress =
-                r.targetValue > 0
-                  ? Math.min(1, r.currentValue / r.targetValue) * 100
-                  : 0;
+              const currentShare =
+                totalCurrent > 0 ? r.currentValue / totalCurrent : 0;
               const color = sectorColors.get(sector) ?? '#888888';
               return (
                 <div className="min-w-[320px] rounded-lg border bg-popover px-5 py-4 text-base shadow-lg">
@@ -260,53 +258,49 @@ export function SectorDonut({
                         <span
                           className="block h-full rounded-full"
                           style={{
-                            width: `${progress}%`,
+                            width: `${currentShare * 100}%`,
                             backgroundColor: color,
                           }}
                         />
                       </span>
-                      进度 {progress.toFixed(0)}%
+                      当前构成 {(currentShare * 100).toFixed(1)}%
                     </span>
                   </p>
                   <p className="mt-1.5 text-sm text-muted-foreground tabular-nums tracking-wide">
-                    现有 {hidden ? '****' : fmtUsd(r.currentValue)} · 目标{' '}
-                    {hidden ? '****' : fmtUsd(r.targetValue)}
+                    当前真实仓位 {hidden ? '****' : fmtUsd(r.currentValue)}
                   </p>
                   <div className="mt-3 space-y-2.5">
                     {r.members.length === 0 && (
                       <p className="text-sm text-muted-foreground">
-                        尚未添加标的，额度暂未分配
+                        尚未添加候选标的
                       </p>
                     )}
                     {r.members.map((m) => {
-                      // Mini-ring depth = this stock's progress toward its own
-                      // target; the % beside the name = its share of the
-                      // sector's target.
-                      const prog =
-                        m.targetValue > 0
-                          ? Math.min(1, m.currentValue / m.targetValue)
-                          : 0;
-                      const tgtShare =
-                        r.targetValue > 0
-                          ? (m.targetValue / r.targetValue) * 100
+                      const holdingShare =
+                        r.currentValue > 0
+                          ? m.currentValue / r.currentValue
                           : 0;
                       return (
                         <div key={m.symbol} className="flex items-center gap-2.5">
-                          <MemberRing progress={prog} color={color} />
-                          <div className="min-w-0 flex-1">
-                            <div className="flex items-baseline justify-between gap-2">
-                              <span className="truncate font-medium text-foreground">
-                                {m.label}
-                              </span>
-                              <span className="shrink-0 text-xs text-muted-foreground tabular-nums">
-                                目标占比 {tgtShare.toFixed(0)}%
-                              </span>
-                            </div>
-                            <div className="text-xs text-muted-foreground tabular-nums">
-                              现有 {hidden ? '****' : fmtUsd(m.currentValue)} ·
-                              目标 {hidden ? '****' : fmtUsd(m.targetValue)}
-                            </div>
-                          </div>
+                          <MemberRing
+                            progress={holdingShare}
+                            color={color}
+                            hidden={hidden}
+                          />
+                          <span className="min-w-0 flex-1 truncate font-medium text-foreground">
+                            {m.label}
+                          </span>
+                          <span className="shrink-0 text-right tabular-nums">
+                            <span className="block text-sm font-medium text-foreground">
+                              {hidden ? '****' : fmtUsd(m.currentValue)}
+                            </span>
+                            <span className="block text-xs text-muted-foreground">
+                              板块内占比{' '}
+                              {hidden
+                                ? '****'
+                                : `${(holdingShare * 100).toFixed(1)}%`}
+                            </span>
+                          </span>
                         </div>
                       );
                     })}
@@ -500,7 +494,7 @@ function WaterCircle({
         fontWeight={600}
         className="fill-muted-foreground"
       >
-        加仓进度
+        仓位进度
       </text>
     </svg>
   );
@@ -512,15 +506,16 @@ function RainbowStops() {
   ));
 }
 
-// Per-stock progress donut for the tooltip: a light track (sector color, faded)
-// with a saturated arc whose length = currentValue / targetValue, plus the
-// progress % in the middle. Same 深浅 language as the main ring.
+// Per-stock share donut for the tooltip: the arc is this stock's current-value
+// share inside the sector. It deliberately carries no target amount.
 function MemberRing({
   progress,
   color,
+  hidden,
 }: {
   progress: number;
   color: string;
+  hidden: boolean;
 }) {
   const size = 34;
   const stroke = 5;
@@ -564,7 +559,7 @@ function MemberRing({
         fontWeight={700}
         fill={color}
       >
-        {Math.round(filled * 100)}
+        {hidden ? '•' : Math.round(filled * 100)}
       </text>
     </svg>
   );
