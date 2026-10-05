@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Activity, BarChart3, Target, Settings, ScrollText } from 'lucide-react';
+import { Activity, BarChart3, RadioTower, Target, Settings, ScrollText } from 'lucide-react';
 import { ThemeToggle } from '@/components/common/ThemeToggle';
 import { PrivacyToggle } from '@/components/common/PrivacyToggle';
 import { RefreshControl } from '@/components/dashboard/RefreshControl';
@@ -13,6 +13,7 @@ import { cn } from '@/lib/utils';
 const navItems = [
   { href: '/', label: '资产看板', icon: BarChart3 },
   { href: '/monitoring', label: '监控', icon: Activity },
+  { href: '/copy-trading', label: '量化跟单', icon: RadioTower },
   { href: '/transactions', label: '交易账本', icon: ScrollText },
   { href: '/accumulation', label: 'AI 仓位', icon: Target },
   { href: '/settings', label: '设置', icon: Settings },
@@ -33,6 +34,7 @@ export function Header() {
             <Link
               key={item.href}
               href={item.href}
+              aria-label={item.label}
               className={cn(
                 'flex items-center gap-1.5 whitespace-nowrap rounded-md px-2 py-2 text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground sm:px-3',
                 pathname === item.href
@@ -46,8 +48,8 @@ export function Header() {
           ))}
         </nav>
         <div className="ml-auto flex items-center gap-1 sm:gap-3">
-          <div className="hidden lg:block"><FxBadge /></div>
-          <div className="hidden sm:block"><WalletStatus /></div>
+          <div className="hidden 2xl:block"><FxBadge /></div>
+          <div className="hidden 2xl:block"><WalletStatus /></div>
           <div className="hidden sm:block"><RefreshControl /></div>
           <PrivacyToggle />
           <ThemeToggle />

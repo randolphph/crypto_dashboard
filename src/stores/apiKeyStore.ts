@@ -6,6 +6,10 @@ export interface ApiKeys {
   binanceApiSecret: string;
   binanceEnableGridBot: boolean;
   binanceTradeSymbols: string;
+  // Hyperliquid API Wallet (agent wallet, never the master wallet key)
+  hyperliquidAccountAddress: string;
+  hyperliquidApiWalletPrivateKey: string;
+  hyperliquidNetwork: 'mainnet' | 'testnet';
   // OKX
   okxApiKey: string;
   okxApiSecret: string;
@@ -40,6 +44,9 @@ export const emptyKeys: ApiKeys = {
   binanceApiSecret: '',
   binanceEnableGridBot: false,
   binanceTradeSymbols: '',
+  hyperliquidAccountAddress: '',
+  hyperliquidApiWalletPrivateKey: '',
+  hyperliquidNetwork: 'mainnet',
   okxApiKey: '',
   okxApiSecret: '',
   okxPassphrase: '',

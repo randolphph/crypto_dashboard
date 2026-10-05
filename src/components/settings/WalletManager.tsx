@@ -12,12 +12,15 @@ interface WalletManagerProps {
   autoOpenForm?: boolean;
 }
 
-const EVM_CHAINS: { id: EvmChain; label: string }[] = [
+type EvmAddressChain = EvmChain | 'hyperliquid';
+
+const EVM_CHAINS: { id: EvmAddressChain; label: string }[] = [
   { id: 'ethereum', label: 'Ethereum' },
   { id: 'optimism', label: 'Optimism' },
   { id: 'arbitrum', label: 'Arbitrum One' },
   { id: 'base', label: 'Base' },
   { id: 'bsc', label: 'BNB Chain' },
+  { id: 'hyperliquid', label: 'Hyperliquid' },
   { id: 'robinhood', label: 'Robinhood Chain' },
 ];
 
@@ -27,6 +30,7 @@ const CHAIN_LABELS: Record<Chain, string> = {
   arbitrum: 'ARB',
   base: 'Base',
   bsc: 'BSC',
+  hyperliquid: 'Hyperliquid',
   robinhood: 'Robinhood',
   solana: 'SOL',
   bitcoin: 'BTC',
@@ -53,7 +57,7 @@ export function WalletManager({ embedded, autoOpenForm }: WalletManagerProps = {
   const [name, setName] = useState('');
   const [address, setAddress] = useState('');
   const [walletType, setWalletType] = useState<WalletType>('evm');
-  const [selectedEvmChains, setSelectedEvmChains] = useState<EvmChain[]>(['ethereum']);
+  const [selectedEvmChains, setSelectedEvmChains] = useState<EvmAddressChain[]>(['ethereum']);
 
   useEffect(() => {
     if (autoOpenForm) setShowForm(true);
@@ -76,7 +80,7 @@ export function WalletManager({ embedded, autoOpenForm }: WalletManagerProps = {
     setAddress(wallet.address);
     setWalletType(type);
     setSelectedEvmChains(
-      type === 'evm' ? (chains as EvmChain[]) : ['ethereum']
+      type === 'evm' ? (chains as EvmAddressChain[]) : ['ethereum']
     );
     setShowForm(true);
   };
@@ -109,7 +113,7 @@ export function WalletManager({ embedded, autoOpenForm }: WalletManagerProps = {
     resetForm();
   };
 
-  const toggleEvmChain = (chain: EvmChain) => {
+  const toggleEvmChain = (chain: EvmAddressChain) => {
     setSelectedEvmChains((prev) =>
       prev.includes(chain)
         ? prev.length > 1

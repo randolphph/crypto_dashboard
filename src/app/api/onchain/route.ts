@@ -1,10 +1,12 @@
 import { fetchEvmWalletBalances } from '@/lib/onchain/ethereum';
 import { fetchSolanaWalletBalances } from '@/lib/onchain/solana';
 import { fetchBitcoinWalletBalances } from '@/lib/onchain/bitcoin';
+import { fetchHyperliquidWalletBalances } from '@/lib/onchain/hyperliquid';
 import {
   fetchDefiPositionsViaOkx,
   isOkxWeb3Available,
   lpKey,
+  type OkxWeb3Chain,
 } from '@/lib/onchain/okxWeb3';
 import { DEFAULT_RECEIPT_TOKEN_SYMBOLS } from '@/lib/onchain/receiptTokens';
 import type { WalletConfig, Chain, EvmChain } from '@/types/onchain';
@@ -93,7 +95,14 @@ export async function POST(request: Request) {
           const chains = getWalletChains(wallet);
           const isSolana = chains.includes('solana');
           const isBitcoin = chains.includes('bitcoin');
-          const evmChains = chains.filter((c) => c !== 'solana' && c !== 'bitcoin') as EvmChain[];
+          const isHyperliquid = chains.includes('hyperliquid');
+          const evmChains = chains.filter(
+            (c): c is EvmChain =>
+              c !== 'solana' && c !== 'bitcoin' && c !== 'hyperliquid'
+          );
+          const okxChains = chains.filter(
+            (c): c is OkxWeb3Chain => c !== 'hyperliquid'
+          );
 
           const balancePromises: Promise<import('@/types/common').AssetBalance[]>[] = [];
 
@@ -102,6 +111,9 @@ export async function POST(request: Request) {
           }
           if (isBitcoin) {
             balancePromises.push(fetchBitcoinWalletBalances(wallet, okxWeb3Creds));
+          }
+          if (isHyperliquid) {
+            balancePromises.push(fetchHyperliquidWalletBalances(wallet));
           }
           if (evmChains.length > 0) {
             balancePromises.push(fetchEvmWalletBalances(wallet, evmChains, okxWeb3Creds));
@@ -113,8 +125,8 @@ export async function POST(request: Request) {
             positionTokenAmounts: new Map<string, number[]>(),
           };
           let defiError: string | null = null;
-          const defiPromise = isOkxWeb3Available(okxWeb3Creds)
-            ? fetchDefiPositionsViaOkx(wallet.address, chains, okxWeb3Creds).catch(
+          const defiPromise = isOkxWeb3Available(okxWeb3Creds) && okxChains.length > 0
+            ? fetchDefiPositionsViaOkx(wallet.address, okxChains, okxWeb3Creds).catch(
                 (err) => {
                   console.warn(`OKX DeFi fetch failed for ${wallet.name}:`, err);
                   defiError = err instanceof Error ? err.message : String(err);

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useId, useState } from 'react';
 import { Eye, EyeOff } from 'lucide-react';
 import { useApiKeyStore } from '@/stores/apiKeyStore';
 
@@ -16,12 +16,14 @@ function SecretInput({
   placeholder?: string;
 }) {
   const [visible, setVisible] = useState(false);
+  const inputId = useId();
 
   return (
     <div className="flex flex-col gap-1">
-      <label className="text-sm text-muted-foreground">{label}</label>
+      <label htmlFor={inputId} className="text-sm text-muted-foreground">{label}</label>
       <div className="relative">
         <input
+          id={inputId}
           type={visible ? 'text' : 'password'}
           value={value}
           onChange={(e) => onChange(e.target.value)}
@@ -30,6 +32,7 @@ function SecretInput({
         />
         <button
           type="button"
+          aria-label={visible ? `隐藏${label}` : `显示${label}`}
           onClick={() => setVisible(!visible)}
           className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
         >
@@ -98,6 +101,10 @@ export function ApiKeySettings() {
   const store = useApiKeyStore();
 
   const binanceConfigured = !!(store.binanceApiKey && store.binanceApiSecret);
+  const hyperliquidConfigured = !!(
+    store.hyperliquidAccountAddress &&
+    store.hyperliquidApiWalletPrivateKey
+  );
   const okxConfigured = !!(store.okxApiKey && store.okxApiSecret && store.okxPassphrase);
   const deribitConfigured = !!(store.deribitClientId && store.deribitClientSecret);
   const okxWeb3Configured = !!(
@@ -124,6 +131,42 @@ export function ApiKeySettings() {
       </div>
 
       <div className="space-y-2">
+        <Section title="Hyperliquid API Wallet" configured={hyperliquidConfigured}>
+          <div className="flex flex-col gap-1">
+            <label htmlFor="hyperliquid-network" className="text-sm text-muted-foreground">网络</label>
+            <select
+              id="hyperliquid-network"
+              value={store.hyperliquidNetwork}
+              onChange={(event) => store.setKeys({ hyperliquidNetwork: event.target.value as 'mainnet' | 'testnet' })}
+              className="rounded-md border bg-background px-3 py-1.5 text-sm"
+            >
+              <option value="mainnet">主网</option>
+              <option value="testnet">测试网</option>
+            </select>
+          </div>
+          <div className="flex flex-col gap-1">
+            <label htmlFor="hyperliquid-account" className="text-sm text-muted-foreground">主账户地址</label>
+            <input
+              id="hyperliquid-account"
+              type="text"
+              value={store.hyperliquidAccountAddress}
+              onChange={(event) => store.setKeys({ hyperliquidAccountAddress: event.target.value.trim() })}
+              placeholder="0x… API Wallet 所属主账户"
+              className="w-full rounded-md border bg-background px-3 py-1.5 font-mono text-sm"
+              spellCheck={false}
+            />
+          </div>
+          <SecretInput
+            label="API Wallet 私钥"
+            value={store.hyperliquidApiWalletPrivateKey}
+            onChange={(value) => store.setKeys({ hyperliquidApiWalletPrivateKey: value.trim() })}
+            placeholder="0x… 仅填写独立 API Wallet 私钥"
+          />
+          <p className="text-xs text-muted-foreground">
+            只使用 Hyperliquid 独立 API Wallet（Agent Wallet），不要填写主钱包私钥。凭证由当前钱包加密后保存在浏览器。
+          </p>
+        </Section>
+
         <Section title="Binance" configured={binanceConfigured}>
           <SecretInput
             label="API Key"

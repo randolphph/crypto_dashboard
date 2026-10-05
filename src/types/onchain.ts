@@ -7,7 +7,7 @@ export type EvmChain =
   | 'base'
   | 'bsc'
   | 'robinhood';
-export type Chain = EvmChain | 'solana' | 'bitcoin';
+export type Chain = EvmChain | 'hyperliquid' | 'solana' | 'bitcoin';
 
 /** @deprecated Use Chain instead */
 export type Network = Chain;

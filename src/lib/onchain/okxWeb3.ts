@@ -14,8 +14,10 @@ import type {
   DefiPositionItem,
 } from '@/types/onchain';
 
+export type OkxWeb3Chain = Exclude<Chain, 'hyperliquid'>;
+
 // OKX Web3 API chainIndex mapping
-const CHAIN_INDEX_MAP: Record<Chain, string> = {
+const CHAIN_INDEX_MAP: Record<OkxWeb3Chain, string> = {
   ethereum: '1',
   optimism: '10',
   arbitrum: '42161',
@@ -211,7 +213,7 @@ function tokenLogoUrl(chainIndex: string, tokenAddress: string): string | undefi
 
 export async function fetchBalancesViaOkx(
   address: string,
-  chains: Chain[],
+  chains: OkxWeb3Chain[],
   overrides?: OkxWeb3Creds
 ): Promise<AssetBalance[]> {
   const chainIndexes = chains.map((c) => CHAIN_INDEX_MAP[c]).join(',');
@@ -367,7 +369,7 @@ export interface DefiFetchResult {
 
 export async function fetchDefiPositionsViaOkx(
   address: string,
-  chains: Chain[],
+  chains: OkxWeb3Chain[],
   overrides?: OkxWeb3Creds
 ): Promise<DefiFetchResult> {
   // Bitcoin has no DeFi via OKX; skip it but pass everything else through.

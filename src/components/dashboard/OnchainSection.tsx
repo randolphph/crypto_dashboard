@@ -12,6 +12,7 @@ const CHAIN_LABELS: Record<string, string> = {
   arbitrum: 'ARB',
   base: 'Base',
   bsc: 'BSC',
+  hyperliquid: 'Hyperliquid',
   robinhood: 'Robinhood',
   solana: 'SOL',
   bitcoin: 'BTC',
