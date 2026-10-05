@@ -164,16 +164,17 @@ export function Dashboard() {
     .map((b) => {
       const d = brokerById(b);
       if (!d || d.totalUsdValue === 0) return null;
-      return { label: BROKER_LABEL[b], value: d.totalUsdValue };
+      return { label: BROKER_LABEL[b], value: d.totalUsdValue, isLoading: stocks.isFetching };
     })
-    .filter((x): x is { label: string; value: number } => !!x);
+    .filter((x): x is { label: string; value: number; isLoading: boolean } => !!x);
 
   const breakdown = [
-    binance.data?.configured !== false && { label: 'Binance', value: binance.data?.totalUsdValue ?? 0 },
-    okx.data?.configured !== false && { label: 'OKX', value: okx.data?.totalUsdValue ?? 0 },
-    deribit.data?.configured !== false && { label: 'Deribit', value: deribit.data?.totalUsdValue ?? 0 },
+    binance.data?.configured !== false && { label: 'Binance', value: binance.data?.totalUsdValue ?? 0, isLoading: binance.isFetching },
+    okx.data?.configured !== false && { label: 'OKX', value: okx.data?.totalUsdValue ?? 0, isLoading: okx.isFetching },
+    deribit.data?.configured !== false && { label: 'Deribit', value: deribit.data?.totalUsdValue ?? 0, isLoading: deribit.isFetching },
     {
       label: '链上',
+      isLoading: onchain.isFetching,
       value:
         onchain.data?.reduce(
           (sum: number, w: { totalUsdValue: number }) => sum + w.totalUsdValue,
@@ -181,9 +182,11 @@ export function Dashboard() {
         ) ?? 0,
     },
     ...stockBreakdown,
-    bankCashValue > 0 && { label: '银行', value: bankCashValue },
+    (bankCashValue > 0 || (bankNeedsFx && !fx && fxQuery.isFetching)) && {
+      label: '银行', value: bankCashValue, isLoading: bankNeedsFx && !fx && fxQuery.isFetching,
+    },
     ...customAssets.map((a) => ({ label: a.name, value: a.value })),
-  ].filter((item): item is { label: string; value: number } => !!item);
+  ].filter((item): item is { label: string; value: number; isLoading?: boolean } => !!item);
 
   // Category-level rollup: the high-level "where are my eggs" view. We can't
   // just sum each exchange's totalUsdValue under "加密" because stablecoins

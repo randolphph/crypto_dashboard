@@ -9,6 +9,7 @@ import {
   X,
   Sparkles,
   RefreshCw,
+  LoaderCircle,
 } from 'lucide-react';
 import { usePrivacyFormat } from '@/hooks/usePrivacyFormat';
 import { useCustomAssetStore, type CustomAsset } from '@/stores/customAssetStore';
@@ -28,6 +29,7 @@ import {
 interface BreakdownItem {
   label: string;
   value: number;
+  isLoading?: boolean;
   details?: BreakdownItem[];
 }
 
@@ -678,7 +680,13 @@ export function PortfolioSummary({
                   <SourceIcon label={item.label} />
                   {item.label}
                 </p>
-                <p className="text-sm font-medium tabular-nums">{fmtUsd(item.value)}</p>
+                <p className="inline-flex h-5 items-center text-sm font-medium tabular-nums">
+                  {item.isLoading ? (
+                    <span role="status" aria-label={`${item.label} 金额加载中`}>
+                      <LoaderCircle className="h-4 w-4 animate-spin text-muted-foreground" aria-hidden="true" />
+                    </span>
+                  ) : fmtUsd(item.value)}
+                </p>
               </div>
             ))}
 

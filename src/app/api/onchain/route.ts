@@ -9,6 +9,7 @@ import {
   type OkxWeb3Chain,
 } from '@/lib/onchain/okxWeb3';
 import { DEFAULT_RECEIPT_TOKEN_SYMBOLS } from '@/lib/onchain/receiptTokens';
+import { isAaveReceiptBalance, isAaveProtocol } from '@/lib/onchain/aaveReceipts';
 import type { WalletConfig, Chain, EvmChain } from '@/types/onchain';
 import type { WalletBalance, DefiProtocolPosition } from '@/types/onchain';
 import {
@@ -30,8 +31,6 @@ function getWalletChains(wallet: WalletConfig): Chain[] {
 // Regex layer of scheme B. Patterns stay server-side (not user-editable
 // through the UI) — the user-editable symbol set is passed in from the client.
 const RECEIPT_TOKEN_PATTERNS: RegExp[] = [
-  // Aave a-tokens, including v3 multi-chain naming (aArbUSDC, aBasWETH, etc.)
-  /^a(Arb|Bas|Opt|Eth|Pol|Avx|Bnb)?[A-Z][A-Za-z0-9]+$/,
   // Yearn vault tokens
   /^yv?[A-Z][A-Za-z0-9]+$/,
   // Convex
@@ -141,31 +140,33 @@ export async function POST(request: Request) {
           ]);
           const rawBalances = balanceResults.flat();
 
-          // Symbols actually reported by current DeFi positions. Scheme B uses
+          // Symbols reported by non-Aave DeFi positions. Scheme B uses
           // this as a cross-check so we only drop a "looks like a receipt"
           // wallet token when the same symbol shows up in an active position —
           // otherwise a user holding stETH without a Lido position would see
           // it silently disappear.
           const positionSymbols = new Set<string>();
           for (const protocol of defiResult.positions) {
+            if (isAaveProtocol(protocol.platformName)) continue;
             for (const pos of protocol.positions) {
               for (const t of pos.tokens) positionSymbols.add(t.symbol);
             }
           }
 
-          // Mark tokens that DeFi positions already represent. Marked tokens
-          // stay in the response (rendered with a "deduped" badge for
-          // transparency) but are excluded from totalUsdValue.
+          // Mark receipt tokens excluded from wallet assets. They remain in
+          // the response for display but never contribute to totalUsdValue.
           //   C.  (chainId, address) in the user's manual list → unconditional.
           //   A.1 Address in OKX-flagged LP/position-token list.
-          //   A.2 Address in a position's assetsTokenList AND wallet amount
-          //       matches a position amount within ±1%. Catches LSTs/aTokens.
+          //   A.2 Address in a non-Aave position's assetsTokenList AND wallet
+          //       amount matches a position amount within ±1%. Catches LSTs.
+          //   A.3 Aave aTokens are always excluded, even without DeFi data.
           //   B.  Symbol matches a known receipt-token pattern AND the same
           //       symbol appears in some current DeFi position. Fallback when
           //       a position reports a different underlying address than the
           //       receipt held in the wallet.
           const AMOUNT_TOLERANCE = 0.01;
           const isDeduped = (b: import('@/types/common').AssetBalance): boolean => {
+            if (isAaveReceiptBalance(b)) return true;
             if (b.tokenAddress && b.chainId) {
               const key = lpKey(b.chainId, b.tokenAddress);
               if (userReceiptKeys.has(key)) return true;
@@ -188,6 +189,7 @@ export async function POST(request: Request) {
           const markedBalances = rawBalances.map((b) => ({
             ...b,
             dedupedToDefi: isDeduped(b),
+            exclusionReason: isAaveReceiptBalance(b) ? 'aave-receipt' as const : undefined,
           }));
 
           // Treat OKX Web3 as the authoritative source for on-chain balances

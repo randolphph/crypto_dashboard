@@ -6,6 +6,7 @@ export type EvmChain =
   | 'arbitrum'
   | 'base'
   | 'bsc'
+  | 'plasma'
   | 'robinhood';
 export type Chain = EvmChain | 'hyperliquid' | 'solana' | 'bitcoin';
 

@@ -43,9 +43,11 @@ export function AssetTable({ balances }: AssetTableProps) {
                   {item.dedupedToDefi && (
                     <span
                       className="rounded-full bg-secondary px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground"
-                      title="该代币的价值已计入下方 DeFi 持仓，不重复加总"
+                      title={item.exclusionReason === 'aave-receipt'
+                        ? 'aToken 是 Aave 存款凭证，不计入钱包资产或总资产'
+                        : '该代币的价值已计入下方 DeFi 持仓，不重复加总'}
                     >
-                      已计入 DeFi
+                      {item.exclusionReason === 'aave-receipt' ? '不计入资产' : '已计入 DeFi'}
                     </span>
                   )}
                 </span>

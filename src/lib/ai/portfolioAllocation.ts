@@ -126,6 +126,8 @@ const CHAIN_LABELS: Record<string, string> = {
   '56': 'BNB Chain',
   '8453': 'Base',
   '42161': 'Arbitrum',
+  '9745': 'Plasma',
+  plasma: 'Plasma',
   '4663': 'Robinhood Chain',
   hyperliquid: 'Hyperliquid',
   bitcoin: 'Bitcoin',

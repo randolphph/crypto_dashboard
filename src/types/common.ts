@@ -5,10 +5,10 @@ export interface AssetBalance {
   tokenAddress?: string;
   chainId?: string;
   logo?: string;
-  // True when this token has been judged a DeFi receipt (LST, aToken, LP, etc.)
-  // already represented inside defiPositions. Still rendered for transparency
-  // but excluded from the wallet's totalUsdValue.
+  // Excluded from asset totals: represented in DeFi positions, or an aToken
+  // excluded by policy regardless of DeFi availability. Kept for display.
   dedupedToDefi?: boolean;
+  exclusionReason?: 'aave-receipt';
 }
 
 export interface ExchangeData {

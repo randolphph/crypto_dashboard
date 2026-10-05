@@ -2,6 +2,7 @@ import 'server-only';
 import crypto from 'crypto';
 import { getAddress } from 'viem';
 import { fetchWithTimeout } from '@/lib/http/fetch';
+import { isAaveProtocol } from './aaveReceipts';
 import type { AssetBalance } from '@/types/common';
 
 const BASE_URL = 'https://web3.okx.com';
@@ -23,6 +24,7 @@ const CHAIN_INDEX_MAP: Record<OkxWeb3Chain, string> = {
   arbitrum: '42161',
   base: '8453',
   bsc: '56',
+  plasma: '9745',
   robinhood: '4663',
   solana: '501',
   bitcoin: '0',
@@ -165,6 +167,7 @@ const CHAIN_INDEX_LABEL: Record<string, string> = {
   '42161': 'ARB',
   '8453': 'Base',
   '56': 'BSC',
+  '9745': 'Plasma',
   '4663': 'Robinhood',
   '501': 'SOL',
 };
@@ -273,7 +276,7 @@ export async function fetchBitcoinBalancesViaOkx(
 interface OkxDefiNetworkBalance {
   network: string;
   networkLogo: string;
-  chainId: string;
+  chainId: string | number;
   currencyAmount: string;
 }
 
@@ -299,7 +302,7 @@ interface OkxDefiPlatformListResponse {
       totalAssets: string;
       platformList?: OkxDefiPlatform[];
     }>;
-    lpTokenAddressList?: Array<{ chainId: string; tokenAddress: string }>;
+    lpTokenAddressList?: Array<{ chainId: string | number; tokenAddress: string }>;
   };
 }
 
@@ -321,7 +324,7 @@ interface OkxDefiInvestTokenBalance {
 
 interface OkxDefiNetworkHold {
   network: string;
-  chainId: string;
+  chainId: string | number;
   investTokenBalanceVoList?: OkxDefiInvestTokenBalance[];
 }
 
@@ -349,7 +352,7 @@ const INVEST_TYPE_MAP: Record<string, DefiInvestType> = {
 
 // LP-token-bearing protocols are surfaced by OKX so callers can de-dupe them
 // against plain wallet balances. We key on `${chainId}:${tokenAddress.toLowerCase()}`.
-function lpKey(chainId: string, tokenAddress: string): string {
+function lpKey(chainId: string | number, tokenAddress: string): string {
   return `${chainId}:${tokenAddress.toLowerCase()}`;
 }
 
@@ -360,9 +363,10 @@ export interface DefiFetchResult {
   positions: DefiProtocolPosition[];
   // Token addresses OKX flags as LP/position-bearing — always filter from wallet.
   lpTokenKeys: Set<string>;
-  // Token addresses surfaced inside each position's assetsTokenList, with the
+  // Non-Aave token addresses inside each position's assetsTokenList, with the
   // amounts the position holds. Used for amount-matched filtering of receipt
-  // tokens (LSTs, aTokens) the wallet balance API also reports.
+  // tokens (e.g. LSTs) the wallet balance API also reports. Aave uses its
+  // unconditional aToken exclusion policy instead.
   // Key = `${chainId}:${tokenAddress.toLowerCase()}`, value = sorted amounts.
   positionTokenAmounts: Map<string, number[]>;
 }
@@ -467,7 +471,10 @@ function buildProtocolPosition(
       totalUsdValue: parseFloat(inv.totalValue || '0'),
       tokens: (inv.assetsTokenList ?? []).map((t) => {
         const amount = parseFloat(t.coinAmount || '0');
-        if (t.tokenAddress && amount > 0) {
+        // Aave reports underlying assets here, not wallet aToken addresses.
+        // Equal idle underlying balances are separate holdings, even when
+        // they happen to equal the supplied amount. aTokens are always excluded.
+        if (t.tokenAddress && amount > 0 && !isAaveProtocol(platform.platformName)) {
           const key = lpKey(nh.chainId, t.tokenAddress);
           const list = positionTokenAmounts.get(key);
           if (list) list.push(amount);
@@ -491,7 +498,7 @@ function buildProtocolPosition(
     platformLogo: platform.platformLogo,
     platformUrl: platform.platformUrl,
     network: nh.network,
-    chainId: nh.chainId,
+    chainId: String(nh.chainId),
     totalUsdValue,
     positions,
   };
