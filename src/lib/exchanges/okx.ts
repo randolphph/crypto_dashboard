@@ -45,14 +45,30 @@ async function okxRequest(
 
 interface OkxBalanceResponse {
   code: string;
+  msg?: string;
   data: Array<{
     details: Array<{
       ccy: string;
       availBal: string;
       frozenBal: string;
       eq: string;
+      eqUsd: string;
     }>;
   }>;
+}
+
+interface OkxFundingResponse {
+  code: string;
+  msg?: string;
+  data: Array<{
+    ccy: string;
+    bal: string;
+  }>;
+}
+
+function balanceNumber(value: string): number {
+  const parsed = parseFloat(value);
+  return Number.isFinite(parsed) ? parsed : 0;
 }
 
 export async function fetchOkxBalances(
@@ -68,24 +84,36 @@ export async function fetchOkxBalances(
     throw new Error('OKX_API_KEY, OKX_API_SECRET 或 OKX_PASSPHRASE 未配置');
   }
 
-  const data = (await okxRequest(
-    '/api/v5/account/balance',
-    apiKey,
-    apiSecret,
-    passphrase
-  )) as OkxBalanceResponse;
+  const [data, funding] = await Promise.all([
+    okxRequest('/api/v5/account/balance', apiKey, apiSecret, passphrase) as Promise<OkxBalanceResponse>,
+    okxRequest('/api/v5/asset/balances', apiKey, apiSecret, passphrase) as Promise<OkxFundingResponse>,
+  ]);
 
   if (data.code !== '0' || !data.data?.[0]) {
-    throw new Error(`OKX API returned error: ${JSON.stringify(data)}`);
+    throw new Error(`OKX 交易账户 API error (${data.code}): ${data.msg || 'Invalid balance response'}`);
+  }
+  if (funding.code !== '0' || !Array.isArray(funding.data)) {
+    throw new Error(`OKX 资金账户 API error (${funding.code}): ${funding.msg || 'Invalid balance response'}`);
   }
 
   const balances: AssetBalance[] = data.data[0].details
     .map((d) => ({
       asset: d.ccy,
-      amount: parseFloat(d.availBal) + parseFloat(d.frozenBal),
-      usdValue: parseFloat(d.eq) || 0,
+      // eq is currency equity, including balances allocated as collateral;
+      // eqUsd is its USD valuation. Available balance is only a subset.
+      amount: balanceNumber(d.eq),
+      usdValue: balanceNumber(d.eqUsd),
     }))
     .filter((b) => b.amount > 0);
 
-  return balances;
+  // Funding bal already includes available and frozen funds. Price these
+  // rows in the API route before combining them with trading-account rows.
+  return [
+    ...balances,
+    ...funding.data.map((d) => ({
+      asset: d.ccy,
+      amount: balanceNumber(d.bal),
+      usdValue: 0,
+    })).filter((b) => b.amount > 0),
+  ];
 }

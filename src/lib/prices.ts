@@ -34,7 +34,7 @@ export async function fetchPrices(
   symbols: string[]
 ): Promise<Record<string, number>> {
   // Stablecoins
-  const stablecoins = new Set(['USDT', 'USDC', 'DAI', 'BUSD', 'TUSD', 'FDUSD', 'USD1', 'BFUSD', 'LDUSDT', 'RWUSD']);
+  const stablecoins = new Set(['USDT', 'USDC', 'USDG', 'DAI', 'BUSD', 'TUSD', 'FDUSD', 'USD1', 'BFUSD', 'LDUSDT', 'RWUSD']);
 
   // Check cache
   const now = Date.now();

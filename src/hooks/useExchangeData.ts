@@ -24,7 +24,9 @@ export function useExchangeData(exchange: 'binance' | 'okx' | 'deribit') {
       }
       return res.json();
     },
-    refetchOnMount: false,
+    // Settings can change while this query is unmounted. Refresh on return
+    // so a cached "not configured" result cannot keep hiding the exchange.
+    refetchOnMount: 'always',
     refetchInterval: refreshInterval > 0 ? refreshInterval * 1000 : false,
   });
 }

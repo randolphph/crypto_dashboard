@@ -1,6 +1,7 @@
 import { fetchOkxBalances } from '@/lib/exchanges/okx';
 import { fetchPrices } from '@/lib/prices';
 import { enforceRateLimit } from '@/lib/http/guards';
+import type { AssetBalance } from '@/types/common';
 
 export const maxDuration = 20;
 
@@ -22,8 +23,7 @@ export async function GET(request: Request) {
   try {
     const balances = await fetchOkxBalances(apiKey, apiSecret, passphrase);
 
-    // OKX already returns eq (USD equivalent) for some assets
-    // For those without, fetch prices
+    // Trading rows include eqUsd; funding rows need market prices.
     const needsPrice = balances.filter((b) => b.usdValue === 0);
     const missingPrices: string[] = [];
     if (needsPrice.length > 0) {
@@ -36,7 +36,17 @@ export async function GET(request: Request) {
       }
     }
 
-    const filtered = balances.filter((b) => b.usdValue >= 10);
+    const byAsset = new Map<string, AssetBalance>();
+    for (const balance of balances) {
+      const existing = byAsset.get(balance.asset);
+      if (existing) {
+        existing.amount += balance.amount;
+        existing.usdValue += balance.usdValue;
+      } else {
+        byAsset.set(balance.asset, { ...balance });
+      }
+    }
+    const filtered = [...byAsset.values()].filter((b) => b.usdValue >= 10);
     const totalUsdValue = filtered.reduce((sum, b) => sum + b.usdValue, 0);
 
     return Response.json(
