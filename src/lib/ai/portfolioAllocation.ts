@@ -108,6 +108,7 @@ const CATEGORY_ORDER = new Map(
 const STABLECOINS = new Set([
   'USDT',
   'USDC',
+  'USDG',
   'USD1',
   'DAI',
   'FDUSD',
@@ -494,7 +495,7 @@ export async function analyzeEconomicAllocation({
     `允许的分类只有：${ECONOMIC_CATEGORIES.join('、')}。`,
     '分类依据是资产的实际风险、流动性和收益来源，不是交易场所。',
     '规则：',
-    '1. 银行现金、券商现金、稳定币活期，以及可随时赎回且底层全部是稳定币的借贷/储蓄仓位，归为“类现金”。',
+    '1. 银行现金、券商现金、稳定币活期（包括 USDG、USDT、USDC），以及可随时赎回且底层全部是稳定币的借贷/储蓄仓位，归为“类现金”。USDG 是美元稳定币，钱包现货与可提取余额必须归为“类现金”。',
     '2. SGOV、BIL、SHV、USFR 等超短期国债或现金管理 ETF 归为“类现金”；长久期债券 ETF 不要归为类现金。',
     '3. BTC、ETH 等波动币种的现货余额归为“加密资产”；含波动资产、LP 无常损失、杠杆、锁仓或明显智能合约策略风险的 DeFi 仓位也归为“加密资产”。',
     '4. 期权、期货、永续合约及其专用保证金账户归为“衍生品”。即使保证金币种是 USDT/USDC，也不能把合约或策略账户保证金归为类现金。普通公司股票与股票 ETF 归为“股票”。',

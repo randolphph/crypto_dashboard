@@ -12,6 +12,7 @@ import { BROKER_LABEL } from '@/types/stocks';
 const STABLECOINS = new Set([
   'USDT',
   'USDC',
+  'USDG',
   'USD1',
   'DAI',
   'FDUSD',

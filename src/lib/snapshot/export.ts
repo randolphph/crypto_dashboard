@@ -8,7 +8,7 @@ import type {
 // Stables that should be treated as cash and excluded from the crypto spot
 // bucket. Matches the set used elsewhere; LD-prefix is detected separately.
 const STABLECOINS = new Set([
-  'USDT', 'USDC', 'USD1', 'DAI', 'FDUSD', 'TUSD', 'BUSD',
+  'USDT', 'USDC', 'USDG', 'USD1', 'DAI', 'FDUSD', 'TUSD', 'BUSD',
   'PYUSD', 'USDP', 'USDD',
 ]);
 

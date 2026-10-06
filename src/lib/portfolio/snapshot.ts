@@ -63,6 +63,7 @@ interface DeribitDataLike {
 const STABLECOINS = new Set([
   'USDT',
   'USDC',
+  'USDG',
   'USD1',
   'DAI',
   'FDUSD',
