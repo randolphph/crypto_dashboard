@@ -62,4 +62,11 @@ export interface WalletBalance {
     errors: string[];
   };
   error?: string;
+  // Actual upstream collection time; reading a cache never advances it.
+  dataUpdatedAt?: number;
+  cache?: {
+    source: 'live' | 'server' | 'browser';
+    refreshing: boolean;
+    refreshError?: string;
+  };
 }

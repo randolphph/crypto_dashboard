@@ -71,4 +71,5 @@ export interface SnapshotPayload {
   timestamp: number;
   positions: PositionSnapshot[];
   portfolio: PortfolioSummarySnapshot;
+  onchainDataTimes?: Array<{ walletId: string; walletName: string; updatedAt: number }>;
 }

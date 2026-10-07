@@ -78,6 +78,7 @@ export function parseMarketSymbols(
 export function parseOnchainBody(value: unknown): {
   wallets: WalletConfig[];
   receiptTokenAddresses: Array<{ chainId: string; tokenAddress: string }>;
+  forceRefresh: boolean;
 } {
   const body = record(value);
   if (!body || !Array.isArray(body.wallets)) {
@@ -141,7 +142,10 @@ export function parseOnchainBody(value: unknown): {
     };
   });
 
-  return { wallets, receiptTokenAddresses };
+  if (body.forceRefresh !== undefined && typeof body.forceRefresh !== 'boolean') {
+    throw new RequestInputError('forceRefresh must be a boolean');
+  }
+  return { wallets, receiptTokenAddresses, forceRefresh: body.forceRefresh === true };
 }
 
 export function parseStocksBody(value: unknown): {

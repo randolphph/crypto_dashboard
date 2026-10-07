@@ -404,6 +404,9 @@ export function buildSnapshot(input: BuildSnapshotInput): SnapshotPayload {
     timestamp: Date.now(),
     positions,
     portfolio: input.portfolio,
+    onchainDataTimes: input.onchain?.filter((wallet) => wallet.dataUpdatedAt).map((wallet) => ({
+      walletId: wallet.walletId, walletName: wallet.walletName, updatedAt: wallet.dataUpdatedAt!,
+    })),
   };
 }
 

@@ -1,5 +1,6 @@
 import 'server-only';
 import crypto from 'crypto';
+import { setTimeout as wait } from 'node:timers/promises';
 import { getAddress } from 'viem';
 import { fetchWithTimeout } from '@/lib/http/fetch';
 import { isAaveProtocol } from './aaveReceipts';
@@ -46,6 +47,8 @@ export interface OkxWeb3Creds {
   apiSecret?: string;
   passphrase?: string;
   projectId?: string;
+  // Request-scoped deadline, never persisted with credentials or cached data.
+  signal?: AbortSignal;
 }
 
 function getOkxWeb3Config(overrides?: OkxWeb3Creds) {
@@ -58,7 +61,7 @@ function getOkxWeb3Config(overrides?: OkxWeb3Creds) {
     return null;
   }
 
-  return { apiKey, apiSecret, passphrase, projectId };
+  return { apiKey, apiSecret, passphrase, projectId, signal: overrides?.signal };
 }
 
 // Serial queue to avoid OKX rate limits
@@ -82,25 +85,19 @@ async function okxWeb3Request(
   }
 
   // Chain onto the queue so concurrent callers execute sequentially
-  const result = new Promise<unknown>((resolve, reject) => {
-    requestQueue = requestQueue
-      .then(() => new Promise<void>((r) => setTimeout(r, REQUEST_INTERVAL_MS)))
-      .then(async () => {
-        try {
-          resolve(await doFetch(path, options, config));
-        } catch (e) {
-          reject(e);
-        }
-      });
+  const result = requestQueue.then(async () => {
+    config.signal?.throwIfAborted();
+    await wait(REQUEST_INTERVAL_MS, undefined, { signal: config.signal });
+    return doFetch(path, options, config);
   });
-
+  requestQueue = result.then(() => undefined, () => undefined);
   return result;
 }
 
 async function doFetch(
   path: string,
   options: RequestOptions,
-  config: { apiKey: string; apiSecret: string; passphrase: string; projectId: string },
+  config: { apiKey: string; apiSecret: string; passphrase: string; projectId: string; signal?: AbortSignal },
   retries = 0
 ): Promise<unknown> {
   const method = options.method ?? 'GET';
@@ -119,13 +116,14 @@ async function doFetch(
       'Content-Type': 'application/json',
     },
     body: bodyString || undefined,
+    signal: config.signal,
   });
 
   // Retry on 429
   if (res.status === 429 && retries < MAX_RETRIES) {
     const delay = REQUEST_INTERVAL_MS * (retries + 2);
     console.warn(`OKX 429, retrying in ${delay}ms (attempt ${retries + 1}/${MAX_RETRIES})`);
-    await new Promise((r) => setTimeout(r, delay));
+    await wait(delay, undefined, { signal: config.signal });
     return doFetch(path, options, config, retries + 1);
   }
 
@@ -415,12 +413,7 @@ export async function fetchDefiPositionsViaOkx(
   const detailPromises = platforms
     .filter((p) => parseFloat(p.currencyAmount || '0') >= DEFI_MIN_USD)
     .map((p) =>
-      fetchPlatformDetail(p, walletAddressList, positionTokenAmounts, overrides).catch(
-        (err) => {
-          console.warn(`OKX DeFi detail failed for ${p.platformName}:`, err);
-          return [] as DefiProtocolPosition[];
-        }
-      )
+      fetchPlatformDetail(p, walletAddressList, positionTokenAmounts, overrides)
     );
 
   const positions = (await Promise.all(detailPromises)).flat();

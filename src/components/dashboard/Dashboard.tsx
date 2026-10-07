@@ -39,6 +39,7 @@ import {
 } from '@/lib/portfolio/category';
 import { buildEconomicAllocationInput } from '@/lib/ai/portfolioAllocation';
 import { cn } from '@/lib/utils';
+import { hasOnchainWarning } from '@/lib/onchain/cachePolicy';
 
 type AddDialog = 'wallet' | 'stock-position' | 'stock-cash' | 'bank-account';
 const STOCK_TAB_IDS = ['ths', 'longport', 'ibkr'] as const;
@@ -136,7 +137,7 @@ export function Dashboard() {
     deribit.data?.dataQuality?.complete === false ||
     (Array.isArray(onchain.data) &&
       onchain.data.some(
-        (wallet) => !!wallet.error || wallet.dataQuality?.complete === false
+        (wallet) => hasOnchainWarning(wallet)
       )) ||
     stocks.data?.dataQuality?.complete === false;
 
@@ -174,7 +175,7 @@ export function Dashboard() {
     deribit.data?.configured !== false && { label: 'Deribit', value: deribit.data?.totalUsdValue ?? 0, isLoading: deribit.isFetching },
     {
       label: '链上',
-      isLoading: onchain.isFetching,
+      isLoading: onchain.isLoading,
       value:
         onchain.data?.reduce(
           (sum: number, w: { totalUsdValue: number }) => sum + w.totalUsdValue,
@@ -287,13 +288,14 @@ export function Dashboard() {
     if (
       !isLoading &&
       !hasError &&
+      !hasDataQualityIssue &&
       totalValue > 0 &&
       totalValue !== lastRecordedRef.current
     ) {
       lastRecordedRef.current = totalValue;
       addSnapshot(totalValue);
     }
-  }, [isLoading, hasError, totalValue, addSnapshot]);
+  }, [isLoading, hasError, hasDataQualityIssue, totalValue, addSnapshot]);
 
   useEffect(() => {
     recordSnapshot();
@@ -459,6 +461,8 @@ export function Dashboard() {
           wallets={onchain.data ?? []}
           isLoading={onchain.isLoading}
           error={onchain.error as Error | null}
+          isRefreshing={onchain.isFetching}
+          onRefresh={() => { void onchain.refreshNow(); }}
         />
       )}
       {(activeTab === 'ths' ||

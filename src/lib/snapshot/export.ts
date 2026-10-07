@@ -117,6 +117,7 @@ export interface AiSnapshotExport {
   summary: AiSummary;
   venues: Record<string, VenueExport>;
   notes: string[];
+  onchainDataTimes?: SnapshotPayload['onchainDataTimes'];
 }
 
 // Display order: crypto venues first, then brokers. Empty venues are dropped
@@ -500,6 +501,7 @@ export function snapshotToAiJson(snapshot: SnapshotPayload): AiSnapshotExport {
     summary: buildSummary(snapshot, ordered),
     venues: ordered,
     notes,
+    onchainDataTimes: snapshot.onchainDataTimes,
   };
 }
 
@@ -799,6 +801,9 @@ export function snapshotToMarkdown(snapshot: SnapshotPayload): string {
   lines.push(`# 资产快照 · ${iso.slice(0, 16).replace('T', ' ')} UTC`);
   lines.push('');
   lines.push(`**总资产**：${fmtUsd(snapshot.portfolio.totalUsd)}`);
+  for (const wallet of snapshot.onchainDataTimes ?? []) {
+    lines.push(`链上钱包 ${wallet.walletName} 的实际数据时间：${new Date(wallet.updatedAt).toISOString()}（快照保存时间不代表重新查询链上数据）。`);
+  }
   lines.push('');
 
   // Group positions by source.
