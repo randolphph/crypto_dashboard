@@ -5,10 +5,10 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { formatDateTime } from '@/lib/cryptoSentry/format';
+import { ALERT_SEVERITY } from '@/lib/cryptoSentry/severity';
 import { useNotificationIntegrations } from '@/hooks/useCryptoSentry';
 import { cn } from '@/lib/utils';
 import type {
-  AlertSeverity,
   AlertStatus,
   CryptoSentryAlert,
 } from '@/types/cryptoSentry';
@@ -19,13 +19,6 @@ const FILTERS: Array<{ value: AlertStatus | 'all'; label: string }> = [
   { value: 'resolved', label: '已解决' },
   { value: 'all', label: '全部' },
 ];
-
-const SEVERITY_COPY: Record<AlertSeverity, { label: string; className: string }> = {
-  info: { label: '提示', className: 'border-blue-500/30 text-blue-700 dark:text-blue-300' },
-  warning: { label: '警告', className: 'border-amber-500/30 text-amber-700 dark:text-amber-300' },
-  critical: { label: '严重', className: 'border-orange-500/30 text-orange-700 dark:text-orange-300' },
-  emergency: { label: '紧急', className: 'border-destructive/30 text-destructive' },
-};
 
 function AlertRow({
   alert,
@@ -38,7 +31,7 @@ function AlertRow({
   onAction: (id: string, action: 'acknowledge' | 'resolve') => Promise<unknown>;
   actionPending: boolean;
 }) {
-  const severity = SEVERITY_COPY[alert.severity] ?? SEVERITY_COPY.warning;
+  const severity = ALERT_SEVERITY[alert.severity] ?? ALERT_SEVERITY.warning;
   return (
     <div className="grid gap-3 border-b py-4 last:border-0 md:grid-cols-[minmax(0,1fr)_auto]">
       <div className="min-w-0">

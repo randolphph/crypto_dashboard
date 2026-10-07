@@ -8,7 +8,10 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { notificationProviderLabel } from '@/lib/cryptoSentry/notifications';
+import { ALERT_SEVERITY } from '@/lib/cryptoSentry/severity';
+import { cn } from '@/lib/utils';
 import { useCreateRule, useDeleteRule, useRules, useNotificationIntegrations, useUpdateRule } from '@/hooks/useCryptoSentry';
 import type {
   CryptoSentryMonitor, IntegrationCatalog, RuleCondition, RuleCreateInput, RuleGroup, RuleMetricDefinition, RuleOperator,
@@ -17,9 +20,7 @@ import type {
 const OPERATOR_LABEL: Record<RuleOperator, string> = {
   gt: '超过（>）', gte: '达到或超过（≥）', lt: '低于（<）', lte: '达到或低于（≤）', eq: '等于（=）', neq: '不等于（≠）',
 };
-const SEVERITY_LABEL: Record<RuleCreateInput['severity'], string> = {
-  info: '提示', warning: '警告', critical: '严重', emergency: '紧急',
-};
+const SEVERITY_OPTIONS = Object.entries(ALERT_SEVERITY) as Array<[RuleCreateInput['severity'], typeof ALERT_SEVERITY[RuleCreateInput['severity']]]>;
 const UNIT_LABEL: Record<string, string> = {
   quote_asset: '报价币', base_asset: '基础币', percent: '%', unix_milliseconds: '毫秒时间戳',
   contracts: '合约', seconds: '秒', ratio: '倍', boolean: '', base_currency: '基础计价单位',
@@ -195,7 +196,17 @@ function RuleDialog({ open, onOpenChange, monitor, catalog, rule, onSave }: Rule
             <div className="grid gap-4 sm:grid-cols-[1fr_150px_150px]">
               <div className="space-y-2"><Label htmlFor="rule-name">规则名称</Label><Input id="rule-name" value={name} onChange={(event) => setName(event.target.value)} placeholder="例如：BTC 5 分钟上涨 3%" /></div>
               <div className="space-y-2"><Label htmlFor="rule-combinator">多个条件</Label><select id="rule-combinator" value={combinator} onChange={(event) => setCombinator(event.target.value as 'and' | 'or')} className="h-8 w-full rounded-lg border bg-background px-2 text-sm"><option value="and">必须全部满足</option><option value="or">满足任意一个</option></select></div>
-              <div className="space-y-2"><Label htmlFor="rule-severity">告警级别</Label><select id="rule-severity" value={severity} onChange={(event) => setSeverity(event.target.value as RuleCreateInput['severity'])} className="h-8 w-full rounded-lg border bg-background px-2 text-sm"><option value="info">提示</option><option value="warning">警告</option><option value="critical">严重</option><option value="emergency">紧急</option></select></div>
+              <div className="space-y-2">
+                <Label htmlFor="rule-severity">告警级别</Label>
+                <Select value={severity} onValueChange={(value) => value && setSeverity(value as RuleCreateInput['severity'])}>
+                  <SelectTrigger id="rule-severity" className={cn('w-full font-medium', ALERT_SEVERITY[severity].className)}>
+                    <SelectValue><span aria-hidden="true" className={cn('size-2 shrink-0 rounded-full', ALERT_SEVERITY[severity].dotClassName)} />{ALERT_SEVERITY[severity].label}</SelectValue>
+                  </SelectTrigger>
+                  <SelectContent alignItemWithTrigger={false}>
+                    {SEVERITY_OPTIONS.map(([value, presentation]) => <SelectItem key={value} value={value}><span className="inline-flex items-center gap-2"><span aria-hidden="true" className={cn('size-2 shrink-0 rounded-full', presentation.dotClassName)} />{presentation.label}</span></SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
 
             <div className="space-y-3">
@@ -261,7 +272,7 @@ export function RuleManager({ monitor, catalog }: { monitor: CryptoSentryMonitor
       <CardContent className="space-y-2">
         {rulesQuery.isLoading ? <div className="h-16 animate-pulse rounded-lg bg-muted" /> : null}
         {rules.length === 0 && !rulesQuery.isLoading ? <p className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">尚未创建规则；此 Monitor 仍会持续采集快照。</p> : null}
-        {rules.map((rule) => <div key={rule.id} className="overflow-hidden rounded-xl border"><div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3"><div className="flex min-w-0 flex-wrap items-center gap-2"><span className={rule.enabled ? 'size-2 rounded-full bg-emerald-500' : 'size-2 rounded-full bg-muted-foreground/40'} /><p className="font-semibold">{rule.name}</p><Badge variant="secondary" className="rounded-full">{SEVERITY_LABEL[rule.severity]}</Badge><span className="text-xs text-muted-foreground">{rule.conditions.length} 条 · {rule.combinator === 'and' ? '全部满足' : '任一满足'}</span></div><div className="flex gap-0.5"><Button size="icon-sm" variant="ghost" aria-label={`编辑规则 ${rule.name}`} title="编辑" onClick={() => setEditing(rule)}><Pencil /></Button><Button size="icon-sm" variant="ghost" aria-label={`${rule.enabled ? '停用' : '启用'}规则 ${rule.name}`} title={rule.enabled ? '停用' : '启用'} onClick={() => updateRule.mutate({ id: rule.id, patch: { enabled: !rule.enabled } })}><CircleOff /></Button><Button size="icon-sm" variant="ghost" className="text-destructive" aria-label={`删除规则 ${rule.name}`} title="删除" onClick={() => { if (window.confirm(`删除规则“${rule.name}”？`)) deleteRule.mutate(rule.id); }}><Trash2 /></Button></div></div><div className="space-y-1 border-y bg-muted/30 px-4 py-2.5">{rule.conditions.map((condition, index) => <p key={`${condition.metric}-${index}`} className="text-xs text-foreground/80"><span className="mr-1.5 inline-flex size-4 items-center justify-center rounded-full bg-background font-mono text-[9px] text-muted-foreground ring-1 ring-foreground/10">{index + 1}</span>{conditionSummary(condition, availableMetrics.find((metric) => metric.id === condition.metric), monitor)}</p>)}</div><div className="flex flex-wrap items-center gap-x-4 gap-y-1 px-4 py-2 text-[11px] text-muted-foreground"><span className="flex items-center gap-1"><Clock3 className="size-3" />{rule.durationSeconds === 0 ? '立即触发' : `持续 ${formatSeconds(rule.durationSeconds)}`} · {rule.cooldownSeconds === 0 ? '无冷却' : `冷却 ${formatSeconds(rule.cooldownSeconds)}`}</span><span className="flex items-center gap-1"><Send className="size-3" />{rule.notificationIntegrationIds?.length ? rule.notificationIntegrationIds.map((id) => notificationsQuery.data?.find((integration) => integration.id === id)?.name ?? id).join('、') : '仅站内'}</span></div></div>)}
+        {rules.map((rule) => <div key={rule.id} className="overflow-hidden rounded-xl border"><div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3"><div className="flex min-w-0 flex-wrap items-center gap-2"><span className={rule.enabled ? 'size-2 rounded-full bg-emerald-500' : 'size-2 rounded-full bg-muted-foreground/40'} /><p className="font-semibold">{rule.name}</p><Badge variant="outline" className={ALERT_SEVERITY[rule.severity].className}>{ALERT_SEVERITY[rule.severity].label}</Badge><span className="text-xs text-muted-foreground">{rule.conditions.length} 条 · {rule.combinator === 'and' ? '全部满足' : '任一满足'}</span></div><div className="flex gap-0.5"><Button size="icon-sm" variant="ghost" aria-label={`编辑规则 ${rule.name}`} title="编辑" onClick={() => setEditing(rule)}><Pencil /></Button><Button size="icon-sm" variant="ghost" aria-label={`${rule.enabled ? '停用' : '启用'}规则 ${rule.name}`} title={rule.enabled ? '停用' : '启用'} onClick={() => updateRule.mutate({ id: rule.id, patch: { enabled: !rule.enabled } })}><CircleOff /></Button><Button size="icon-sm" variant="ghost" className="text-destructive" aria-label={`删除规则 ${rule.name}`} title="删除" onClick={() => { if (window.confirm(`删除规则“${rule.name}”？`)) deleteRule.mutate(rule.id); }}><Trash2 /></Button></div></div><div className="space-y-1 border-y bg-muted/30 px-4 py-2.5">{rule.conditions.map((condition, index) => <p key={`${condition.metric}-${index}`} className="text-xs text-foreground/80"><span className="mr-1.5 inline-flex size-4 items-center justify-center rounded-full bg-background font-mono text-[9px] text-muted-foreground ring-1 ring-foreground/10">{index + 1}</span>{conditionSummary(condition, availableMetrics.find((metric) => metric.id === condition.metric), monitor)}</p>)}</div><div className="flex flex-wrap items-center gap-x-4 gap-y-1 px-4 py-2 text-[11px] text-muted-foreground"><span className="flex items-center gap-1"><Clock3 className="size-3" />{rule.durationSeconds === 0 ? '立即触发' : `持续 ${formatSeconds(rule.durationSeconds)}`} · {rule.cooldownSeconds === 0 ? '无冷却' : `冷却 ${formatSeconds(rule.cooldownSeconds)}`}</span><span className="flex items-center gap-1"><Send className="size-3" />{rule.notificationIntegrationIds?.length ? rule.notificationIntegrationIds.map((id) => notificationsQuery.data?.find((integration) => integration.id === id)?.name ?? id).join('、') : '仅站内'}</span></div></div>)}
       </CardContent>
       {creating ? <RuleDialog open onOpenChange={setCreating} monitor={monitor} catalog={catalog} onSave={(input) => createRule.mutateAsync(input)} /> : null}
       {editing ? <RuleDialog key={editing.id} open onOpenChange={(open) => !open && setEditing(null)} monitor={monitor} catalog={catalog} rule={editing} onSave={(input) => updateRule.mutateAsync({ id: editing.id, patch: input })} /> : null}
