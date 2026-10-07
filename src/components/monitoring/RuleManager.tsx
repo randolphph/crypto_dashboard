@@ -8,7 +8,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { useCreateRule, useDeleteRule, useRules, useTelegramIntegrations, useUpdateRule } from '@/hooks/useCryptoSentry';
+import { notificationProviderLabel } from '@/lib/cryptoSentry/notifications';
+import { useCreateRule, useDeleteRule, useRules, useNotificationIntegrations, useUpdateRule } from '@/hooks/useCryptoSentry';
 import type {
   CryptoSentryMonitor, IntegrationCatalog, RuleCondition, RuleCreateInput, RuleGroup, RuleMetricDefinition, RuleOperator,
 } from '@/types/cryptoSentry';
@@ -137,7 +138,7 @@ interface RuleDialogProps {
 function RuleDialog({ open, onOpenChange, monitor, catalog, rule, onSave }: RuleDialogProps) {
   const allMetrics = useMemo(() => metricOptions(catalog, monitor), [catalog, monitor]);
   const metrics = useMemo(() => allMetrics.filter((metric) => !HIDDEN_LP_METRICS.has(metric.id)), [allMetrics]);
-  const telegramQuery = useTelegramIntegrations();
+  const notificationsQuery = useNotificationIntegrations();
   const [name, setName] = useState(rule?.name ?? '');
   const [combinator, setCombinator] = useState<'and' | 'or'>(rule?.combinator ?? 'and');
   const [conditions, setConditions] = useState<DraftCondition[]>(rule?.conditions.map((condition) => ({
@@ -189,7 +190,7 @@ function RuleDialog({ open, onOpenChange, monitor, catalog, rule, onSave }: Rule
     <Dialog open={open} onOpenChange={(next) => !submitting && onOpenChange(next)}>
       <DialogContent className="max-h-[calc(100vh-2rem)] overflow-y-auto sm:max-w-3xl">
         <form onSubmit={submit} className="contents">
-          <DialogHeader><DialogTitle>{rule ? '编辑告警规则' : '添加告警规则'}</DialogTitle><DialogDescription>选择要监控的指标和触发条件。满足条件后会生成告警，并通知你选择的 Telegram 目标。</DialogDescription></DialogHeader>
+          <DialogHeader><DialogTitle>{rule ? '编辑告警规则' : '添加告警规则'}</DialogTitle><DialogDescription>选择要监控的指标和触发条件。满足条件后会生成告警，并通知你选择的 Telegram 或 Bark 目标。</DialogDescription></DialogHeader>
           <div className="space-y-5 py-1">
             <div className="grid gap-4 sm:grid-cols-[1fr_150px_150px]">
               <div className="space-y-2"><Label htmlFor="rule-name">规则名称</Label><Input id="rule-name" value={name} onChange={(event) => setName(event.target.value)} placeholder="例如：BTC 5 分钟上涨 3%" /></div>
@@ -226,13 +227,13 @@ function RuleDialog({ open, onOpenChange, monitor, catalog, rule, onSave }: Rule
 
             <div className="grid gap-4 sm:grid-cols-2"><div className="space-y-2"><Label htmlFor="rule-duration">条件持续多久后告警（秒）</Label><Input id="rule-duration" type="number" min={0} max={86400} value={duration} onChange={(event) => setDuration(event.target.value)} /><p className="text-xs text-muted-foreground">{Number(duration) === 0 ? '满足后立即告警。' : `持续满足 ${formatSeconds(Number(duration) || 0)}后才告警，可减少短暂波动。`}</p></div><div className="space-y-2"><Label htmlFor="rule-cooldown">两次提醒至少间隔（秒）</Label><Input id="rule-cooldown" type="number" min={0} max={604800} value={cooldown} onChange={(event) => setCooldown(event.target.value)} /><p className="text-xs text-muted-foreground">{Number(cooldown) === 0 ? '不限制重复提醒间隔。' : `同一告警 ${formatSeconds(Number(cooldown) || 0)}内不会重复提醒。`}</p></div></div>
             <div className="space-y-2 rounded-xl border p-4">
-              <p className="text-sm font-medium">Telegram 通知目标</p>
+              <p className="text-sm font-medium">通知目标</p>
               <p className="text-xs text-muted-foreground">只在规则触发时向选中的目标发送；不选择则仅记录站内告警。</p>
-              {telegramQuery.error ? <p role="alert" className="text-xs text-destructive">无法读取通知目标：{telegramQuery.error.message}</p> : null}
-              {telegramQuery.isLoading ? <p className="text-xs text-muted-foreground">正在读取通知目标…</p> : null}
-              {telegramQuery.data?.length === 0 ? <p className="text-xs text-muted-foreground">请先在「数据源与通知」中添加 Telegram 目标。</p> : null}
-              <div className="grid gap-2 sm:grid-cols-2">{telegramQuery.data?.map((integration) => <label key={integration.id} className="flex items-center gap-2 rounded-lg border px-3 py-2 text-sm"><input type="checkbox" checked={notificationIds.includes(integration.id)} disabled={!integration.enabled && !notificationIds.includes(integration.id)} onChange={() => setNotificationIds((current) => current.includes(integration.id) ? current.filter((id) => id !== integration.id) : [...current, integration.id])} /><span className="min-w-0 truncate">{integration.name}</span>{!integration.enabled ? <Badge variant="secondary">已停用</Badge> : null}</label>)}</div>
-              {notificationIds.some((id) => !telegramQuery.data?.some((integration) => integration.id === id)) ? <p className="text-xs text-amber-600">部分原通知目标未能读取，保存时会保留其关联。</p> : null}
+              {notificationsQuery.error ? <p role="alert" className="text-xs text-destructive">无法读取通知目标：{notificationsQuery.error.message}</p> : null}
+              {notificationsQuery.isLoading ? <p className="text-xs text-muted-foreground">正在读取通知目标…</p> : null}
+              {notificationsQuery.data?.length === 0 ? <p className="text-xs text-muted-foreground">请先在「数据源与通知」中添加 Telegram 或 Bark 目标。</p> : null}
+              <div className="grid gap-2 sm:grid-cols-2">{notificationsQuery.data?.map((integration) => <label key={integration.id} className="flex items-center gap-2 rounded-lg border px-3 py-2 text-sm"><input type="checkbox" checked={notificationIds.includes(integration.id)} disabled={!integration.enabled && !notificationIds.includes(integration.id)} onChange={() => setNotificationIds((current) => current.includes(integration.id) ? current.filter((id) => id !== integration.id) : [...current, integration.id])} /><span className="min-w-0 truncate">{integration.name}</span><Badge variant="outline">{notificationProviderLabel(integration.provider)}</Badge>{!integration.enabled ? <Badge variant="secondary">已停用</Badge> : null}</label>)}</div>
+              {notificationIds.some((id) => !notificationsQuery.data?.some((integration) => integration.id === id)) ? <p className="text-xs text-amber-600">部分原通知目标未能读取，保存时会保留其关联。</p> : null}
             </div>
             {error ? <p role="alert" className="text-sm text-destructive">{error}</p> : null}
           </div>
@@ -247,7 +248,7 @@ export function RuleManager({ monitor, catalog }: { monitor: CryptoSentryMonitor
   const [creating, setCreating] = useState(false);
   const [editing, setEditing] = useState<RuleGroup | null>(null);
   const rulesQuery = useRules();
-  const telegramQuery = useTelegramIntegrations();
+  const notificationsQuery = useNotificationIntegrations();
   const createRule = useCreateRule();
   const updateRule = useUpdateRule();
   const deleteRule = useDeleteRule();
@@ -260,7 +261,7 @@ export function RuleManager({ monitor, catalog }: { monitor: CryptoSentryMonitor
       <CardContent className="space-y-2">
         {rulesQuery.isLoading ? <div className="h-16 animate-pulse rounded-lg bg-muted" /> : null}
         {rules.length === 0 && !rulesQuery.isLoading ? <p className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">尚未创建规则；此 Monitor 仍会持续采集快照。</p> : null}
-        {rules.map((rule) => <div key={rule.id} className="overflow-hidden rounded-xl border"><div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3"><div className="flex min-w-0 flex-wrap items-center gap-2"><span className={rule.enabled ? 'size-2 rounded-full bg-emerald-500' : 'size-2 rounded-full bg-muted-foreground/40'} /><p className="font-semibold">{rule.name}</p><Badge variant="secondary" className="rounded-full">{SEVERITY_LABEL[rule.severity]}</Badge><span className="text-xs text-muted-foreground">{rule.conditions.length} 条 · {rule.combinator === 'and' ? '全部满足' : '任一满足'}</span></div><div className="flex gap-0.5"><Button size="icon-sm" variant="ghost" aria-label={`编辑规则 ${rule.name}`} title="编辑" onClick={() => setEditing(rule)}><Pencil /></Button><Button size="icon-sm" variant="ghost" aria-label={`${rule.enabled ? '停用' : '启用'}规则 ${rule.name}`} title={rule.enabled ? '停用' : '启用'} onClick={() => updateRule.mutate({ id: rule.id, patch: { enabled: !rule.enabled } })}><CircleOff /></Button><Button size="icon-sm" variant="ghost" className="text-destructive" aria-label={`删除规则 ${rule.name}`} title="删除" onClick={() => { if (window.confirm(`删除规则“${rule.name}”？`)) deleteRule.mutate(rule.id); }}><Trash2 /></Button></div></div><div className="space-y-1 border-y bg-muted/30 px-4 py-2.5">{rule.conditions.map((condition, index) => <p key={`${condition.metric}-${index}`} className="text-xs text-foreground/80"><span className="mr-1.5 inline-flex size-4 items-center justify-center rounded-full bg-background font-mono text-[9px] text-muted-foreground ring-1 ring-foreground/10">{index + 1}</span>{conditionSummary(condition, availableMetrics.find((metric) => metric.id === condition.metric), monitor)}</p>)}</div><div className="flex flex-wrap items-center gap-x-4 gap-y-1 px-4 py-2 text-[11px] text-muted-foreground"><span className="flex items-center gap-1"><Clock3 className="size-3" />{rule.durationSeconds === 0 ? '立即触发' : `持续 ${formatSeconds(rule.durationSeconds)}`} · {rule.cooldownSeconds === 0 ? '无冷却' : `冷却 ${formatSeconds(rule.cooldownSeconds)}`}</span><span className="flex items-center gap-1"><Send className="size-3" />{rule.notificationIntegrationIds?.length ? rule.notificationIntegrationIds.map((id) => telegramQuery.data?.find((integration) => integration.id === id)?.name ?? id).join('、') : '仅站内'}</span></div></div>)}
+        {rules.map((rule) => <div key={rule.id} className="overflow-hidden rounded-xl border"><div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3"><div className="flex min-w-0 flex-wrap items-center gap-2"><span className={rule.enabled ? 'size-2 rounded-full bg-emerald-500' : 'size-2 rounded-full bg-muted-foreground/40'} /><p className="font-semibold">{rule.name}</p><Badge variant="secondary" className="rounded-full">{SEVERITY_LABEL[rule.severity]}</Badge><span className="text-xs text-muted-foreground">{rule.conditions.length} 条 · {rule.combinator === 'and' ? '全部满足' : '任一满足'}</span></div><div className="flex gap-0.5"><Button size="icon-sm" variant="ghost" aria-label={`编辑规则 ${rule.name}`} title="编辑" onClick={() => setEditing(rule)}><Pencil /></Button><Button size="icon-sm" variant="ghost" aria-label={`${rule.enabled ? '停用' : '启用'}规则 ${rule.name}`} title={rule.enabled ? '停用' : '启用'} onClick={() => updateRule.mutate({ id: rule.id, patch: { enabled: !rule.enabled } })}><CircleOff /></Button><Button size="icon-sm" variant="ghost" className="text-destructive" aria-label={`删除规则 ${rule.name}`} title="删除" onClick={() => { if (window.confirm(`删除规则“${rule.name}”？`)) deleteRule.mutate(rule.id); }}><Trash2 /></Button></div></div><div className="space-y-1 border-y bg-muted/30 px-4 py-2.5">{rule.conditions.map((condition, index) => <p key={`${condition.metric}-${index}`} className="text-xs text-foreground/80"><span className="mr-1.5 inline-flex size-4 items-center justify-center rounded-full bg-background font-mono text-[9px] text-muted-foreground ring-1 ring-foreground/10">{index + 1}</span>{conditionSummary(condition, availableMetrics.find((metric) => metric.id === condition.metric), monitor)}</p>)}</div><div className="flex flex-wrap items-center gap-x-4 gap-y-1 px-4 py-2 text-[11px] text-muted-foreground"><span className="flex items-center gap-1"><Clock3 className="size-3" />{rule.durationSeconds === 0 ? '立即触发' : `持续 ${formatSeconds(rule.durationSeconds)}`} · {rule.cooldownSeconds === 0 ? '无冷却' : `冷却 ${formatSeconds(rule.cooldownSeconds)}`}</span><span className="flex items-center gap-1"><Send className="size-3" />{rule.notificationIntegrationIds?.length ? rule.notificationIntegrationIds.map((id) => notificationsQuery.data?.find((integration) => integration.id === id)?.name ?? id).join('、') : '仅站内'}</span></div></div>)}
       </CardContent>
       {creating ? <RuleDialog open onOpenChange={setCreating} monitor={monitor} catalog={catalog} onSave={(input) => createRule.mutateAsync(input)} /> : null}
       {editing ? <RuleDialog key={editing.id} open onOpenChange={(open) => !open && setEditing(null)} monitor={monitor} catalog={catalog} rule={editing} onSave={(input) => updateRule.mutateAsync({ id: editing.id, patch: input })} /> : null}

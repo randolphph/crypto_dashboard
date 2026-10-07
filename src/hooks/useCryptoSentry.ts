@@ -2,8 +2,12 @@
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { cryptoSentryRequest } from '@/lib/cryptoSentry/client';
+import { buildBarkConfig, isNotificationIntegration } from '@/lib/cryptoSentry/notifications';
 import type {
   AaveReserveCatalog,
+  BarkIntegration,
+  BarkIntegrationInput,
+  BarkIntegrationUpdateInput,
   AlertListResponse,
   AlertStatus,
   BinanceMarketListResponse,
@@ -189,6 +193,49 @@ export function useTelegramIntegrations() {
     },
     select: (data) => data.items.filter(isTelegram),
     staleTime: 5_000,
+  });
+}
+
+export function useNotificationIntegrations() {
+  return useQuery({
+    queryKey: cryptoSentryKeys.integrations,
+    queryFn: async () => {
+      const data = await cryptoSentryRequest<IntegrationListResponse>('integrations');
+      return { items: data.items.map(normalizeIntegration) };
+    },
+    select: (data) => data.items.filter(isNotificationIntegration),
+    staleTime: 5_000,
+  });
+}
+
+export function useCreateBarkIntegration() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: BarkIntegrationInput) => cryptoSentryRequest<BarkIntegration>('integrations', {
+      method: 'POST',
+      body: JSON.stringify({ name: input.name, type: 'notification', provider: 'bark', enabled: true,
+        config: buildBarkConfig(input) }),
+    }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: cryptoSentryKeys.integrations }),
+  });
+}
+
+export function useUpdateBarkIntegration() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, name, ...input }: BarkIntegrationUpdateInput) =>
+      cryptoSentryRequest<BarkIntegration>(`integrations/${encodeURIComponent(id)}`, {
+        method: 'PATCH', body: JSON.stringify({ name, config: buildBarkConfig({ ...input, deviceKey: input.deviceKey ?? '' }, true) }),
+      }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: cryptoSentryKeys.integrations }),
+  });
+}
+
+export function useTestNotificationIntegration() {
+  return useMutation({
+    mutationFn: (id: string) => cryptoSentryRequest<IntegrationTestResult>(
+      `integrations/${encodeURIComponent(id)}/test`, { method: 'POST' },
+    ),
   });
 }
 

@@ -31,6 +31,7 @@
 - **Uniswap LP** — Robinhood Chain（chainId 4663）RPC 同时支持 V3 / V4，使用钱包地址自动发现 LP，并展示同步进度、区间状态与仓位详情
 - **风险规则与告警** — 首次成功扫描后自动创建默认健康因子规则，并展示历史告警
 - **Telegram 通知** — 输入 Bot Token 后自动发现最近会话并测试发送，也可手工填写 Chat ID；告警规则支持选择目标并查看发送、重试或失败状态，接口约定见 [Telegram 后端对接](docs/telegram-backend-contract.md)
+- **Bark 通知** — 配置 iPhone 的 Device Key 或推送地址，支持官方和自建服务器、测试发送、规则绑定及投递状态；需 CryptoSentry 后端同时支持，接口约定见 [Bark 后端对接](docs/bark-backend-contract.md)
 
 ### 安全与配置
 - **钱包加密保险箱** — 浏览器端 API Key 经 EVM 钱包签名派生密钥后 AES 加密存 localStorage；无明文留痕，可跨设备靠相同钱包解锁

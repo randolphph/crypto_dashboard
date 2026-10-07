@@ -73,6 +73,26 @@ export interface TelegramIntegrationUpdateInput {
   botToken?: string;
 }
 
+export interface BarkIntegration extends Omit<CryptoSentryIntegration, 'type' | 'provider' | 'config'> {
+  type: 'notification';
+  provider: 'bark';
+  config: { serverUrl: string; deviceKey: string; group?: string };
+}
+
+export interface BarkIntegrationInput {
+  name: string;
+  serverUrl: string;
+  deviceKey: string;
+  group: string;
+}
+
+export interface BarkIntegrationUpdateInput extends Omit<BarkIntegrationInput, 'deviceKey'> {
+  id: string;
+  deviceKey?: string;
+}
+
+export type NotificationIntegration = TelegramIntegration | BarkIntegration;
+
 export interface TelegramDiscoveredChat {
   id: string;
   type: 'private' | 'group' | 'supergroup' | 'channel';

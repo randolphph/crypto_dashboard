@@ -5,7 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { formatDateTime } from '@/lib/cryptoSentry/format';
-import { useTelegramIntegrations } from '@/hooks/useCryptoSentry';
+import { useNotificationIntegrations } from '@/hooks/useCryptoSentry';
 import { cn } from '@/lib/utils';
 import type {
   AlertSeverity,
@@ -29,12 +29,12 @@ const SEVERITY_COPY: Record<AlertSeverity, { label: string; className: string }>
 
 function AlertRow({
   alert,
-  telegramNames,
+  notificationNames,
   onAction,
   actionPending,
 }: {
   alert: CryptoSentryAlert;
-  telegramNames: Map<string, string>;
+  notificationNames: Map<string, string>;
   onAction: (id: string, action: 'acknowledge' | 'resolve') => Promise<unknown>;
   actionPending: boolean;
 }) {
@@ -58,7 +58,7 @@ function AlertRow({
         {alert.delivery?.targets?.length ? (
           <div className="mt-2 flex flex-wrap gap-1.5">
             {alert.delivery.targets.map((target) => {
-              const name = telegramNames.get(target.integrationId) ?? target.integrationId;
+              const name = notificationNames.get(target.integrationId) ?? target.integrationId;
               const label = { pending: '待发送', sending: '发送中', sent: '已发送', failed: '发送失败', skipped: '已跳过' }[target.status] ?? target.status;
               const retry = target.status === 'pending' && target.attempts > 0 ? ` · 已尝试 ${target.attempts} 次` : '';
               return <Badge key={target.integrationId} variant="outline" title={target.errorCode ?? undefined}>{name} · {label}{retry}</Badge>;
@@ -126,8 +126,8 @@ export function AlertList({
   onAction,
   actionPending,
 }: AlertListProps) {
-  const telegram = useTelegramIntegrations();
-  const telegramNames = new Map(telegram.data?.map((integration) => [integration.id, integration.name]) ?? []);
+  const notifications = useNotificationIntegrations();
+  const notificationNames = new Map(notifications.data?.map((integration) => [integration.id, integration.name]) ?? []);
   return (
     <Card>
       <CardHeader>
@@ -183,7 +183,7 @@ export function AlertList({
         ) : (
           <div className="[content-visibility:auto]">
             {[...alerts].reverse().map((alert) => (
-              <AlertRow key={alert.id} alert={alert} telegramNames={telegramNames} onAction={onAction} actionPending={actionPending} />
+              <AlertRow key={alert.id} alert={alert} notificationNames={notificationNames} onAction={onAction} actionPending={actionPending} />
             ))}
           </div>
         )}
