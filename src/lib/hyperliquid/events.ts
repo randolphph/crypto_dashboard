@@ -1,4 +1,5 @@
 import type {
+  HyperliquidFill,
   HyperliquidMonitorEvent,
   HyperliquidOrder,
   HyperliquidPosition,
@@ -80,19 +81,47 @@ function positionEvents(
   return events;
 }
 
-function orderEvents(previous: HyperliquidOrder[], current: HyperliquidOrder[]) {
+function orderEvents(
+  previous: HyperliquidOrder[],
+  current: HyperliquidOrder[],
+  fills: HyperliquidFill[],
+  statuses: ReadonlyMap<string, string>,
+) {
   const events: HyperliquidMonitorEvent[] = [];
   const before = new Map(previous.map((order) => [order.oid, order]));
   const after = new Map(current.map((order) => [order.oid, order]));
+  const filledOids = new Set(fills.map((fill) => fill.oid));
   for (const [oid, order] of after) {
     const prior = before.get(oid);
     if (!prior) events.push(event('order_appeared', order.coin, null, order, oid));
     else if (JSON.stringify(prior) !== JSON.stringify(order)) {
-      events.push(event('order_changed', order.coin, prior, order, oid));
+      // Quantity-only updates already have an actual execution record.
+      if (!filledOids.has(oid) || JSON.stringify({ ...prior, remainingSize: order.remainingSize }) !== JSON.stringify(order)) {
+        events.push(event('order_changed', order.coin, prior, order, oid));
+      }
     }
   }
   for (const [oid, order] of before) {
-    if (!after.has(oid)) events.push(event('order_disappeared', order.coin, order, null, oid));
+    if (!after.has(oid)) {
+      const status = statuses.get(oid);
+      if (status === 'filled' && filledOids.has(oid)) continue;
+      const kind = status === 'filled' ? 'order_filled'
+        : status?.toLowerCase().endsWith('canceled') ? 'order_canceled'
+          : status?.toLowerCase().endsWith('rejected') ? 'order_rejected' : 'order_disappeared';
+      events.push({ ...event(kind, order.coin, order, null, oid), orderStatus: status });
+    }
+  }
+  for (const fill of fills) {
+    const status = statuses.get(fill.oid);
+    const kind = after.has(fill.oid) || status?.toLowerCase().endsWith('canceled') ? 'order_partially_filled'
+      : status === 'filled' ? 'order_filled' : 'order_fill';
+    events.push({
+      ...event(kind, fill.coin, before.get(fill.oid) ?? null, after.get(fill.oid) ?? null, fill.oid),
+      id: `fill-${fill.id}`,
+      observedAt: fill.time,
+      fill,
+      orderStatus: status,
+    });
   }
   return events;
 }
@@ -100,9 +129,11 @@ function orderEvents(previous: HyperliquidOrder[], current: HyperliquidOrder[]) 
 export function diffHyperliquidSnapshots(
   previous: HyperliquidSnapshot,
   current: HyperliquidSnapshot,
+  fills: HyperliquidFill[] = [],
+  statuses: ReadonlyMap<string, string> = new Map(),
 ) {
   return [
     ...positionEvents(previous.positions, current.positions),
-    ...orderEvents(previous.orders, current.orders),
-  ];
+    ...orderEvents(previous.orders, current.orders, fills, statuses),
+  ].sort((a, b) => b.observedAt - a.observedAt);
 }

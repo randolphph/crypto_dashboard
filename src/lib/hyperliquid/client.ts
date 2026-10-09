@@ -1,4 +1,5 @@
 import type {
+  HyperliquidFill,
   HyperliquidNetwork,
   HyperliquidOrder,
   HyperliquidPosition,
@@ -51,7 +52,7 @@ interface FrontendOpenOrder {
 
 export async function hyperliquidInfoRequest<T>(
   network: HyperliquidNetwork,
-  body: Record<string, string>,
+  body: Record<string, string | number | boolean>,
 ): Promise<T> {
   const response = await fetch(ENDPOINTS[network], {
     method: 'POST',
@@ -108,6 +109,7 @@ export async function fetchHyperliquidSnapshot(
   network: HyperliquidNetwork,
 ): Promise<HyperliquidSnapshot> {
   const user = address.toLowerCase();
+  const fetchedAt = Date.now();
   const [state, orders] = await Promise.all([
     hyperliquidInfoRequest<ClearinghouseState>(network, { type: 'clearinghouseState', user }),
     hyperliquidInfoRequest<FrontendOpenOrder[]>(network, { type: 'frontendOpenOrders', user }),
@@ -120,7 +122,7 @@ export async function fetchHyperliquidSnapshot(
   return {
     address: user,
     network,
-    fetchedAt: Date.now(),
+    fetchedAt,
     exchangeTimeMs: state.time,
     accountValue: state.marginSummary.accountValue,
     totalMarginUsed: state.marginSummary.totalMarginUsed,
@@ -128,4 +130,25 @@ export async function fetchHyperliquidSnapshot(
     positions: state.assetPositions.map(mapPosition),
     orders: orders.map(mapOrder),
   };
+}
+
+export async function fetchHyperliquidFills(address: string, network: HyperliquidNetwork, startTime: number): Promise<HyperliquidFill[]> {
+  const fills = await hyperliquidInfoRequest<Array<{
+    oid: number | string; tid: number | string; coin: string; side: 'A' | 'B'; px: string; sz: string; time: number;
+  }>>(network, { type: 'userFillsByTime', user: address.toLowerCase(), startTime, aggregateByTime: false });
+  if (!Array.isArray(fills)) throw new Error('Hyperliquid 返回了无法识别的成交记录');
+  if (fills.length >= 2000) throw new Error('成交记录达到接口上限，请缩短刷新间隔后重试');
+  return fills.filter((fill) => !fill.coin.startsWith('@') && !fill.coin.includes('/')).map((fill) => ({
+    id: `${fill.oid}:${fill.tid}`, oid: String(fill.oid), coin: fill.coin,
+    side: fill.side === 'B' ? 'buy' : 'sell', price: fill.px, size: fill.sz, time: fill.time,
+  }));
+}
+
+export async function fetchHyperliquidOrderStatus(address: string, network: HyperliquidNetwork, oid: string): Promise<string | null> {
+  const numericOid = Number(oid);
+  if (!Number.isSafeInteger(numericOid)) return null;
+  const result = await hyperliquidInfoRequest<{ status: string; order?: { status: string } }>(network, {
+    type: 'orderStatus', user: address.toLowerCase(), oid: numericOid,
+  });
+  return result.status === 'order' ? result.order?.status ?? null : null;
 }

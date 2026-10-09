@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { FormEvent, useMemo, useState, useSyncExternalStore } from 'react';
+import { FormEvent, useEffect, useMemo, useState, useSyncExternalStore } from 'react';
 import {
   Activity,
   AlertTriangle,
@@ -96,9 +96,14 @@ const EVENT_LABELS: Record<HyperliquidMonitorEventKind, string> = {
   position_reduced: '观察到减仓',
   position_reversed: '仓位方向反转',
   position_settings_changed: '仓位设置变化',
-  order_appeared: '新出现挂单',
-  order_changed: '挂单发生变化',
-  order_disappeared: '挂单已不在列表',
+  order_appeared: '新增挂单',
+  order_changed: '修改挂单',
+  order_disappeared: '挂单移除 · 状态待确认',
+  order_fill: '订单成交记录',
+  order_filled: '挂单成交',
+  order_partially_filled: '挂单部分成交',
+  order_canceled: '撤销挂单',
+  order_rejected: '挂单被拒绝',
 };
 
 function compactAddress(address: string) {
@@ -234,10 +239,45 @@ function EventList({ events }: { events: HyperliquidMonitorEvent[] }) {
   return (
     <div className="divide-y">
       {events.map((event) => (
-        <div key={event.id} className="grid gap-2 px-4 py-3 sm:grid-cols-[160px_1fr_auto] sm:items-center"><div><p className="font-medium">{EVENT_LABELS[event.kind]}</p><p className="text-xs text-muted-foreground">{formatTime(event.observedAt)}</p></div><div className="min-w-0"><p className="font-semibold">{event.coin}</p><p className="truncate text-xs text-muted-foreground">{eventValue(event.before)} → {eventValue(event.after)}</p></div>{event.sourceOid ? <Badge variant="outline">挂单 #{event.sourceOid.slice(-8)}</Badge> : <Badge variant="secondary">仓位</Badge>}</div>
+        <div key={event.id} className="grid gap-2 px-4 py-3 sm:grid-cols-[160px_1fr_auto] sm:items-center"><div><p className="font-medium">{EVENT_LABELS[event.kind]}</p><p className="text-xs text-muted-foreground">{formatTime(event.observedAt)}</p></div><div className="min-w-0"><p className="font-semibold">{event.coin}</p>{event.fill ? <p className="text-xs text-muted-foreground">{event.fill.side === 'buy' ? '买入' : '卖出'}成交 {formatDecimal(event.fill.size)} @ ${formatDecimal(event.fill.price, 6)}{event.after && 'remainingSize' in event.after ? ` · 剩余 ${formatDecimal(event.after.remainingSize)}` : ''}</p> : <p className="break-words text-xs text-muted-foreground">{eventValue(event.before)} → {eventValue(event.after)}</p>}{event.orderStatus ? <p className="text-[11px] text-muted-foreground">交易所状态：{event.orderStatus}</p> : null}</div>{event.sourceOid ? <Badge variant="outline">订单 #{event.sourceOid.slice(-8)}</Badge> : <Badge variant="secondary">仓位</Badge>}</div>
       ))}
     </div>
   );
+}
+
+function FollowerAccountData({ address, network }: { address: string; network: HyperliquidNetwork }) {
+  const monitor = useHyperliquidMonitor();
+  const { start, stop } = monitor;
+  const [tab, setTab] = useState('positions');
+  useEffect(() => {
+    void start(address, network, 10);
+    return stop;
+  }, [address, network, start, stop]);
+  const snapshot = monitor.snapshot;
+  return (
+    <Card className="gap-0 py-0">
+      <CardHeader className="py-4">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div><CardTitle>我的跟单账户</CardTitle><p className="mt-1 text-xs text-muted-foreground">{network === 'mainnet' ? '主网' : '测试网'} · 每 10 秒刷新 · <span className="font-mono" title={address}>{compactAddress(address)}</span></p></div>
+          <Button size="sm" variant="outline" disabled={monitor.status === 'loading'} onClick={() => void (snapshot ? monitor.refresh() : start(address, network, 10))}>{monitor.status === 'loading' ? <LoaderCircle className="animate-spin" /> : <RefreshCw />}刷新我的账户</Button>
+        </div>
+        {snapshot ? <p className="text-xs text-muted-foreground">账户净值 {formatUsd(snapshot.accountValue)} · 更新于 {formatTime(snapshot.fetchedAt)}</p> : null}
+        {monitor.error ? <p role="alert" className="text-sm text-destructive">{monitor.error}{snapshot ? '；以下保留上次成功读取的数据' : ''}</p> : null}
+        {monitor.activityError ? <p role="status" className="text-xs text-amber-700 dark:text-amber-400">{monitor.activityError}</p> : null}
+      </CardHeader>
+      {snapshot ? <Tabs value={tab} onValueChange={(value) => setTab(String(value))}>
+        <div className="border-y px-4 pt-2"><TabsList variant="line"><TabsTrigger value="positions">我的仓位 <Badge variant="secondary">{snapshot.positions.length}</Badge></TabsTrigger><TabsTrigger value="orders">我的挂单 <Badge variant="secondary">{snapshot.orders.length}</Badge></TabsTrigger><TabsTrigger value="events">变化 <Badge variant="secondary">{monitor.events.length}</Badge></TabsTrigger></TabsList></div>
+        <TabsContent value="positions"><PositionTable positions={snapshot.positions} /></TabsContent><TabsContent value="orders"><OrderTable orders={snapshot.orders} /></TabsContent><TabsContent value="events"><EventList events={monitor.events} /></TabsContent>
+      </Tabs> : <EmptyState icon={monitor.error ? AlertTriangle : LoaderCircle} title={monitor.error ? '暂时无法读取我的账户' : '正在读取我的仓位和挂单'} description="读取设置中配置的 Hyperliquid 主账户公开数据。" />}
+    </Card>
+  );
+}
+
+function FollowerAccount() {
+  const address = useApiKeyStore((state) => state.hyperliquidAccountAddress).trim().toLowerCase();
+  const network = useApiKeyStore((state) => state.hyperliquidNetwork);
+  if (!ADDRESS_PATTERN.test(address)) return <Card><CardHeader><CardTitle>我的跟单账户</CardTitle><p className="text-sm text-muted-foreground">在设置中配置 Hyperliquid 主账户地址后，这里会自动显示自己的仓位、挂单及变化记录。</p><Link href="/settings" className={buttonVariants({ variant: 'outline', size: 'sm', className: 'w-fit' })}>配置主账户地址</Link></CardHeader></Card>;
+  return <FollowerAccountData key={`${network}:${address}`} address={address} network={network} />;
 }
 
 function TradeConnections() {
@@ -417,6 +457,8 @@ export function HyperliquidCopyTrading() {
         </Card>
 
         <section className="min-w-0 space-y-4">
+          <h2 className="text-sm font-semibold">目标账户</h2>
+          {monitor.activityError ? <p role="status" className="text-xs text-amber-700 dark:text-amber-400">{monitor.activityError}</p> : null}
           <div className={cn('rounded-xl border px-4 py-3', status.className)}><div className="flex flex-wrap items-center justify-between gap-3"><div className="flex min-w-0 items-center gap-3"><span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-background/70"><StatusIcon className={cn('size-4', monitor.status === 'loading' && 'animate-spin')} /></span><div className="min-w-0"><p className="font-semibold">{status.label}</p><p className="truncate text-xs opacity-80">{status.description}</p></div></div>{snapshot ? <div className="flex items-center gap-2"><span className="text-xs opacity-75">更新于 {formatTime(snapshot.fetchedAt)}</span><Button size="icon-sm" variant="ghost" aria-label="立即刷新" onClick={() => void monitor.refresh()} disabled={monitor.status === 'loading'}><RefreshCw /></Button></div> : null}</div></div>
 
           {snapshot ? <><div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4"><Metric label="账户净值" value={formatUsd(snapshot.accountValue)} hint={snapshot.network === 'mainnet' ? 'Hyperliquid 主网' : 'Hyperliquid 测试网'} /><Metric label="已用保证金" value={formatUsd(snapshot.totalMarginUsed)} hint="官方 clearinghouseState" /><Metric label="可提取余额" value={formatUsd(snapshot.withdrawable)} hint="不是自动跟单额度" /><Metric label="当前记录" value={`${snapshot.positions.length} 仓位 · ${snapshot.orders.length} 挂单`} hint={`交易所时间 ${formatTime(snapshot.exchangeTimeMs)}`} /></div>
@@ -425,6 +467,7 @@ export function HyperliquidCopyTrading() {
         </section>
       </div>
 
+      <FollowerAccount />
       <CopyTradePanel key={snapshot ? `${snapshot.network}:${snapshot.address}` : 'empty'} snapshot={snapshot} events={monitor.events} />
       <TradeConnections />
     </div>

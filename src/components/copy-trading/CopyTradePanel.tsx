@@ -26,7 +26,9 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { fetchHyperliquidSnapshot } from '@/lib/hyperliquid/client';
-import { isNonNegativeDecimal, isPositiveDecimal } from '@/lib/hyperliquid/decimal';
+import { useCopyTradingSettings } from '@/hooks/useCopyTradingSettings';
+import { isPositiveDecimal } from '@/lib/hyperliquid/decimal';
+import { validCopySlippage } from '@/lib/hyperliquid/settings';
 import {
   buildCopyPreview,
   executeCopyPreview,
@@ -68,8 +70,7 @@ export function CopyTradePanel({ snapshot, events }: CopyTradePanelProps) {
   const accountAddress = useApiKeyStore((state) => state.hyperliquidAccountAddress);
   const apiWalletPrivateKey = useApiKeyStore((state) => state.hyperliquidApiWalletPrivateKey);
   const credentialNetwork = useApiKeyStore((state) => state.hyperliquidNetwork);
-  const [ratio, setRatio] = useState('0.1');
-  const [maxSlippagePercent, setMaxSlippagePercent] = useState('0.5');
+  const { ratio, setRatio, maxSlippagePercent, setMaxSlippagePercent } = useCopyTradingSettings();
   const [preview, setPreview] = useState<CopyPreview | null>(null);
   const [mappings, setMappings] = useState<Map<string, FollowerOrderMapping>>(new Map());
   const [handledEventIds, setHandledEventIds] = useState<Set<string>>(new Set());
@@ -83,7 +84,7 @@ export function CopyTradePanel({ snapshot, events }: CopyTradePanelProps) {
   const pendingEvents = useMemo(() => events.filter((event) =>
     event.sourceOid &&
     !handledEventIds.has(event.id) &&
-    (event.kind === 'order_appeared' || event.kind === 'order_changed' || event.kind === 'order_disappeared'),
+    event.kind.startsWith('order_'),
   ), [events, handledEventIds]);
   const executableCount = preview?.items.filter((item) => item.decision !== 'skip').length ?? 0;
   const previewEventIds = new Set(preview?.items.flatMap((item) => item.sourceEventIds) ?? []);
@@ -104,7 +105,7 @@ export function CopyTradePanel({ snapshot, events }: CopyTradePanelProps) {
       setError(`API Wallet 配置为${credentialNetwork === 'mainnet' ? '主网' : '测试网'}，与当前监控网络不一致`);
       return;
     }
-    if (!isNonNegativeDecimal(maxSlippagePercent)) {
+    if (!validCopySlippage(maxSlippagePercent)) {
       setError('最大滑点必须是 0 到 5 之间的普通十进制数');
       return;
     }
@@ -281,6 +282,7 @@ export function CopyTradePanel({ snapshot, events }: CopyTradePanelProps) {
             生成复刻预览
           </Button>
         </div>
+        <p className="text-xs text-muted-foreground">自动保存最近一次有效的跟单比例和仓位最大滑点，下次打开时恢复。</p>
 
         {error ? (
           <div className="flex items-start gap-2 rounded-lg border border-destructive/25 bg-destructive/5 px-3 py-2.5 text-sm text-destructive">

@@ -163,7 +163,7 @@ export function buildCopyPreview(params: {
   const pending = params.events.filter((event) =>
     event.sourceOid &&
     !params.handledEventIds.has(event.id) &&
-    (event.kind === 'order_appeared' || event.kind === 'order_changed' || event.kind === 'order_disappeared'),
+    event.kind.startsWith('order_'),
   );
   const current = new Map(params.currentOrders.map((order) => [order.oid, order]));
   const effectiveMappings = new Map(params.mappings);

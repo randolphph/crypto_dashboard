@@ -51,7 +51,22 @@ export type HyperliquidMonitorEventKind =
   | 'position_settings_changed'
   | 'order_appeared'
   | 'order_changed'
-  | 'order_disappeared';
+  | 'order_disappeared'
+  | 'order_fill'
+  | 'order_filled'
+  | 'order_partially_filled'
+  | 'order_canceled'
+  | 'order_rejected';
+
+export interface HyperliquidFill {
+  id: string;
+  oid: string;
+  coin: string;
+  side: 'buy' | 'sell';
+  price: string;
+  size: string;
+  time: number;
+}
 
 export interface HyperliquidMonitorEvent {
   id: string;
@@ -61,4 +76,6 @@ export interface HyperliquidMonitorEvent {
   sourceOid: string | null;
   before: HyperliquidPosition | HyperliquidOrder | null;
   after: HyperliquidPosition | HyperliquidOrder | null;
+  fill?: HyperliquidFill;
+  orderStatus?: string;
 }
