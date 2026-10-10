@@ -18,7 +18,8 @@ export function useStockData() {
     (s) => !!(s.ibkrFlexToken && s.ibkrFlexQueryId)
   );
 
-  return useQuery<StocksData>({
+  const required = positions.length > 0 || cash.length > 0 || longportConfigured || ibkrConfigured;
+  const query = useQuery<StocksData>({
     queryKey: ['stocks', positions, cash, longportConfigured, ibkrConfigured],
     queryFn: async () => {
       const res = await fetch('/api/stocks', {
@@ -33,10 +34,7 @@ export function useStockData() {
     },
     refetchOnMount: false,
     refetchInterval: refreshInterval > 0 ? refreshInterval * 1000 : false,
-    enabled:
-      positions.length > 0 ||
-      cash.length > 0 ||
-      longportConfigured ||
-      ibkrConfigured,
+    enabled: required,
   });
+  return { ...query, required };
 }

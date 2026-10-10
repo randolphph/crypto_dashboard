@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Plus, Bitcoin, LineChart, Banknote } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { PortfolioSummary } from './PortfolioSummary';
@@ -27,6 +27,7 @@ import { buildSnapshot } from '@/lib/portfolio/snapshot';
 import { useVaultStore } from '@/stores/vaultStore';
 import { useCustomAssetStore } from '@/stores/customAssetStore';
 import { useBankAccountStore } from '@/stores/bankAccountStore';
+import { useWalletStore } from '@/stores/walletStore';
 import { useFx } from '@/hooks/useFx';
 import { usePortfolioHistoryStore } from '@/stores/portfolioHistoryStore';
 import { useDashboardStore } from '@/stores/dashboardStore';
@@ -39,7 +40,8 @@ import {
 } from '@/lib/portfolio/category';
 import { buildEconomicAllocationInput } from '@/lib/ai/portfolioAllocation';
 import { cn } from '@/lib/utils';
-import { hasOnchainWarning } from '@/lib/onchain/cachePolicy';
+import { hasOnchainWarning, isSuccessfulWallet, ONCHAIN_BROWSER_RETENTION_MS, ONCHAIN_WARNING_MS } from '@/lib/onchain/cachePolicy';
+import { assessHistoryRecording, shouldRecordHistory, type HistorySource } from '@/lib/portfolio/history';
 
 type AddDialog = 'wallet' | 'stock-position' | 'stock-cash' | 'bank-account';
 const STOCK_TAB_IDS = ['ths', 'longport', 'ibkr'] as const;
@@ -97,6 +99,7 @@ export function Dashboard() {
   const stocks = useStockData();
   const customAssets = useCustomAssetStore((s) => s.assets);
   const bankAccounts = useBankAccountStore((s) => s.accounts);
+  const walletConfigs = useWalletStore((s) => s.wallets);
   const fxQuery = useFx();
   const addSnapshot = usePortfolioHistoryStore((s) => s.addSnapshot);
   const setLastRefreshed = useDashboardStore((s) => s.setLastRefreshed);
@@ -282,24 +285,56 @@ export function Dashboard() {
     }
   }, [customAssets, queryClient, setLastRefreshed]);
 
-  // Record snapshot when total value settles (not loading and value > 0)
-  const lastRecordedRef = useRef<number>(0);
-  const recordSnapshot = useCallback(() => {
-    if (
-      !isLoading &&
-      !hasError &&
-      !hasDataQualityIssue &&
-      totalValue > 0 &&
-      totalValue !== lastRecordedRef.current
-    ) {
-      lastRecordedRef.current = totalValue;
-      addSnapshot(totalValue);
-    }
-  }, [isLoading, hasError, hasDataQualityIssue, totalValue, addSnapshot]);
-
+  const historySources: HistorySource[] = [
+    ...([{ label: 'Binance', query: binance }, { label: 'OKX', query: okx }, { label: 'Deribit', query: deribit }]).map(({ label, query }) => ({
+      label,
+      required: query.data?.configured !== false,
+      value: query.data?.totalUsdValue,
+      usable: !query.data?.error,
+      loading: query.isLoading,
+      error: query.error?.message ?? query.data?.error,
+      dataQuality: query.data?.dataQuality,
+    })),
+    ...walletConfigs.map((config) => {
+      const wallet = onchain.data?.find((item) => item.walletId === config.id);
+      return {
+        label: `链上 ${config.name}`,
+        required: true,
+        value: wallet?.totalUsdValue,
+        usable: !!wallet && isSuccessfulWallet(wallet) && (!wallet.dataUpdatedAt || Date.now() - wallet.dataUpdatedAt < ONCHAIN_BROWSER_RETENTION_MS),
+        loading: onchain.isLoading,
+        error: wallet?.error ?? onchain.error?.message ?? (wallet?.dataUpdatedAt && Date.now() - wallet.dataUpdatedAt >= ONCHAIN_BROWSER_RETENTION_MS ? '缓存已超出可用期限' : undefined),
+        dataQuality: wallet?.dataQuality,
+        warnings: [
+          ...(wallet?.cache?.refreshError ? [wallet.cache.refreshError] : []),
+          ...(wallet?.dataUpdatedAt && Date.now() - wallet.dataUpdatedAt > ONCHAIN_WARNING_MS ? ['估值来自超过 1 小时的缓存'] : []),
+        ],
+      };
+    }),
+    {
+      label: '股票与券商现金',
+      required: stocks.required,
+      value: stocks.data ? stocks.data.brokers.reduce((sum, broker) => sum + broker.totalUsdValue, 0) : undefined,
+      loading: stocks.isLoading,
+      error: stocks.error?.message,
+      dataQuality: stocks.data?.dataQuality,
+    },
+    { label: '银行汇率', required: bankNeedsFx, value: fx ? bankCashValue : undefined, loading: !fx && fxQuery.isLoading },
+  ];
+  const historyRecording = assessHistoryRecording({ totalValue, sources: historySources });
+  const historyWarnings = JSON.stringify(historyRecording.warnings);
+  const historyStatus = historyRecording.status;
+  const valuationUpdatedAt = Math.max(binance.dataUpdatedAt, okx.dataUpdatedAt, deribit.dataUpdatedAt, onchain.dataUpdatedAt, stocks.dataUpdatedAt, fxQuery.dataUpdatedAt);
   useEffect(() => {
-    recordSnapshot();
-  }, [recordSnapshot]);
+    if (historyStatus !== 'ready' && historyStatus !== 'estimated') return;
+    const next = historyStatus === 'estimated'
+      ? { value: totalValue, quality: 'estimated' as const, warnings: JSON.parse(historyWarnings) as string[] }
+      : { value: totalValue };
+    const previous = usePortfolioHistoryStore.getState().snapshots.at(-1);
+    if (shouldRecordHistory(previous, next, Date.now())) {
+      addSnapshot(totalValue, historyStatus === 'estimated' ? { quality: 'estimated', warnings: next.warnings } : undefined);
+    }
+  }, [historyStatus, historyWarnings, totalValue, valuationUpdatedAt, addSnapshot]);
 
   // Push a detailed per-position snapshot to the home-server backend for
   // later AI analysis. Backend partitions all rows by `wallet`, so the same
@@ -377,6 +412,7 @@ export function Dashboard() {
         categoryBreakdown={categoryBreakdown}
         economicAllocationInput={economicAllocationInput}
         isLoading={isLoading}
+        historyRecording={historyRecording}
       />
 
       {/* Tabs grouped by asset category. Mobile keeps everything on one

@@ -23,6 +23,7 @@ import {
   type TradeDayBucket,
 } from '@/stores/tradeStore';
 import { usePrivacyFormat } from '@/hooks/usePrivacyFormat';
+import { exportHistoryCsv, parseHistoryCsv, type HistoryRecording } from '@/lib/portfolio/history';
 
 const RANGES = [
   { id: 'hour', label: '小时', ms: 60 * 60 * 1000 },
@@ -41,9 +42,7 @@ interface DayBucket {
   net: number; // signed: deposit positive, withdraw negative
 }
 
-type ChartPoint = {
-  timestamp: number;
-  value: number;
+type ChartPoint = PortfolioSnapshot & {
   bucket?: DayBucket;
   tradeBucket?: TradeDayBucket;
 };
@@ -88,7 +87,7 @@ function formatTime(ts: number, range: RangeId): string {
   return d.toLocaleDateString([], { month: 'short', day: 'numeric' });
 }
 
-export function PortfolioChart() {
+export function PortfolioChart({ recording }: { recording: HistoryRecording }) {
   const snapshots = usePortfolioHistoryStore((s) => s.snapshots);
   const removeSnapshot = usePortfolioHistoryStore((s) => s.removeSnapshot);
   const importSnapshots = usePortfolioHistoryStore((s) => s.importSnapshots);
@@ -106,12 +105,7 @@ export function PortfolioChart() {
 
   const exportCsv = useCallback(() => {
     if (snapshots.length === 0) return;
-    const header = 'timestamp,date,value_usd';
-    const rows = snapshots
-      .slice()
-      .sort((a, b) => a.timestamp - b.timestamp)
-      .map((s) => `${s.timestamp},${new Date(s.timestamp).toISOString()},${s.value}`);
-    const csv = [header, ...rows].join('\n');
+    const csv = exportHistoryCsv(snapshots);
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -128,16 +122,7 @@ export function PortfolioChart() {
       const reader = new FileReader();
       reader.onload = () => {
         const text = reader.result as string;
-        const lines = text.trim().split('\n').slice(1); // skip header
-        const parsed: PortfolioSnapshot[] = [];
-        for (const line of lines) {
-          const cols = line.split(',');
-          const timestamp = Number(cols[0]);
-          const value = Number(cols[2]);
-          if (!isNaN(timestamp) && !isNaN(value) && timestamp > 0) {
-            parsed.push({ timestamp, value });
-          }
-        }
+        const parsed = parseHistoryCsv(text);
         if (parsed.length > 0) {
           importSnapshots(parsed);
         }
@@ -208,6 +193,14 @@ export function PortfolioChart() {
     return augmented;
   }, [snapshots, range, cashFlowEvents, trades]);
 
+  const lastSnapshot = snapshots.at(-1);
+  const recordingNotice = (
+    <div role="status" className={`mb-2 rounded-md border px-3 py-2 text-xs ${recording.status === 'estimated' || recording.status === 'blocked' ? 'border-amber-500/30 bg-amber-500/5 text-amber-700 dark:text-amber-400' : 'text-muted-foreground'}`}>
+      <p>{recording.status === 'ready' ? '资产曲线正常记录' : recording.status === 'estimated' ? '资产曲线按当前估值记录（含缓存或部分数据）' : recording.status === 'loading' ? '资产曲线等待数据加载完成' : '资产曲线暂停记录：部分资产尚无可用估值'}{lastSnapshot ? ` · 最近记录 ${new Date(lastSnapshot.timestamp).toLocaleString()}` : ''}</p>
+      {recording.warnings.length > 0 || recording.blockers.length > 0 ? <details className="mt-1"><summary className="cursor-pointer">查看数据来源与原因</summary><ul className="mt-1 space-y-1 break-words">{[...recording.blockers, ...recording.warnings].map((reason) => <li key={reason}>{reason}</li>)}</ul></details> : null}
+    </div>
+  );
+
   if (!mounted) {
     return (
       <div className="mt-4">
@@ -222,8 +215,9 @@ export function PortfolioChart() {
 
   if (snapshots.length < 2) {
     return (
-      <div className="mt-4 flex items-center justify-center rounded-lg border border-dashed p-6 text-sm text-muted-foreground">
-        数据记录中，至少需要两个数据点才能生成图表
+      <div className="mt-4">
+        {recordingNotice}
+        <div className="flex items-center justify-center rounded-lg border border-dashed p-6 text-sm text-muted-foreground">数据记录中，至少需要两个数据点才能生成图表</div>
       </div>
     );
   }
@@ -268,6 +262,8 @@ export function PortfolioChart() {
 
   return (
     <div className="mt-4">
+      {recordingNotice}
+      {data.some((point) => point.quality === 'estimated') ? <p className="mb-2 text-xs text-amber-700 dark:text-amber-400">此区间含估算记录，涨跌可能受到缓存或部分数据影响。</p> : null}
       <div className="flex items-center justify-between mb-2">
         <div className="flex items-center gap-3 text-sm">
           {data.length >= 2 && (
@@ -339,6 +335,7 @@ export function PortfolioChart() {
           <div className="flex items-center gap-3">
             <span className="text-muted-foreground">{new Date(selected.timestamp).toLocaleString()}</span>
             <span className="font-semibold">{fmtUsd(selected.value)}</span>
+            {selected.quality === 'estimated' ? <span className="text-xs text-amber-700 dark:text-amber-400" title={selected.warnings?.join('；')}>估算记录</span> : null}
           </div>
           <div className="flex items-center gap-1">
             <button
@@ -492,6 +489,7 @@ export function PortfolioChart() {
                       {new Date(point.timestamp).toLocaleString()}
                     </p>
                     <p className="font-semibold">{fmtUsd(point.value)}</p>
+                    {point.quality === 'estimated' ? <p className="mt-1 max-w-xs text-xs text-amber-700 dark:text-amber-400">估算记录：{point.warnings?.join('；')}</p> : null}
                     <p className="text-xs text-muted-foreground mt-1">点击选中以删除</p>
                   </div>
                 );

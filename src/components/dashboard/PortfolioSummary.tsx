@@ -16,6 +16,7 @@ import { useCustomAssetStore, type CustomAsset } from '@/stores/customAssetStore
 import { usePortfolioHistoryStore } from '@/stores/portfolioHistoryStore';
 import { useCashFlowStore, netFlowInRange } from '@/stores/cashFlowStore';
 import { PortfolioChart } from './PortfolioChart';
+import type { HistoryRecording } from '@/lib/portfolio/history';
 import { SourceIcon } from './SourceIcon';
 import { useApiKeyStore } from '@/stores/apiKeyStore';
 import { useEconomicAllocationStore } from '@/stores/economicAllocationStore';
@@ -39,6 +40,7 @@ interface PortfolioSummaryProps {
   categoryBreakdown: BreakdownItem[];
   economicAllocationInput: EconomicAllocationInput;
   isLoading: boolean;
+  historyRecording: HistoryRecording;
 }
 
 const COLORS = [
@@ -600,6 +602,7 @@ export function PortfolioSummary({
   categoryBreakdown,
   economicAllocationInput,
   isLoading,
+  historyRecording,
 }: PortfolioSummaryProps) {
   const { assets, addAsset, removeAsset, updateAsset } = useCustomAssetStore();
   const { fmtUsd, hidden } = usePrivacyFormat();
@@ -732,7 +735,7 @@ export function PortfolioSummary({
       )}
 
       {/* Portfolio value history chart */}
-      <PortfolioChart />
+      <PortfolioChart recording={historyRecording} />
     </div>
   );
 }

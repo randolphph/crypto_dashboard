@@ -1,14 +1,12 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import type { PortfolioSnapshot } from '@/lib/portfolio/history';
 
-export interface PortfolioSnapshot {
-  timestamp: number; // ms since epoch
-  value: number;     // total USD value
-}
+export type { PortfolioSnapshot } from '@/lib/portfolio/history';
 
 interface PortfolioHistoryState {
   snapshots: PortfolioSnapshot[];
-  addSnapshot: (value: number) => void;
+  addSnapshot: (value: number, provenance?: Pick<PortfolioSnapshot, 'quality' | 'warnings'>) => void;
   removeSnapshot: (timestamp: number) => void;
   importSnapshots: (incoming: PortfolioSnapshot[]) => void;
 }
@@ -64,10 +62,10 @@ export const usePortfolioHistoryStore = create<PortfolioHistoryState>()(
   persist(
     (set) => ({
       snapshots: [],
-      addSnapshot: (value) =>
+      addSnapshot: (value, provenance = {}) =>
         set((state) => {
           const now = Date.now();
-          const next = [...state.snapshots, { timestamp: now, value }];
+          const next = [...state.snapshots, { timestamp: now, value, ...provenance }];
           return { snapshots: compactSnapshots(next, now) };
         }),
       removeSnapshot: (timestamp) =>
