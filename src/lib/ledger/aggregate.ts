@@ -92,10 +92,13 @@ export function mergeDailyActivities(
       cashFlow: hasCashFlow
         ? sorted.reduce((sum, activity) => sum + (activity.cashFlow ?? 0), 0)
         : undefined,
+      positionAfter: sorted.at(-1)?.positionAfter ?? first.positionAfter,
+      operation: sorted.every((entry) => entry.operation === first.operation) ? first.operation : 'trade',
+      executionCount: sorted.reduce((sum, entry) => sum + (entry.executionCount ?? 1), 0),
       // The aggregate itself becomes the stable identity for future imports.
       externalId: `daily:${key}`,
       sourceExternalIds: sourceExternalIds.length > 0 ? sourceExternalIds : undefined,
-      note: `日内合并：${sorted.length} 笔成交`,
+      note: `日内合并：${sorted.reduce((sum, entry) => sum + (entry.executionCount ?? 1), 0)} 笔成交${sourceExternalIds.some((id) => id.startsWith('a-share-trade:')) ? ' · A 股手工录入' : ''}`,
     } satisfies LedgerActivity;
   });
 

@@ -72,6 +72,8 @@ type NewAccount = Omit<LedgerAccount, 'id' | 'createdAt'>;
 interface LedgerState {
   accounts: LedgerAccount[];
   activities: LedgerActivity[];
+  aShareExecutions: LedgerActivity[];
+  recordAShareActivity: (activity: LedgerActivity) => void;
   importBatches: LedgerImportBatch[];
   addAccount: (account: NewAccount) => void;
   addActivity: (activity: NewActivity) => void;
@@ -93,6 +95,11 @@ export const useLedgerStore = create<LedgerState>()(
     (set) => ({
       accounts: DEFAULT_ACCOUNTS,
       activities: [],
+      aShareExecutions: [],
+      recordAShareActivity: (activity) => set((state) => {
+        if (state.aShareExecutions.some((row) => row.id === activity.id)) return state;
+        return { aShareExecutions: [...state.aShareExecutions, activity], activities: mergeDailyActivities([...state.activities, activity]) };
+      }),
       importBatches: [],
       addAccount: (account) =>
         set((state) => ({
@@ -195,13 +202,14 @@ export const useLedgerStore = create<LedgerState>()(
     }),
     {
       name: 'crypto-dashboard-ledger',
-      version: 3,
+      version: 4,
       migrate: (persisted) => {
         const state = persisted as LedgerState;
         const accounts = state?.accounts ?? [];
         const existingPlatforms = new Set(accounts.map((account) => account.platform));
         return {
           ...state,
+          aShareExecutions: state?.aShareExecutions ?? [],
           accounts: [
             ...accounts,
             ...DEFAULT_ACCOUNTS.filter((account) => !existingPlatforms.has(account.platform)),

@@ -1,6 +1,10 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import Link from 'next/link';
+import { useLedgerStore } from '@/stores/ledgerStore';
+import { saveAShareTrade, recoverAShareTrade } from '@/lib/stocks/saveManualTrade';
+import { AShareTradeFields, tradeDateTime, type AShareTradeFieldsValue } from './AShareTradeFields';
 import { Plus, Trash2, Pencil, X, ArrowLeftRight } from 'lucide-react';
 import { useStockPositionStore } from '@/stores/stockPositionStore';
 import { useCashBalanceStore } from '@/stores/cashBalanceStore';
@@ -57,6 +61,34 @@ export function StockPositionsManager({
   const [name, setName] = useState('');
   const [shares, setShares] = useState('');
   const [costBasis, setCostBasis] = useState('');
+  const [entryMode, setEntryMode] = useState<'buy' | 'opening'>('buy');
+  const [formError, setFormError] = useState<string | null>(null);
+  const [savedMessage, setSavedMessage] = useState<string | null>(null);
+  const [synced, setSynced] = useState(false);
+  const [syncedAccountId, setSyncedAccountId] = useState('');
+  const accounts = useLedgerStore((s) => s.accounts);
+  const aShareAccounts = accounts.filter((a) => a.platform === 'ths' && a.enabled && a.syncMode === 'manual');
+  const defaultAccountId = aShareAccounts.find((a) => a.id === 'account-a-share-manual')?.id ?? aShareAccounts[0]?.id ?? '';
+  const [tradeFields, setTradeFields] = useState<AShareTradeFieldsValue>(() => ({ occurredAt: tradeDateTime(), commission: '', tax: '', otherFee: '', accountId: '' }));
+  const transactionId = useRef<string | null>(null);
+  const isAShare = broker === 'ths' && market === 'A';
+  const resetTradeFields = (accountId = defaultAccountId) => {
+    setTradeFields({ occurredAt: tradeDateTime(), commission: '', tax: '', otherFee: '', accountId });
+    transactionId.current = null;
+  };
+  useEffect(() => {
+    try {
+      const recovered = recoverAShareTrade();
+      if (recovered) { setSavedMessage('上次交易已恢复并同步到账本'); setSyncedAccountId(recovered.activity.accountId); setSynced(true); }
+    } catch { setFormError('上次交易尚未保存完整，请重试或刷新以恢复'); }
+  }, []);
+  const recordAShare = (side: 'buy' | 'sell', quantity: number, price: number, p?: StockPosition) => {
+    transactionId.current ??= crypto.randomUUID();
+    const accountId = tradeFields.accountId || p?.ledgerAccountId || defaultAccountId;
+    const result = saveAShareTrade({ transactionId: transactionId.current, accountId, positionId: p?.id, symbol: p?.symbol ?? symbol, name: p?.name ?? name, side, quantity, price, occurredAt: new Date(tradeFields.occurredAt).getTime(), commission: Number(tradeFields.commission || 0), tax: Number(tradeFields.tax || 0), otherFee: Number(tradeFields.otherFee || 0) });
+    if (result.recorded && result.plan) pushCashToast({ broker: 'ths', currency: 'CNY', delta: result.plan.cashDelta, reason: `${side === 'buy' ? '买入' : '卖出'} ${p?.symbol ?? symbol}` });
+    setSavedMessage('交易已保存并同步到账本'); setSyncedAccountId(accountId); setSynced(true);
+  };
 
   const [tradingId, setTradingId] = useState<string | null>(null);
   const [tradeAction, setTradeAction] = useState<'buy' | 'sell'>('buy');
@@ -77,6 +109,7 @@ export function StockPositionsManager({
     setShares('');
     setCostBasis('');
     setShowForm(false);
+    setEntryMode('buy'); setFormError(null);
   };
 
   const handleEdit = (p: StockPosition) => {
@@ -88,9 +121,11 @@ export function StockPositionsManager({
     setShares(String(p.shares));
     setCostBasis(p.costBasis !== undefined ? String(p.costBasis) : '');
     setShowForm(true);
+    setFormError(null); setTradingId(null);
   };
 
   const handleSubmit = () => {
+    setFormError(null);
     const sharesNum = parseFloat(shares);
     if (!symbol.trim() || !Number.isFinite(sharesNum) || sharesNum <= 0) return;
     const costNum = costBasis.trim() === '' ? undefined : parseFloat(costBasis);
@@ -104,6 +139,23 @@ export function StockPositionsManager({
       shares: sharesNum,
       costBasis: costNum,
     };
+
+    if (isAShare) {
+      try {
+        if (!Number.isInteger(sharesNum) || sharesNum <= 0) throw new Error('数量需为正整数');
+        if (editingId || entryMode === 'opening') {
+          if (costNum !== undefined && costNum < 0) throw new Error('成本价不能为负数');
+          if (editingId) updatePosition(editingId, payload);
+          else addPosition({ id: crypto.randomUUID(), ...payload, ledgerAccountId: tradeFields.accountId || defaultAccountId || undefined });
+          setSavedMessage('持仓记录已保存，现金和交易账本未调整'); setSynced(false);
+        } else {
+          if (costNum === undefined || costNum <= 0) throw new Error('新增买入需填写成交价格');
+          recordAShare('buy', sharesNum, costNum);
+        }
+        resetForm();
+      } catch (error) { setFormError(error instanceof Error ? error.message : '保存失败，请重试'); }
+      return;
+    }
 
     if (editingId) {
       const old = positions.find((p) => p.id === editingId);
@@ -162,6 +214,8 @@ export function StockPositionsManager({
     setTradeShares('');
     setTradePrice('');
     setTradeError(null);
+    setShowForm(false); setSavedMessage(null);
+    resetTradeFields(positions.find((p) => p.id === id)?.ledgerAccountId ?? defaultAccountId);
   };
 
   const cancelTrade = () => {
@@ -205,6 +259,7 @@ export function StockPositionsManager({
 
   const handleDelete = (p: StockPosition) => {
     removePosition(p.id);
+    if (p.broker === 'ths' && p.market === 'A') { setSavedMessage('持仓记录已移除，现金和交易账本未调整'); setSynced(false); return; }
     adjustCash(
       p.broker,
       MARKET_CURRENCY[p.market],
@@ -223,6 +278,11 @@ export function StockPositionsManager({
     }
     if (!Number.isFinite(priceNum) || priceNum <= 0) {
       setTradeError('价格需大于 0');
+      return;
+    }
+    if (p.broker === 'ths' && p.market === 'A') {
+      try { recordAShare(tradeAction, sharesNum, priceNum, p); cancelTrade(); }
+      catch (error) { setTradeError(error instanceof Error ? error.message : '保存失败，请重试'); }
       return;
     }
     const mult = p.multiplier ?? 1;
@@ -272,6 +332,7 @@ export function StockPositionsManager({
 
   const content = (
     <>
+      {savedMessage && <p role="status" className="mb-3 text-sm text-muted-foreground">{savedMessage}{synced && <Link href={`/transactions?view=activities&account=${encodeURIComponent(syncedAccountId)}`} className="ml-2 text-primary underline">查看交易账本</Link>}</p>}
       {(!embedded || !showForm) && (
         <div
           className={cn(
@@ -282,7 +343,7 @@ export function StockPositionsManager({
           {!embedded && <h2 className="font-semibold text-lg">股票持仓</h2>}
           {!showForm && (
             <button
-              onClick={() => setShowForm(true)}
+              onClick={() => { setShowForm(true); setTradingId(null); setFormError(null); setSavedMessage(null); resetTradeFields(); }}
               className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:bg-primary/90"
             >
               <Plus className="h-4 w-4" />
@@ -341,17 +402,20 @@ export function StockPositionsManager({
                               : 'text-muted-foreground'
                           )}
                           title="买入 / 卖出"
+                          aria-label={`买入 / 卖出 ${p.symbol}`}
                         >
                           <ArrowLeftRight className="h-4 w-4" />
                         </button>
                         <button
                           onClick={() => handleEdit(p)}
+                          aria-label={`编辑持仓 ${p.symbol}`}
                           className="rounded-md p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground"
                         >
                           <Pencil className="h-4 w-4" />
                         </button>
                         <button
                           onClick={() => handleDelete(p)}
+                          aria-label={`删除持仓 ${p.symbol}`}
                           className="rounded-md p-1.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
                         >
                           <Trash2 className="h-4 w-4" />
@@ -405,6 +469,7 @@ export function StockPositionsManager({
                             className="rounded-md border bg-background px-2 py-1.5 text-sm"
                           />
                         </div>
+                        {p.broker === 'ths' && p.market === 'A' && <AShareTradeFields value={{ ...tradeFields, accountId: tradeFields.accountId || p.ledgerAccountId || defaultAccountId }} onChange={setTradeFields} accounts={aShareAccounts} />}
                         {tradeError && (
                           <p className="text-xs text-red-500">{tradeError}</p>
                         )}
@@ -446,6 +511,8 @@ export function StockPositionsManager({
               <X className="h-4 w-4" />
             </button>
           </div>
+
+          {isAShare && !editingId && <label className="block text-sm font-medium">录入方式<select value={entryMode} onChange={(e) => setEntryMode(e.target.value as 'buy' | 'opening')} className="mt-1 w-full rounded-lg border bg-background px-3 py-2 text-sm"><option value="buy">新增买入（同步账本）</option><option value="opening">录入已有持仓</option></select></label>}
 
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
@@ -515,25 +582,29 @@ export function StockPositionsManager({
             </div>
             <div>
               <label className="text-sm font-medium">
-                成本价 (每股，{MARKET_CURRENCY[market]})
+                {isAShare && !editingId && entryMode === 'buy' ? '成交价' : '成本价'} (每股，{MARKET_CURRENCY[market]})
               </label>
               <input
                 type="number"
                 value={costBasis}
                 onChange={(e) => setCostBasis(e.target.value)}
-                placeholder="可选，用于计算盈亏"
+                placeholder={isAShare && !editingId && entryMode === 'buy' ? '必填，用于记录成交' : '可选，用于计算盈亏'}
                 step="any"
                 className="mt-1 w-full rounded-lg border bg-background px-3 py-2 text-sm"
               />
             </div>
           </div>
 
+          {isAShare && !editingId && entryMode === 'buy' && <AShareTradeFields value={{ ...tradeFields, accountId: tradeFields.accountId || defaultAccountId }} onChange={setTradeFields} accounts={aShareAccounts} />}
+          {isAShare && (editingId || entryMode === 'opening') && <p className="text-xs text-muted-foreground">仅维护当前持仓，不调整现金，不生成成交记录。</p>}
+          {formError && <p role="alert" className="text-sm text-destructive">{formError}</p>}
+
           <button
             onClick={handleSubmit}
             disabled={!symbol.trim() || !shares.trim()}
             className="w-full rounded-lg bg-primary py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
           >
-            {editingId ? '保存修改' : '确认添加'}
+            {editingId ? '保存修改' : isAShare && entryMode === 'buy' ? '确认买入并同步账本' : '确认添加'}
           </button>
         </div>
       )}

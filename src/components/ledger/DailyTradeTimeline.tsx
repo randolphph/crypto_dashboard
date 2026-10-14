@@ -15,6 +15,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { useFx } from '@/hooks/useFx';
 import { usePrivacyFormat } from '@/hooks/usePrivacyFormat';
 import { usePortfolioHistoryStore } from '@/stores/portfolioHistoryStore';
+import { selectTimelineActivities, timelineDomain, valuationReference } from '@/lib/ledger/timelineRange';
 import type { LedgerAccount, LedgerActivity } from '@/types/ledger';
 import {
   TRADING_EMOTION_LABEL,
@@ -41,6 +42,7 @@ interface TradeBubblePoint extends ChartPoint {
   ratio: number;
   radius: number;
   review?: DailyTradingReview;
+  valuationReferenceAt?: number;
 }
 
 function localDayKey(timestamp: number): string {
@@ -189,16 +191,8 @@ export function DailyTradeTimeline({
 
   const tradePoints = useMemo<TradeBubblePoint[]>(() => {
     if (chartData.length < 2) return [];
-    const lo = chartData[0].timestamp;
-    const hi = chartData[chartData.length - 1].timestamp;
     const groups = new Map<string, LedgerActivity[]>();
-    for (const activity of activities) {
-      if (
-        activity.occurredAt < lo ||
-        activity.occurredAt > hi ||
-        activity.status === 'cancelled' ||
-        activity.status === 'corrected'
-      ) continue;
+    for (const activity of selectTimelineActivities(activities, cutoff)) {
       const key = `${localDayKey(activity.occurredAt)}:${activity.side}`;
       const group = groups.get(key);
       if (group) group.push(activity);
@@ -226,9 +220,10 @@ export function DailyTradeTimeline({
         ratio,
         radius,
         review: reviewMap.get(date),
+        valuationReferenceAt: valuationReference(chartData, timestamp),
       };
     }).sort((a, b) => a.timestamp - b.timestamp);
-  }, [activities, chartData, fxQuery.data, reviews]);
+  }, [activities, chartData, fxQuery.data, reviews, cutoff]);
 
   const updateHoveredTrade = (
     point: TradeBubblePoint,
@@ -293,13 +288,12 @@ export function DailyTradeTimeline({
     );
   }
 
-  const first = chartData[0];
-  const last = chartData[chartData.length - 1];
+  const xDomain = timelineDomain(chartData, tradePoints.map((point) => point.timestamp));
   const values = chartData.map((point) => point.value);
   const min = Math.min(...values);
   const max = Math.max(...values);
-  const padding = (max - min) * 0.1 || max * 0.02;
-  const yDomain: [number, number] = [Math.max(0, min - padding), max + padding];
+  const padding = (max - min) * 0.1 || Math.abs(max) * 0.02 || 1;
+  const yDomain: [number, number] = [min - padding, max + padding];
 
   return (
     <Card>
@@ -307,6 +301,7 @@ export function DailyTradeTimeline({
         <div>
           <CardTitle>{activeRange.title}资产与交易</CardTitle>
           <CardDescription>交易按天聚合；气泡大小表示交易金额占当时总资产的比例。</CardDescription>
+          {tradePoints.some((point) => point.valuationReferenceAt !== undefined) && <p className="mt-1 text-xs text-muted-foreground">部分成交日期暂无资产快照，气泡位置和占比参考最近可用快照；资产曲线保留真实记录。</p>}
         </div>
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-4 text-xs text-muted-foreground">
@@ -345,7 +340,7 @@ export function DailyTradeTimeline({
             <XAxis
               type="number"
               dataKey="timestamp"
-              domain={[first.timestamp, last.timestamp]}
+              domain={xDomain}
               tickFormatter={formatAxisDate}
               tick={{ fontSize: 11 }}
               stroke="var(--muted-foreground)"
@@ -370,7 +365,9 @@ export function DailyTradeTimeline({
               fill="url(#ledgerPortfolioGradient)"
               dot={false}
             />
-            <Scatter
+            {/* An empty Scatter data array falls back to the parent chart's
+                snapshots in Recharts, which have no trade bubble radius. */}
+            {tradePoints.length > 0 && <Scatter
               data={tradePoints}
               dataKey="value"
               shape={
@@ -380,7 +377,7 @@ export function DailyTradeTimeline({
                   onLeave={() => setHoveredTrade(null)}
                 />
               }
-            />
+            />}
           </ComposedChart>
         </ResponsiveContainer>
         {hoveredTrade && hoveredDayPoints.length > 0 && createPortal(
@@ -399,6 +396,7 @@ export function DailyTradeTimeline({
                 {hoveredSellValue > 0 && <strong className="text-rose-600">卖出 {hidden ? '******' : fmtUsd(hoveredSellValue)}</strong>}
               </div>
             </div>
+            {hoveredTrade.point.valuationReferenceAt !== undefined && <p className="mt-1 text-xs text-muted-foreground">估值参考 {formatDay(hoveredTrade.point.valuationReferenceAt)} 的资产快照，不代表成交当天资产估值。</p>}
             <div className="mt-2 space-y-1">
               {hoveredActivities.slice(0, 10).map((activity) => {
                 const account = accounts.find((item) => item.id === activity.accountId);

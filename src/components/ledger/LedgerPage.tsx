@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import {
   AlertCircle,
   ArrowDownRight,
@@ -231,8 +232,10 @@ function Field({
 }
 
 export function LedgerPage() {
+  const searchParams = useSearchParams();
   const accounts = useLedgerStore((state) => state.accounts);
   const activities = useLedgerStore((state) => state.activities);
+  const aShareExecutions = useLedgerStore((state) => state.aShareExecutions);
   const importBatches = useLedgerStore((state) => state.importBatches);
   const addActivity = useLedgerStore((state) => state.addActivity);
   const addAccount = useLedgerStore((state) => state.addAccount);
@@ -247,7 +250,7 @@ export function LedgerPage() {
   const [importOpen, setImportOpen] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
   const [reviewOpen, setReviewOpen] = useState(false);
-  const [accountFilter, setAccountFilter] = useState('all');
+  const [accountFilter, setAccountFilter] = useState(() => accounts.some((account) => account.id === searchParams.get('account')) ? searchParams.get('account')! : 'all');
   const [statusFilter, setStatusFilter] = useState('all');
   const [search, setSearch] = useState('');
   const [message, setMessage] = useState('');
@@ -477,7 +480,7 @@ export function LedgerPage() {
   const handleRemoveActivity = (activity: LedgerActivity) => {
     const account = accounts.find((item) => item.id === activity.accountId);
     const displayName = account?.platform === 'ths' && activity.name ? activity.name : activity.symbol;
-    if (!window.confirm(`确定删除 ${displayName} 的这笔交易记录吗？此操作无法撤销。`)) return;
+    if (!window.confirm(`确定删除 ${displayName} 的这笔交易记录吗？此操作无法撤销。删除仅影响账本，不会回滚持仓或现金。`)) return;
     removeActivity(activity.id);
     setMessage(`${displayName} 的交易记录已删除。`);
   };
@@ -610,7 +613,7 @@ export function LedgerPage() {
         <span>{accounts.length} 个账户</span>
       </div>
 
-      <Tabs defaultValue="timeline">
+      <Tabs defaultValue={searchParams.get('view') === 'activities' ? 'activities' : 'timeline'}>
         <div className="flex flex-col justify-between gap-3 border-b sm:flex-row sm:items-center">
           <TabsList variant="line" className="h-10">
             <TabsTrigger value="timeline">时间轴</TabsTrigger>
@@ -693,6 +696,8 @@ export function LedgerPage() {
                         ? activity.name
                         : activity.symbol;
                       const fee = activity.commission + activity.tax + activity.otherFee;
+                      const executionIds = new Set([activity.externalId, ...(activity.sourceExternalIds ?? [])]);
+                      const executions = aShareExecutions.filter((row) => row.accountId === activity.accountId && executionIds.has(row.externalId));
                       return (
                         <TableRow key={activity.id}>
                           <TableCell className="pl-4">
@@ -713,6 +718,7 @@ export function LedgerPage() {
                               {activityActionLabel(activity)}
                             </div>
                             <div className="text-xs text-muted-foreground">{LEDGER_INSTRUMENT_LABEL[activity.instrumentType]}</div>
+                            {executions.length > 0 && <details className="mt-1 text-xs"><summary className="cursor-pointer text-muted-foreground">A 股手工录入 · {executions.length} 笔成交明细</summary><div className="mt-2 space-y-2">{executions.map((row) => <div key={row.id} className="rounded border p-2"><p>{formatDateTime(row.occurredAt)} · {activityActionLabel(row)}</p><p>{formatNumber(row.quantity)} 股 × {formatNumber(row.price)} CNY</p><p>费用 {formatNumber(row.commission + row.tax + row.otherFee)} CNY · 成交后持仓 {formatNumber(row.positionAfter ?? 0)} 股</p></div>)}</div></details>}
                           </TableCell>
                           <TableCell className="text-right tabular-nums">
                             <div>{activity.currency} {formatNumber(Math.abs(activity.quantity * activity.price * activity.multiplier), 8)}</div>

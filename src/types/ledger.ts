@@ -60,6 +60,7 @@ export interface LedgerActivity {
   otherFee: number;
   feeRate?: number;
   positionAfter?: number;
+  executionCount?: number;
   markPrice?: number;
   indexPrice?: number;
   settlementPrice?: number;

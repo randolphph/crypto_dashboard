@@ -197,6 +197,7 @@ export function parseStocksBody(value: unknown): {
       apiPnl: row.apiPnl as number | undefined,
       multiplier: row.multiplier as number | undefined,
       kind: row.kind as 'stock' | 'option' | undefined,
+      ledgerAccountId: typeof row.ledgerAccountId === 'string' ? row.ledgerAccountId.slice(0, 160) : undefined,
     };
   });
 

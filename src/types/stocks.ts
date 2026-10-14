@@ -41,6 +41,7 @@ export interface StockPosition {
   // matches the underlying lot size (e.g., 500 for 0700).
   multiplier?: number;
   kind?: InstrumentKind;
+  ledgerAccountId?: string;
 }
 
 export interface StockQuote {
