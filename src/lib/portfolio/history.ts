@@ -44,7 +44,7 @@ export function assessHistoryRecording({ totalValue, sources }: { totalValue: nu
       reasons.forEach((reason) => warnings.push(`${source.label}：${reason}`));
     }
   }
-  if (!loading && (!Number.isFinite(totalValue) || totalValue <= 0)) blockers.push('组合总值尚不可用');
+  if (!loading && (!Number.isFinite(totalValue) || (totalValue === 0 && sources.every((s) => !s.required)))) blockers.push('组合总值尚不可用');
   const status = blockers.length > 0 ? 'blocked' : loading ? 'loading' : warnings.length > 0 ? 'estimated' : 'ready';
   return { canRecord: status === 'ready' || status === 'estimated', status, warnings: [...new Set(warnings)], blockers };
 }

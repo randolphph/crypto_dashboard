@@ -36,6 +36,8 @@ interface BreakdownItem {
 
 interface PortfolioSummaryProps {
   totalValue: number;
+  assetsValue: number;
+  liabilitiesValue?: number;
   breakdown: BreakdownItem[];
   categoryBreakdown: BreakdownItem[];
   economicAllocationInput: EconomicAllocationInput;
@@ -100,7 +102,7 @@ function useTodayDelta(totalValue: number): TodayDelta | null {
   useEffect(() => setMounted(true), []);
   return useMemo(() => {
     if (!mounted) return null;
-    if (totalValue <= 0 || snapshots.length === 0) return null;
+    if (!Number.isFinite(totalValue) || snapshots.length === 0) return null;
     const now = Date.now();
     const cutoff = now - 24 * 60 * 60 * 1000;
     const before = snapshots
@@ -392,6 +394,7 @@ function AiEconomicAllocation({
   const signature = useMemo(
     () =>
       JSON.stringify({
+        liabilitiesValue: input.liabilitiesValue,
         baseline: input.baseline.map((item) => item.label),
         candidates: input.candidates.map((item) => [
           item.id,
@@ -598,6 +601,8 @@ function CustomAssetItem({
 
 export function PortfolioSummary({
   totalValue,
+  assetsValue,
+  liabilitiesValue,
   breakdown,
   categoryBreakdown,
   economicAllocationInput,
@@ -612,7 +617,7 @@ export function PortfolioSummary({
   // Split breakdown into API items and custom items
   const customLabels = new Set(assets.map((a) => a.name));
   const apiBreakdown = breakdown.filter((b) => !customLabels.has(b.label));
-  const showCategoryStrip = categoryBreakdown.length > 0 && totalValue > 0;
+  const showCategoryStrip = categoryBreakdown.length > 0 && assetsValue > 0;
 
   const todayDelta = useTodayDelta(totalValue);
 
@@ -622,14 +627,15 @@ export function PortfolioSummary({
         {/* Left: total value + category-level strip */}
         <div className="min-w-0 flex-1">
           <div className="flex flex-col gap-1">
-            <p className="text-sm text-muted-foreground">总资产价值</p>
+            <p className="text-sm text-muted-foreground">净资产</p>
             {isLoading ? (
               <div className="h-9 w-48 animate-pulse rounded bg-muted" />
             ) : (
               <p className="text-3xl font-bold tracking-tight">
-                {fmtUsd(totalValue)}
+                {Number.isFinite(totalValue) ? fmtUsd(totalValue) : '—'}
               </p>
             )}
+            <p className="text-xs text-muted-foreground">资产合计 {fmtUsd(assetsValue)} · 负债合计 {liabilitiesValue === undefined ? '—（汇率不可用）' : fmtUsd(liabilitiesValue)}</p>
             {!isLoading && todayDelta && (
               <TodayDeltaLine delta={todayDelta} />
             )}
@@ -639,7 +645,7 @@ export function PortfolioSummary({
           {showCategoryStrip && (
             <div className="mt-4 flex flex-wrap gap-x-6 gap-y-2">
               {categoryBreakdown.map((item, i) => {
-                const pct = (item.value / totalValue) * 100;
+                const pct = (item.value / assetsValue) * 100;
                 return (
                   <div
                     key={item.label}

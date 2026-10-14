@@ -45,9 +45,10 @@ test('loading sources wait for a valuation, disabled sources do not block', () =
   assert.equal(assess([source({ required: false, value: undefined, loading: true, error: 'unused' })]).status, 'ready');
 });
 
-test('missing FX and nonfinite or zero totals prevent recording', () => {
+test('missing FX and nonfinite totals prevent recording; zero and negative net assets remain valid', () => {
   assert.equal(assess([source({ label: '银行汇率', value: undefined })]).status, 'blocked');
-  for (const totalValue of [0, -10, NaN, Infinity]) assert.equal(assess([], { totalValue }).canRecord, false);
+  for (const totalValue of [0, NaN, Infinity]) assert.equal(assess([], { totalValue }).canRecord, false);
+  for (const totalValue of [0, -10]) assert.equal(assess([source({ value: totalValue })], { totalValue }).canRecord, true);
 });
 
 test('duplicate renders and remounts do not append identical points, hourly observations do', () => {

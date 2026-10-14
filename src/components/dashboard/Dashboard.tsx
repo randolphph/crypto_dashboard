@@ -13,6 +13,7 @@ import { WalletManager } from '@/components/settings/WalletManager';
 import { StockPositionsManager } from '@/components/settings/StockPositionsManager';
 import { CashBalancesManager } from '@/components/settings/CashBalancesManager';
 import { BankAccountsManager } from '@/components/settings/BankAccountsManager';
+import { LiabilitiesManager } from '@/components/settings/LiabilitiesManager';
 import {
   Dialog,
   DialogContent,
@@ -22,6 +23,8 @@ import {
 import { useExchangeData } from '@/hooks/useExchangeData';
 import { useOnchainData } from '@/hooks/useOnchainData';
 import { useStockData } from '@/hooks/useStockData';
+import { useLiabilityStore } from '@/stores/liabilityStore';
+import { combineAShareLiabilities, portfolioNetValue, valueLiabilities } from '@/lib/portfolio/liabilities';
 import { useSnapshotPersist } from '@/hooks/useSnapshotPersist';
 import { buildSnapshot } from '@/lib/portfolio/snapshot';
 import { useVaultStore } from '@/stores/vaultStore';
@@ -43,7 +46,7 @@ import { cn } from '@/lib/utils';
 import { hasOnchainWarning, isSuccessfulWallet, ONCHAIN_BROWSER_RETENTION_MS, ONCHAIN_WARNING_MS } from '@/lib/onchain/cachePolicy';
 import { assessHistoryRecording, shouldRecordHistory, type HistorySource } from '@/lib/portfolio/history';
 
-type AddDialog = 'wallet' | 'stock-position' | 'stock-cash' | 'bank-account';
+type AddDialog = 'wallet' | 'stock-position' | 'stock-cash' | 'bank-account' | 'a-share-liability';
 const STOCK_TAB_IDS = ['ths', 'longport', 'ibkr'] as const;
 type StockTabId = (typeof STOCK_TAB_IDS)[number];
 function isStockTab(id: string): id is StockTabId {
@@ -98,6 +101,7 @@ export function Dashboard() {
   const onchain = useOnchainData();
   const stocks = useStockData();
   const customAssets = useCustomAssetStore((s) => s.assets);
+  const liabilities = useLiabilityStore((s) => s.liabilities);
   const bankAccounts = useBankAccountStore((s) => s.accounts);
   const walletConfigs = useWalletStore((s) => s.wallets);
   const fxQuery = useFx();
@@ -105,6 +109,7 @@ export function Dashboard() {
   const setLastRefreshed = useDashboardStore((s) => s.setLastRefreshed);
 
   const bankNeedsFx = bankAccounts.some((a) => a.currency !== 'USD');
+  const liabilityNeedsFx = liabilities.some((row) => row.currency !== 'USD' && row.amount > 0);
   const isFxValid = (value: { cnyUsd: number; hkdUsd: number; krwUsd: number } | undefined) =>
     !!value && value.cnyUsd > 0 && value.hkdUsd > 0 && value.krwUsd > 0;
   const stocksFx = isFxValid(stocks.data?.fx) ? stocks.data?.fx : undefined;
@@ -116,7 +121,7 @@ export function Dashboard() {
     deribit.isLoading ||
     onchain.isLoading ||
     stocks.isLoading ||
-    (bankNeedsFx && !fx && fxQuery.isLoading);
+    ((bankNeedsFx || liabilityNeedsFx) && !fx && fxQuery.isLoading);
 
   const hasError =
     binance.isError ||
@@ -132,7 +137,7 @@ export function Dashboard() {
     binance.data?.error != null ||
     okx.data?.error != null ||
     deribit.data?.error != null ||
-    (bankNeedsFx && !fx && !fxQuery.isLoading);
+    ((bankNeedsFx || liabilityNeedsFx) && !fx && !fxQuery.isLoading);
 
   const hasDataQualityIssue =
     binance.data?.dataQuality?.complete === false ||
@@ -266,7 +271,12 @@ export function Dashboard() {
     { label: '其它', value: otherValue, details: otherDetails },
   ].filter((c) => c.value > 0);
 
-  const totalValue = breakdown.reduce((sum, item) => sum + item.value, 0);
+  const assetsValue = breakdown.reduce((sum, item) => sum + item.value, 0);
+  const liabilityValuation = valueLiabilities(liabilities, fx);
+  const accountBreakdown = combineAShareLiabilities(breakdown, BROKER_LABEL.ths, liabilityValuation.totalUsd);
+  const totalValue = accountBreakdown.reduce((sum, item) => sum + item.value, 0);
+  const aShareAssetsValue = brokerById('ths')?.totalUsdValue ?? 0;
+  const aShareNetValue = portfolioNetValue(aShareAssetsValue, liabilityValuation.totalUsd);
 
   // Track custom assets changes: when they change, refresh API data + record snapshot
   const prevCustomAssetsRef = useRef(customAssets);
@@ -320,6 +330,7 @@ export function Dashboard() {
       dataQuality: stocks.data?.dataQuality,
     },
     { label: '银行汇率', required: bankNeedsFx, value: fx ? bankCashValue : undefined, loading: !fx && fxQuery.isLoading },
+    { label: '负债', required: liabilities.length > 0, value: liabilityValuation.totalUsd, loading: liabilityNeedsFx && !fx && fxQuery.isLoading, error: liabilityValuation.complete ? undefined : '汇率不可用，无法换算负债' },
   ];
   const historyRecording = assessHistoryRecording({ totalValue, sources: historySources });
   const historyWarnings = JSON.stringify(historyRecording.warnings);
@@ -343,7 +354,7 @@ export function Dashboard() {
   const walletAddress = useVaultStore((s) => s.address);
   const snapshotPayloadReady =
     !isLoading &&
-    totalValue > 0 &&
+    Number.isFinite(totalValue) &&
     !!walletAddress;
   const snapshotHasWarnings = hasError || hasDataQualityIssue;
   const snapshotReady = snapshotPayloadReady && !snapshotHasWarnings;
@@ -356,6 +367,7 @@ export function Dashboard() {
           deribit: deribit.data,
           onchain: onchain.data,
           stocks: stocks.data,
+          liabilities: liabilityValuation.items,
           banks: bankAccounts.map((a) => ({
             bank: a.bank,
             currency: a.currency,
@@ -365,14 +377,16 @@ export function Dashboard() {
           })),
           portfolio: {
             totalUsd: totalValue,
+            assetsUsd: assetsValue,
+            liabilitiesUsd: liabilityValuation.totalUsd,
             cryptoUsd: cryptoValue,
             stocksUsd: stocksValue,
             cashUsd: cashValue,
             otherUsd: otherValue,
             deribitTotalUsd: deribit.data?.totalUsdValue,
-            fxCnyUsd: stocks.data?.fx.cnyUsd,
-            fxHkdUsd: stocks.data?.fx.hkdUsd,
-            fxKrwUsd: stocks.data?.fx.krwUsd,
+            fxCnyUsd: fx?.cnyUsd,
+            fxHkdUsd: fx?.hkdUsd,
+            fxKrwUsd: fx?.krwUsd,
           },
         })
       : null;
@@ -389,6 +403,7 @@ export function Dashboard() {
 
   const economicAllocationInput = buildEconomicAllocationInput({
     totalValue,
+    liabilitiesValue: liabilityValuation.totalUsd,
     categoryBreakdown,
     stocks: stocks.data,
     binance: binance.data,
@@ -408,7 +423,9 @@ export function Dashboard() {
     <div className="space-y-6">
       <PortfolioSummary
         totalValue={totalValue}
-        breakdown={breakdown}
+        assetsValue={assetsValue}
+        liabilitiesValue={liabilityValuation.totalUsd}
+        breakdown={accountBreakdown}
         categoryBreakdown={categoryBreakdown}
         economicAllocationInput={economicAllocationInput}
         isLoading={isLoading}
@@ -469,6 +486,7 @@ export function Dashboard() {
                   onClick={() => setAddDialog('stock-cash')}
                   label="编辑现金"
                 />
+                {activeTab === 'ths' && <AddButton onClick={() => setAddDialog('a-share-liability')} label={liabilities.length ? '管理负债' : '添加负债'} />}
               </>
             )}
             {activeTab === 'bank' && (
@@ -509,6 +527,7 @@ export function Dashboard() {
           data={brokerById(activeTab)}
           isLoading={stocks.isLoading}
           error={stocks.error as Error | null}
+          aShareBalance={activeTab === 'ths' ? { assetsValue: aShareAssetsValue, liabilitiesValue: liabilityValuation.totalUsd, netValue: aShareNetValue, liabilities: liabilityValuation.items } : undefined}
         />
       )}
       {activeTab === 'bank' && <CashSection />}
@@ -520,6 +539,7 @@ export function Dashboard() {
         }}
       >
         <DialogContent className="sm:max-w-2xl max-h-[85vh] overflow-y-auto">
+          {addDialog === 'a-share-liability' && <><DialogHeader><DialogTitle>A 股负债</DialogTitle></DialogHeader><LiabilitiesManager /></>}
           {addDialog === 'wallet' && (
             <>
               <DialogHeader>

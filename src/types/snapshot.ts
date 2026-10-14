@@ -50,6 +50,8 @@ export interface PositionSnapshot {
 
 export interface PortfolioSummarySnapshot {
   totalUsd: number;
+  assetsUsd?: number;
+  liabilitiesUsd?: number;
   cryptoUsd?: number;
   stocksUsd?: number;
   cashUsd?: number;
@@ -71,5 +73,6 @@ export interface SnapshotPayload {
   timestamp: number;
   positions: PositionSnapshot[];
   portfolio: PortfolioSummarySnapshot;
+  liabilities?: Array<{ id: string; name: string; amount: number; currency: string; amountUsd?: number; broker?: 'ths' }>;
   onchainDataTimes?: Array<{ walletId: string; walletName: string; updatedAt: number }>;
 }

@@ -34,6 +34,7 @@ export interface EconomicAllocationCandidate {
 
 export interface EconomicAllocationInput {
   totalValue: number;
+  liabilitiesValue?: number;
   baseline: EconomicAllocationBucket[];
   candidates: EconomicAllocationCandidate[];
 }
@@ -91,6 +92,7 @@ interface BankCashLike {
 
 export interface BuildEconomicAllocationInput {
   totalValue: number;
+  liabilitiesValue?: number;
   categoryBreakdown: BreakdownLike[];
   stocks?: StocksData;
   binance?: BinanceEconomicData;
@@ -158,6 +160,7 @@ function assetCategory(asset: string): EconomicCategory {
 
 export function buildEconomicAllocationInput({
   totalValue,
+  liabilitiesValue,
   categoryBreakdown,
   stocks,
   binance,
@@ -351,7 +354,7 @@ export function buildEconomicAllocationInput({
         (CATEGORY_ORDER.get(b.label) ?? 99)
     );
 
-  return { totalValue, baseline, candidates };
+  return { totalValue, baseline, candidates, ...(liabilitiesValue ? { liabilitiesValue } : {}) };
 }
 
 function isEconomicCategory(value: unknown): value is EconomicCategory {
@@ -501,11 +504,13 @@ export async function analyzeEconomicAllocation({
     '4. 期权、期货、永续合约及其专用保证金账户归为“衍生品”。即使保证金币种是 USDT/USDC，也不能把合约或策略账户保证金归为类现金。普通公司股票与股票 ETF 归为“股票”。',
     '5. 同一币种位于不同平台、账户或网络时，必须分别判断，不得混淆。不得修改金额；classifications 只返回需要改变 baseCategory 的候选，保持原分类的候选不要返回。reason 使用不超过 25 个汉字。',
     '6. summary 用 2 至 4 句中文，重点解释最重要的重分类和组合结构，不提供买卖建议。',
+    'totalValueUsd 为净资产，liabilitiesValueUsd 为已经扣除的负债合计；baseline 是资产构成，负债不得重复扣除或归类为资产。',
     'JSON 格式示例：{"summary":"...","classifications":[{"id":"stock:ibkr:1","category":"类现金","reason":"超短期国债ETF"}]}。没有重分类时 classifications 返回空数组。',
   ].join('\n');
 
   const payload = {
     totalValueUsd: input.totalValue,
+    liabilitiesValueUsd: input.liabilitiesValue,
     baseline: input.baseline,
     candidates: input.candidates,
   };

@@ -386,6 +386,7 @@ export interface BuildSnapshotInput {
   onchain?: WalletBalance[];
   stocks?: StocksData;
   banks?: BankCashInput[];
+  liabilities?: SnapshotPayload['liabilities'];
   portfolio: PortfolioSummarySnapshot;
 }
 
@@ -404,6 +405,7 @@ export function buildSnapshot(input: BuildSnapshotInput): SnapshotPayload {
     timestamp: Date.now(),
     positions,
     portfolio: input.portfolio,
+    ...(input.liabilities?.length ? { liabilities: input.liabilities } : {}),
     onchainDataTimes: input.onchain?.filter((wallet) => wallet.dataUpdatedAt).map((wallet) => ({
       walletId: wallet.walletId, walletName: wallet.walletName, updatedAt: wallet.dataUpdatedAt!,
     })),
@@ -425,6 +427,7 @@ export function snapshotFingerprint(payload: SnapshotPayload): string {
       Math.round(x.valueUsd * 100),
     ]),
     t: Math.round(payload.portfolio.totalUsd * 100),
+    ...(payload.liabilities?.length ? { liabilities: payload.liabilities.map((row) => [row.id, row.name, row.amount, row.currency, row.amountUsd]) } : {}),
   };
   return JSON.stringify(compact);
 }

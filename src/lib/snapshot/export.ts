@@ -109,6 +109,9 @@ export interface AiSnapshotExport {
   timestamp: number;
   iso: string;
   totalUsd: number;
+  assetsUsd?: number;
+  liabilitiesUsd?: number;
+  liabilities?: SnapshotPayload['liabilities'];
   fx?: {
     cnyUsd?: number;
     hkdUsd?: number;
@@ -354,6 +357,7 @@ function buildSummary(
     byCategory.deribitEquityUsd = snapshot.portfolio.deribitTotalUsd;
     byVenue.deribit = snapshot.portfolio.deribitTotalUsd;
   }
+  if (venues.ths?.accountValueUsd != null) byVenue.ths = venues.ths.accountValueUsd;
 
   // Cash implied = total minus everything we listed. Doesn't include Deribit
   // because deribitEquityUsd already represents the whole venue.
@@ -365,7 +369,7 @@ function buildSummary(
     byCategory.cryptoPerpsShortUsd + // perp short reduces directional exposure but balance is still tied up
     byCategory.optionsValueUsd +
     byCategory.deribitEquityUsd;
-  byCategory.cashImpliedUsd = snapshot.portfolio.totalUsd - categorised;
+  byCategory.cashImpliedUsd = snapshot.portfolio.totalUsd + (snapshot.portfolio.liabilitiesUsd ?? 0) - categorised;
 
   // Round and sort underlyings by absolute net exposure for compact JSON.
   const byUnderlying = Array.from(underlying.entries())
@@ -402,7 +406,7 @@ function buildSummary(
 const CONTEXT_PROSE = [
   '这是一份资产快照，用于让 AI 帮你做组合分析。',
   '范围：股票多空（IBKR / 长桥 / 同花顺），看跌+看涨期权（IBKR / Deribit），加密合约多空（Binance），非稳定币现货（Binance / OKX / 链上）。',
-  '已排除：稳定币（视为现金 / 保证金）、链上 DeFi、收据 token。现金为隐含值：totalUsd - 已分类持仓之和。',
+  '已排除：稳定币（视为现金 / 保证金）、链上 DeFi、收据 token。totalUsd 为净资产：资产合计减负债合计。现金为隐含值：totalUsd + liabilitiesUsd - 已分类持仓之和；负债不可重复扣除。',
   'Deribit 是跨币种 USDT 抵押的期权账户，accountValueUsd 是 API 直接算的 equity（不要再加 USDT 余额）。',
   '建议关注：(1) 净敞口结构（多空是否对冲均衡）；(2) 单一标的集中度；(3) 期权对冲的覆盖范围；(4) 杠杆水平。',
 ].join(' ');
@@ -456,6 +460,11 @@ export function snapshotToAiJson(snapshot: SnapshotPayload): AiSnapshotExport {
     const v = ensureVenue(venues, 'deribit');
     v.accountValueUsd = snapshot.portfolio.deribitTotalUsd;
   }
+  if (snapshot.liabilities?.some((row) => row.broker === 'ths')) {
+    const gross = snapshot.positions.filter((p) => p.source === 'ths').reduce((sum, p) => sum + p.valueUsd, 0);
+    const debt = snapshot.liabilities.filter((row) => row.broker === 'ths').reduce((sum, row) => sum + (row.amountUsd ?? 0), 0);
+    ensureVenue(venues, 'ths').accountValueUsd = round2(gross - debt);
+  }
 
   // Order venues per VENUE_ORDER, dropping empty ones.
   const ordered: Record<string, VenueExport> = {};
@@ -488,6 +497,9 @@ export function snapshotToAiJson(snapshot: SnapshotPayload): AiSnapshotExport {
     timestamp: snapshot.timestamp,
     iso: new Date(snapshot.timestamp).toISOString(),
     totalUsd: round2(snapshot.portfolio.totalUsd),
+    assetsUsd: snapshot.portfolio.assetsUsd,
+    liabilitiesUsd: snapshot.portfolio.liabilitiesUsd,
+    liabilities: snapshot.liabilities,
     fx:
       snapshot.portfolio.fxCnyUsd != null ||
       snapshot.portfolio.fxHkdUsd != null ||
@@ -800,7 +812,13 @@ export function snapshotToMarkdown(snapshot: SnapshotPayload): string {
 
   lines.push(`# 资产快照 · ${iso.slice(0, 16).replace('T', ' ')} UTC`);
   lines.push('');
-  lines.push(`**总资产**：${fmtUsd(snapshot.portfolio.totalUsd)}`);
+  lines.push(`**净资产**：${fmtUsd(snapshot.portfolio.totalUsd)}`);
+  if (snapshot.portfolio.assetsUsd !== undefined) lines.push(`**资产合计**：${fmtUsd(snapshot.portfolio.assetsUsd)} · **负债合计**：${fmtUsd(snapshot.portfolio.liabilitiesUsd ?? 0)}`);
+  if (snapshot.liabilities?.length) {
+    lines.push('');
+    lines.push(`## ${snapshot.liabilities.every((row) => row.broker === 'ths') ? 'A 股负债' : '负债'}（已从净资产扣除）`);
+    lines.push(table(['名称', '币种', '未偿金额', 'USD'], snapshot.liabilities.map((row) => [row.name, row.currency, fmtNum(row.amount), fmtUsd(row.amountUsd)])));
+  }
   for (const wallet of snapshot.onchainDataTimes ?? []) {
     lines.push(`链上钱包 ${wallet.walletName} 的实际数据时间：${new Date(wallet.updatedAt).toISOString()}（快照保存时间不代表重新查询链上数据）。`);
   }
@@ -845,6 +863,7 @@ function renderVenue(
   if (name === 'deribit' && snapshot.portfolio.deribitTotalUsd != null) {
     subtotal = snapshot.portfolio.deribitTotalUsd;
   }
+  if (name === 'ths') subtotal -= snapshot.liabilities?.filter((row) => row.broker === 'ths').reduce((sum, row) => sum + (row.amountUsd ?? 0), 0) ?? 0;
 
   lines.push(`## ${VENUE_LABELS[name] ?? name} · ${fmtUsd(subtotal)}`);
   lines.push('');

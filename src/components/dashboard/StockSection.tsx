@@ -6,6 +6,7 @@ import { usePrivacyFormat, PRIVACY_MASK } from '@/hooks/usePrivacyFormat';
 import { formatCurrency } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import { PriceAge } from '@/components/common/PriceAge';
+import type { valueLiabilities } from '@/lib/portfolio/liabilities';
 import {
   BROKER_LABEL,
   MARKET_LABEL,
@@ -37,6 +38,7 @@ interface StockSectionProps {
   data?: BrokerData;
   isLoading: boolean;
   error?: Error | null;
+  aShareBalance?: { assetsValue: number; liabilitiesValue?: number; netValue: number; liabilities: ReturnType<typeof valueLiabilities>['items'] };
 }
 
 function PnlCell({
@@ -250,6 +252,7 @@ export function StockSection({
   data,
   isLoading,
   error,
+  aShareBalance,
 }: StockSectionProps) {
   const { fmtUsd, hidden } = usePrivacyFormat();
   const label = BROKER_LABEL[broker];
@@ -276,7 +279,7 @@ export function StockSection({
     );
   }
 
-  if (!data || (data.positions.length === 0 && data.cash.length === 0)) {
+  if ((!data || (data.positions.length === 0 && data.cash.length === 0)) && !aShareBalance) {
     return (
       <div className="rounded-xl border bg-card p-8 text-center">
         <p className="text-muted-foreground">
@@ -286,18 +289,20 @@ export function StockSection({
     );
   }
 
-  const totalPnl = data.totalPnlUsd;
+  const positions = data?.positions ?? [];
+  const cash = data?.cash ?? [];
+  const totalPnl = data?.totalPnlUsd ?? 0;
   const positive = totalPnl >= 0;
 
   return (
     <div className="rounded-xl border bg-card p-5 shadow-sm">
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
         <h3 className="font-semibold text-lg">{label}</h3>
         <div className="flex items-center gap-3 text-sm">
           <span className="text-muted-foreground">
-            合计 {fmtUsd(data.totalUsdValue)}
+            {aShareBalance ? <>净资产 {Number.isFinite(aShareBalance.netValue) ? fmtUsd(aShareBalance.netValue) : '—'}</> : <>合计 {fmtUsd(data?.totalUsdValue ?? 0)}</>}
           </span>
-          {data.positions.length > 0 && (
+          {positions.length > 0 && (
             <span
               className={cn(
                 'font-medium',
@@ -312,15 +317,20 @@ export function StockSection({
           )}
         </div>
       </div>
-      {data.apiError && (
+      {aShareBalance && <div className="mb-4 space-y-2 text-xs text-muted-foreground">
+        <p>资产合计 {fmtUsd(aShareBalance.assetsValue)} · 负债合计 {aShareBalance.liabilitiesValue === undefined ? '—（汇率不可用）' : fmtUsd(aShareBalance.liabilitiesValue)}</p>
+        {aShareBalance.liabilities.map((row) => <p key={row.id}>{row.name} · {hidden ? PRIVACY_MASK : formatCurrency(row.amount, row.currency)}</p>)}
+      </div>}
+      {data?.apiError && (
         <div className="mb-4 rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive">
           {label} API 错误: {data.apiError}
         </div>
       )}
-      {data.cash.length > 0 && (
-        <CashTable cash={data.cash} totalUsd={data.cashUsdValue} />
+      {cash.length > 0 && (
+        <CashTable cash={cash} totalUsd={data?.cashUsdValue ?? 0} />
       )}
-      {data.positions.length > 0 && <PositionsTable positions={data.positions} />}
+      {positions.length > 0 && <PositionsTable positions={positions} />}
+      {positions.length === 0 && cash.length === 0 && <p className="text-sm text-muted-foreground">暂无持仓与现金</p>}
     </div>
   );
 }

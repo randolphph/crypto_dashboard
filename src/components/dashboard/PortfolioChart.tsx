@@ -254,9 +254,9 @@ export function PortfolioChart({ recording }: { recording: HistoryRecording }) {
   const values = data.map((d) => d.value);
   const minVal = Math.min(...values);
   const maxVal = Math.max(...values);
-  const padding = (maxVal - minVal) * 0.1 || maxVal * 0.01;
+  const padding = (maxVal - minVal) * 0.1 || Math.abs(maxVal) * 0.01 || 1;
   const yDomain: [number, number] = [
-    Math.max(0, minVal - padding),
+    minVal - padding,
     maxVal + padding,
   ];
 
@@ -264,7 +264,7 @@ export function PortfolioChart({ recording }: { recording: HistoryRecording }) {
     <div className="mt-4">
       {recordingNotice}
       {data.some((point) => point.quality === 'estimated') ? <p className="mb-2 text-xs text-amber-700 dark:text-amber-400">此区间含估算记录，涨跌可能受到缓存或部分数据影响。</p> : null}
-      <div className="flex items-center justify-between mb-2">
+      <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
         <div className="flex items-center gap-3 text-sm">
           {data.length >= 2 && (
             <span className={isPositive ? 'text-green-500' : 'text-red-500'}>
