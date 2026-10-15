@@ -40,6 +40,11 @@ interface PerpHolding {
 }
 
 interface StockHolding {
+  account?: string;
+  assetSymbol?: string;
+  quantityUnit?: 'token';
+  chainId?: string;
+  tokenAddress?: string;
   market?: string;
   symbol: string;
   currency: string;
@@ -104,6 +109,7 @@ export interface AiSummary {
 }
 
 export interface AiSnapshotExport {
+  assetAllocation?: SnapshotPayload['assetAllocation'];
   context: string;
   wallet: string;
   timestamp: number;
@@ -178,6 +184,11 @@ function pushStock(p: PositionSnapshot, v: VenueExport): void {
   const side: 'long' | 'short' = p.side ?? (p.qty >= 0 ? 'long' : 'short');
   v.stocks ??= [];
   v.stocks.push({
+    account: p.account,
+    assetSymbol: p.assetSymbol,
+    quantityUnit: p.quantityUnit,
+    chainId: p.chainId,
+    tokenAddress: p.tokenAddress,
     market: p.market,
     symbol: p.symbol,
     currency: p.currency,
@@ -327,6 +338,7 @@ function buildSummary(
       if (p.kind === 'stock') {
         if (side === 'short') byCategory.stocksShortUsd += p.valueUsd;
         else byCategory.stocksLongUsd += p.valueUsd;
+        getU(u).spotUsd += side === 'short' ? -Math.abs(p.valueUsd) : p.valueUsd;
       } else if (p.kind === 'option') {
         byCategory.optionsValueUsd += p.valueUsd;
         getU(u).optionsUsd += p.valueUsd;
@@ -405,7 +417,8 @@ function buildSummary(
 
 const CONTEXT_PROSE = [
   '这是一份资产快照，用于让 AI 帮你做组合分析。',
-  '范围：股票多空（IBKR / 长桥 / 同花顺），看跌+看涨期权（IBKR / Deribit），加密合约多空（Binance），非稳定币现货（Binance / OKX / 链上）。',
+  '范围：股票多空（IBKR / 长桥 / 同花顺及交易所、链上手工标记的美股），看跌+看涨期权（IBKR / Deribit），加密合约多空（Binance），非稳定币现货（Binance / OKX / 链上）。',
+  '手工标记美股按对应股票代码归类，assetSymbol 保留原代币；quantityUnit=token 时数量与价格均为代币口径，不能假设一枚代币等于一股。价值使用原平台估值，不重复计入加密资产。',
   '已排除：稳定币（视为现金 / 保证金）、链上 DeFi、收据 token。totalUsd 为净资产：资产合计减负债合计。现金为隐含值：totalUsd + liabilitiesUsd - 已分类持仓之和；负债不可重复扣除。',
   'Deribit 是跨币种 USDT 抵押的期权账户，accountValueUsd 是 API 直接算的 equity（不要再加 USDT 余额）。',
   '建议关注：(1) 净敞口结构（多空是否对冲均衡）；(2) 单一标的集中度；(3) 期权对冲的覆盖范围；(4) 杠杆水平。',
@@ -514,6 +527,7 @@ export function snapshotToAiJson(snapshot: SnapshotPayload): AiSnapshotExport {
     venues: ordered,
     notes,
     onchainDataTimes: snapshot.onchainDataTimes,
+    assetAllocation: snapshot.assetAllocation,
   };
 }
 
@@ -814,6 +828,10 @@ export function snapshotToMarkdown(snapshot: SnapshotPayload): string {
   lines.push('');
   lines.push(`**净资产**：${fmtUsd(snapshot.portfolio.totalUsd)}`);
   if (snapshot.portfolio.assetsUsd !== undefined) lines.push(`**资产合计**：${fmtUsd(snapshot.portfolio.assetsUsd)} · **负债合计**：${fmtUsd(snapshot.portfolio.liabilitiesUsd ?? 0)}`);
+  if (snapshot.assetAllocation?.length) {
+    lines.push('', '## 资产分类（按手工标签汇总）');
+    lines.push(table(['分类', 'USD'], snapshot.assetAllocation.map((entry) => [entry.label.replace(/\|/g, '\\|'), fmtUsd(entry.value)])));
+  }
   if (snapshot.liabilities?.length) {
     lines.push('');
     lines.push(`## ${snapshot.liabilities.every((row) => row.broker === 'ths') ? 'A 股负债' : '负债'}（已从净资产扣除）`);
@@ -963,6 +981,7 @@ function renderPerps(perps: PositionSnapshot[], lines: string[]): void {
 
 function renderStocks(stocks: PositionSnapshot[], lines: string[]): void {
   lines.push('**股票**');
+  if (stocks.some((p) => p.assetSymbol)) lines.push('标记美股的数量为原代币数量，价格为代币价格，不代表等量股票股数；估值取自原平台。');
   lines.push(
     table(
       ['标的', '市场', '方向', '数量', '入场', '现价', '币种', 'USD 价值', 'PnL%'],
@@ -970,7 +989,7 @@ function renderStocks(stocks: PositionSnapshot[], lines: string[]): void {
         const side: 'long' | 'short' =
           p.side ?? (p.qty >= 0 ? 'long' : 'short');
         return [
-          p.symbol,
+          p.assetSymbol ? `${p.symbol}（${p.assetSymbol}${p.account ? ` · ${p.account}` : ''}）` : p.symbol,
           p.market ?? '',
           side === 'long' ? '多' : '空',
           fmtNum(Math.abs(p.qty)),

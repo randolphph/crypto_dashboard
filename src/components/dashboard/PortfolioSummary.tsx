@@ -1,14 +1,12 @@
 'use client';
 
-import { useState, useMemo, useEffect, useId, useRef } from 'react';
+import { useState, useMemo, useEffect, useId } from 'react';
 import {
   Plus,
   Trash2,
   Pencil,
   Check,
   X,
-  Sparkles,
-  RefreshCw,
   LoaderCircle,
 } from 'lucide-react';
 import { usePrivacyFormat } from '@/hooks/usePrivacyFormat';
@@ -18,20 +16,16 @@ import { useCashFlowStore, netFlowInRange } from '@/stores/cashFlowStore';
 import { PortfolioChart } from './PortfolioChart';
 import type { HistoryRecording } from '@/lib/portfolio/history';
 import { SourceIcon } from './SourceIcon';
-import { useApiKeyStore } from '@/stores/apiKeyStore';
-import { useEconomicAllocationStore } from '@/stores/economicAllocationStore';
-import {
-  analyzeEconomicAllocation,
-  applyEconomicAnalysis,
-  type EconomicAllocationInput,
-  type EconomicCategory,
-} from '@/lib/ai/portfolioAllocation';
+import { AssetCategoryManager } from './AssetCategoryManager';
+import { AssetCategorySelect } from './AssetCategorySelect';
+import { customCategoryKey, type ClassificationAsset } from '@/lib/portfolio/assetCategories';
 
 interface BreakdownItem {
   label: string;
   value: number;
   isLoading?: boolean;
   details?: BreakdownItem[];
+  color?: string;
 }
 
 interface PortfolioSummaryProps {
@@ -40,7 +34,7 @@ interface PortfolioSummaryProps {
   liabilitiesValue?: number;
   breakdown: BreakdownItem[];
   categoryBreakdown: BreakdownItem[];
-  economicAllocationInput: EconomicAllocationInput;
+  classificationAssets: ClassificationAsset[];
   isLoading: boolean;
   historyRecording: HistoryRecording;
 }
@@ -67,18 +61,6 @@ const CATEGORY_COLORS: Record<string, string> = {
 
 function categoryColor(label: string, fallbackIdx: number): string {
   return CATEGORY_COLORS[label] ?? COLORS[fallbackIdx % COLORS.length];
-}
-
-const ECONOMIC_COLORS: Record<EconomicCategory, string> = {
-  类现金: '#10b981',
-  股票: '#3b82f6',
-  加密资产: '#f59e0b',
-  衍生品: '#06b6d4',
-  其它: '#8b5cf6',
-};
-
-function economicColor(label: string, fallbackIdx: number): string {
-  return ECONOMIC_COLORS[label as EconomicCategory] ?? COLORS[fallbackIdx % COLORS.length];
 }
 
 // "今日" delta = current total vs. the snapshot closest to 24h ago,
@@ -305,20 +287,20 @@ function CategoryTooltip({
   groupBelowUsd?: number;
 }) {
   const { fmtUsd, hidden } = usePrivacyFormat();
-  const rawDetails = (category.details ?? []).filter((d) => d.value > 0);
+  const rawDetails = (category.details ?? []).filter((d) => d.value !== 0);
   const details = (() => {
     if (groupBelowUsd <= 0) return rawDetails;
 
     const visible: BreakdownItem[] = [];
     let otherValue = 0;
     for (const detail of rawDetails) {
-      if (detail.value < groupBelowUsd || detail.label === '其它') {
+      if (Math.abs(detail.value) < groupBelowUsd || detail.label === '其它') {
         otherValue += detail.value;
       } else {
         visible.push(detail);
       }
     }
-    if (otherValue > 0) {
+    if (otherValue !== 0) {
       visible.push({ label: '其它', value: otherValue });
     }
     return visible;
@@ -373,156 +355,23 @@ function CategoryTooltip({
   );
 }
 
-function AiEconomicAllocation({
-  input,
-}: {
-  input: EconomicAllocationInput;
-}) {
-  const apiKey = useApiKeyStore((state) => state.deepseekApiKey);
-  const analysis = useEconomicAllocationStore((state) => state.analysis);
-  const analysisSignature = useEconomicAllocationStore(
-    (state) => state.signature
-  );
-  const saveAnalysis = useEconomicAllocationStore(
-    (state) => state.saveAnalysis
-  );
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [hoveredEconomic, setHoveredEconomic] = useState<string | null>(null);
-  const abortRef = useRef<AbortController | null>(null);
-
-  const signature = useMemo(
-    () =>
-      JSON.stringify({
-        liabilitiesValue: input.liabilitiesValue,
-        baseline: input.baseline.map((item) => item.label),
-        candidates: input.candidates.map((item) => [
-          item.id,
-          item.label,
-          item.baseCategory,
-          item.description,
-        ]),
-      }),
-    [input]
-  );
-  const currentAnalysis =
-    analysisSignature === signature ? analysis : null;
-  const breakdown = useMemo(
-    () =>
-      currentAnalysis
-        ? applyEconomicAnalysis(input, currentAnalysis)
-        : input.baseline,
-    [currentAnalysis, input]
-  );
-  const economicTotal = breakdown.reduce((sum, item) => sum + item.value, 0);
-  const hoveredEconomicDetail = hoveredEconomic
-    ? breakdown.find((item) => item.label === hoveredEconomic)
-    : null;
-
-  useEffect(
-    () => () => {
-      abortRef.current?.abort();
-    },
-    []
-  );
-
-  const runAnalysis = async () => {
-    if (loading) return;
-    if (!apiKey) {
-      setError('尚未配置 DeepSeek API Key，请先到“设置 → API 密钥”填写。');
-      return;
-    }
-    setError(null);
-    setLoading(true);
-    abortRef.current?.abort();
-    const controller = new AbortController();
-    abortRef.current = controller;
-    try {
-      const next = await analyzeEconomicAllocation({
-        apiKey,
-        input,
-        signal: controller.signal,
-      });
-      saveAnalysis(signature, next);
-    } catch (cause) {
-      if ((cause as Error).name !== 'AbortError') {
-        setError(
-          cause instanceof Error ? cause.message : 'AI 分析失败，请稍后重试'
-        );
-      }
-    } finally {
-      if (abortRef.current === controller) {
-        abortRef.current = null;
-        setLoading(false);
-      }
-    }
-  };
-
-  return (
-    <div className="border-t pt-5 md:w-[460px] md:shrink-0 md:border-l md:border-t-0 md:pl-6 md:pt-0">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <div className="flex items-center gap-2">
-            <Sparkles className="h-4 w-4 text-violet-500" />
-            <h2 className="text-sm font-semibold">资产分布</h2>
-            <span className="rounded-full bg-violet-500/10 px-2 py-0.5 text-[10px] font-medium text-violet-600 dark:text-violet-400">
-              DeepSeek
-            </span>
-          </div>
-          <p className="mt-1 text-xs text-muted-foreground">
-            按实际风险与流动性重新归类，金额仍来自真实仓位。
-          </p>
-        </div>
-        <button
-          type="button"
-          onClick={runAnalysis}
-          disabled={loading || input.totalValue <= 0}
-          className="inline-flex items-center gap-1.5 rounded-md border bg-background px-3 py-1.5 text-xs font-medium transition-colors hover:bg-secondary disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          {currentAnalysis ? (
-            <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
-          ) : (
-            <Sparkles className={`h-3.5 w-3.5 ${loading ? 'animate-pulse' : ''}`} />
-          )}
-          {loading ? '分析中…' : currentAnalysis ? '重新分析' : 'AI 分析'}
-        </button>
-      </div>
-
-      {error && (
-        <p className="mt-3 rounded-md border border-red-500/25 bg-red-500/5 px-3 py-2 text-xs text-red-600 dark:text-red-400">
-          {error}
-        </p>
-      )}
-
-      {currentAnalysis ? (
-        <div className="mt-3 space-y-3">
-          <div className="relative flex justify-center md:justify-start">
-            {hoveredEconomicDetail && (
-              <CategoryTooltip
-                category={hoveredEconomicDetail}
-                color={economicColor(hoveredEconomicDetail.label, 0)}
-                groupBelowUsd={1000}
-              />
-            )}
-            <PieChart
-              breakdown={breakdown}
-              totalValue={economicTotal}
-              colorFor={economicColor}
-              activeLabel={hoveredEconomic}
-              onHover={setHoveredEconomic}
-            />
-          </div>
-          <p className="text-[10px] text-muted-foreground">
-            “类现金”仍可能包含信用、脱锚或智能合约风险。
-          </p>
-        </div>
-      ) : (
-        <div className="mt-3 rounded-lg border border-dashed px-4 py-5 text-center text-xs text-muted-foreground">
-          点击“AI 分析”，生成经济属性分布。
-        </div>
-      )}
+function ManualAssetAllocation({ breakdown, assets }: { breakdown: BreakdownItem[]; assets: ClassificationAsset[] }) {
+  const [hovered, setHovered] = useState<string | null>(null);
+  const positive = breakdown.filter((item) => item.value > 0);
+  const total = positive.reduce((sum, item) => sum + item.value, 0);
+  const active = positive.find((item) => item.label === hovered);
+  const colorFor = (label: string, index: number) => breakdown.find((item) => item.label === label)?.color ?? categoryColor(label, index);
+  return <div className="min-w-0 border-t pt-5 md:w-[460px] md:shrink-0 md:border-l md:border-t-0 md:pl-6 md:pt-0">
+    <div className="mb-3 flex flex-wrap items-start justify-between gap-2">
+      <div><h2 className="text-sm font-semibold">资产分布</h2><p className="mt-1 text-xs text-muted-foreground">按资产分类直接汇总，修改标签后即时更新。</p></div>
+      <AssetCategoryManager assets={assets} />
     </div>
-  );
+    {total > 0 ? <div className="relative flex justify-center md:justify-start">
+      {active && <CategoryTooltip category={active} color={colorFor(active.label, 0)} />}
+      <PieChart breakdown={positive} totalValue={total} colorFor={colorFor} activeLabel={hovered} onHover={setHovered} />
+    </div> : <p className="rounded-lg border border-dashed px-4 py-5 text-center text-xs text-muted-foreground">暂无可绘制的资产数据</p>}
+    {breakdown.some((item) => item.value < 0) && <p className="mt-2 text-xs text-muted-foreground">负值分类已保留在资产合计中；饼图比例仅按正值分类计算。</p>}
+  </div>;
 }
 
 function InlineEditor({
@@ -595,6 +444,7 @@ function CustomAssetItem({
         </div>
       </div>
       <p className="text-sm font-medium">{fmtUsd(asset.value)}</p>
+      <AssetCategorySelect assetId={customCategoryKey(asset.id)} label={asset.name} />
     </div>
   );
 }
@@ -605,7 +455,7 @@ export function PortfolioSummary({
   liabilitiesValue,
   breakdown,
   categoryBreakdown,
-  economicAllocationInput,
+  classificationAssets,
   isLoading,
   historyRecording,
 }: PortfolioSummaryProps) {
@@ -653,7 +503,7 @@ export function PortfolioSummary({
                   >
                     <span
                       className="inline-block h-2.5 w-2.5 rounded-sm shrink-0"
-                      style={{ backgroundColor: categoryColor(item.label, i) }}
+                      style={{ backgroundColor: item.color ?? categoryColor(item.label, i) }}
                     />
                     <div className="flex items-baseline gap-1.5">
                       <span className="text-sm font-medium">{item.label}</span>
@@ -671,9 +521,7 @@ export function PortfolioSummary({
           )}
         </div>
 
-        {!isLoading && totalValue > 0 && (
-          <AiEconomicAllocation input={economicAllocationInput} />
-        )}
+        <ManualAssetAllocation breakdown={categoryBreakdown} assets={classificationAssets} />
       </div>
 
       {/* Per-source breakdown row — secondary detail under the category strip. */}

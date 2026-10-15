@@ -9,6 +9,8 @@ export interface AssetBalance {
   // excluded by policy regardless of DeFi availability. Kept for display.
   dedupedToDefi?: boolean;
   exclusionReason?: 'aave-receipt';
+  // User classification, applied to live/cached balances at read time.
+  stockSymbol?: string;
 }
 
 export interface ExchangeData {

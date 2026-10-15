@@ -24,12 +24,14 @@ const BINANCE_CASH_LIKE = new Set(['现货', '理财', '资金账户']);
 export interface CashCryptoSplit {
   cash: number;
   crypto: number;
+  stocks?: number;
 }
 
 interface AssetBalanceShape {
   asset: string;
   usdValue: number;
   dedupedToDefi?: boolean;
+  stockSymbol?: string;
 }
 
 interface BinanceSubAccountShape {
@@ -78,6 +80,8 @@ export function classifyBinance(data: BinanceDataShape | undefined): CashCryptoS
   for (const acc of data.accounts ?? []) {
     if (BINANCE_CASH_LIKE.has(acc.label)) {
       for (const b of acc.balances ?? []) {
+        if (b.dedupedToDefi) continue;
+        if (b.stockSymbol) { out.stocks = (out.stocks ?? 0) + b.usdValue; continue; }
         if (isStable(b.asset)) out.cash += b.usdValue;
         else out.crypto += b.usdValue;
       }
@@ -96,6 +100,8 @@ export function classifyOkx(data: OkxDataShape | undefined): CashCryptoSplit {
   // backing a perp without an extra positions call. User accepted the
   // simplification that stablecoins here count as cash.
   for (const b of data.balances ?? []) {
+    if (b.dedupedToDefi) continue;
+    if (b.stockSymbol) { out.stocks = (out.stocks ?? 0) + b.usdValue; continue; }
     if (isStable(b.asset)) out.cash += b.usdValue;
     else out.crypto += b.usdValue;
   }
@@ -117,6 +123,7 @@ export function classifyOnchain(
   for (const w of wallets ?? []) {
     for (const b of w.balances ?? []) {
       if (b.dedupedToDefi) continue;
+      if (b.stockSymbol) { out.stocks = (out.stocks ?? 0) + b.usdValue; continue; }
       if (isStable(b.asset)) out.cash += b.usdValue;
       else out.crypto += b.usdValue;
     }

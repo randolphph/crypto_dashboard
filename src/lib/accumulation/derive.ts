@@ -5,6 +5,8 @@ import type {
   StockQuote,
   StockMarket,
 } from '@/types/stocks';
+import type { MappedStockHolding } from '@/lib/portfolio/assetStockMapping';
+import Decimal from 'decimal.js';
 
 // Within this fraction of an anchor price (or already through it) a tier counts
 // as "接近触发" and the row gets flagged — provided the gate/sector is armed.
@@ -27,7 +29,16 @@ export interface DerivedTier {
   triggered: boolean;
 }
 
+export interface HoldingQuantity {
+  amount: number;
+  unit: '股' | '张' | '枚';
+  label?: string;
+  source?: string;
+}
+
 export interface DerivedTarget {
+  quantities: HoldingQuantity[];
+  mappedSources?: string[];
   target: AccumulationTarget;
   // Display name from live data (A/HK stocks); null when unknown.
   name: string | null;
@@ -115,6 +126,27 @@ function quoteKey(market: StockMarket, symbol: string): string {
   return `${market}:${symbol.trim().toUpperCase()}`;
 }
 
+function holdingQuantities(target: AccumulationTarget, positions: EnrichedPosition[], mappedHoldings: MappedStockHolding[]): HoldingQuantity[] {
+  const matches = positions.filter((p) => p.market === target.market && sameSymbol(p.symbol, target.symbol) && Number.isFinite(p.shares));
+  const stocks = matches.filter((p) => p.kind !== 'option');
+  const quantities: HoldingQuantity[] = stocks.length
+    ? [{ amount: stocks.reduce((sum, p) => sum.plus(p.shares), new Decimal(0)).toNumber(), unit: '股' }]
+    : [];
+  for (const p of matches.filter((p) => p.kind === 'option')) {
+    quantities.push({ amount: p.shares, unit: '张', label: '期权', source: p.id });
+  }
+  for (const p of mappedHoldings) {
+    if (p.market !== target.market || !sameSymbol(p.symbol, target.symbol)) continue;
+    if (typeof p.amount === 'number' && Number.isFinite(p.amount)) {
+      quantities.push({ amount: p.amount, unit: '枚', label: p.assetSymbol, source: p.sourceLabel });
+    }
+    for (const token of p.tokenQuantities ?? []) {
+      if (Number.isFinite(token.amount)) quantities.push({ amount: token.amount, unit: '枚', label: token.assetSymbol, source: p.sourceLabel });
+    }
+  }
+  return quantities;
+}
+
 // Join one target to the live stock feed by market:symbol. Everything here is
 // SHARED from the dashboard's enriched positions — price, value, unrealized
 // PnL, today's change, avg cost — so the加仓 table never re-derives or re-
@@ -127,18 +159,21 @@ function quoteKey(market: StockMarket, symbol: string): string {
 function matchLive(
   target: AccumulationTarget,
   positions: EnrichedPosition[],
-  watchQuotes: Map<string, StockQuote>
+  watchQuotes: Map<string, StockQuote>,
+  mappedHoldings: MappedStockHolding[] = []
 ): LiveMatch {
   const matches = positions.filter(
     (p) => p.market === target.market && sameSymbol(p.symbol, target.symbol)
   );
+  const mapped = mappedHoldings.filter((p) => p.market === target.market && sameSymbol(p.symbol, target.symbol));
+  const mappedValue = mapped.reduce((sum, p) => sum + p.valueUsd, 0);
   if (matches.length === 0) {
     const q = watchQuotes.get(quoteKey(target.market, target.symbol));
     return {
       livePrice: q && q.price > 0 ? q.price : null,
       priceUpdatedAt: q?.priceUpdatedAt ?? null,
-      isHeld: false,
-      currentValue: 0,
+      isHeld: mapped.length > 0,
+      currentValue: mappedValue,
       pnlUsd: null,
       pnlPct: null,
       changePct: q?.changePct ?? null,
@@ -147,14 +182,14 @@ function matchLive(
     };
   }
 
-  const currentValue = matches.reduce((s, p) => s + p.marketValueUsd, 0);
+  const currentValue = matches.reduce((s, p) => s + p.marketValueUsd, 0) + mappedValue;
   const priced = matches
     .filter((p) => p.price > 0)
     .sort((a, b) => Math.abs(b.marketValueUsd) - Math.abs(a.marketValueUsd));
   const lead = priced[0];
 
   const pnlParts = matches.filter((p) => p.pnlUsd !== undefined);
-  const pnlUsd = pnlParts.length
+  const pnlUsd = pnlParts.length && mapped.length === 0
     ? pnlParts.reduce((s, p) => s + (p.pnlUsd ?? 0), 0)
     : null;
   // Aggregate cost basis value = current value − unrealized PnL; pct off that.
@@ -165,14 +200,14 @@ function matchLive(
       : null;
 
   return {
-    livePrice: lead?.price ?? null,
-    priceUpdatedAt: lead?.priceUpdatedAt ?? null,
+    livePrice: lead?.price ?? watchQuotes.get(quoteKey(target.market, target.symbol))?.price ?? null,
+    priceUpdatedAt: lead?.priceUpdatedAt ?? watchQuotes.get(quoteKey(target.market, target.symbol))?.priceUpdatedAt ?? null,
     isHeld: true,
     currentValue,
     pnlUsd,
     pnlPct,
     changePct: lead?.changePct ?? null,
-    costBasisLocal: lead?.costBasis ?? null,
+    costBasisLocal: mapped.length ? null : lead?.costBasis ?? null,
     name: lead?.quoteName ?? lead?.name ?? null,
   };
 }
@@ -182,7 +217,8 @@ export function deriveTarget(
   positions: EnrichedPosition[],
   gate: GateState,
   watchQuotes: Map<string, StockQuote> = new Map(),
-  ma20Override?: number
+  ma20Override?: number,
+  mappedHoldings: MappedStockHolding[] = []
 ): DerivedTarget {
   const {
     livePrice,
@@ -194,7 +230,7 @@ export function deriveTarget(
     changePct,
     costBasisLocal,
     name,
-  } = matchLive(target, positions, watchQuotes);
+  } = matchLive(target, positions, watchQuotes, mappedHoldings);
   // Prefer the server-computed MA20; fall back to the plan's manual value.
   const ma20IsLive =
     typeof ma20Override === 'number' && Number.isFinite(ma20Override) && ma20Override > 0;
@@ -253,6 +289,8 @@ export function deriveTarget(
       ));
 
   return {
+    quantities: holdingQuantities(target, positions, mappedHoldings),
+    mappedSources: mappedHoldings.filter((p) => p.market === target.market && sameSymbol(p.symbol, target.symbol)).map((p) => p.sourceLabel),
     target,
     name,
     ma20,
@@ -278,7 +316,8 @@ export function deriveTargets(
   stocks: StocksData | undefined,
   gate: GateState,
   watchQuotes: StockQuote[] = [],
-  ma20Map: Record<string, number> = {}
+  ma20Map: Record<string, number> = {},
+  mappedHoldings: MappedStockHolding[] = []
 ): DerivedTarget[] {
   const positions = (stocks?.brokers ?? []).flatMap((b) => b.positions);
   const watchMap = new Map<string, StockQuote>();
@@ -289,7 +328,8 @@ export function deriveTargets(
       positions,
       gate,
       watchMap,
-      ma20Map[quoteKey(t.market, t.symbol)]
+      ma20Map[quoteKey(t.market, t.symbol)],
+      mappedHoldings
     )
   );
 }
@@ -308,7 +348,9 @@ export interface OrphanHolding {
 // 计划内". Lets the view nudge the user to bring real positions under a plan.
 export function orphanHoldings(
   targets: AccumulationTarget[],
-  stocks: StocksData | undefined
+  stocks: StocksData | undefined,
+  mappedHoldings: MappedStockHolding[] = [],
+  watchQuotes: StockQuote[] = []
 ): OrphanHolding[] {
   const planned = new Set(
     targets.map((t) => quoteKey(t.market, t.symbol))
@@ -335,6 +377,14 @@ export function orphanHoldings(
       }
       byKey.set(key, row);
     }
+  }
+  for (const holding of mappedHoldings) {
+    const key = quoteKey(holding.market, holding.symbol);
+    if (planned.has(key)) continue;
+    const quote = watchQuotes.find((q) => quoteKey(q.market, q.symbol) === key);
+    const row = byKey.get(key) ?? { market: holding.market, symbol: holding.symbol, currentValue: 0, priceLocal: quote && quote.price > 0 ? quote.price : null };
+    row.currentValue += holding.valueUsd;
+    byKey.set(key, row);
   }
   return [...byKey.values()]
     .filter((o) => o.currentValue > 0)

@@ -27,6 +27,7 @@ import { FundingOverview } from './FundingOverview';
 import { TargetTable } from './TargetTable';
 import { buildSectorColorMap } from './sectorColors';
 import { cn } from '@/lib/utils';
+import { mappedStockHoldings } from '@/lib/portfolio/assetStockMapping';
 
 // Available "ammo" = money that can actually buy stocks: broker cash + bank
 // cash. Deliberately excludes crypto stablecoins.
@@ -72,6 +73,7 @@ export function AccumulationView() {
   useEffect(() => setHydrated(true), []);
 
   const fx = stocks.data?.fx ?? fxQuery.data;
+  const mappedHoldings = useMemo(() => mappedStockHoldings({ binance: binance.data, okx: okx.data, onchain: onchain.data }), [binance.data, okx.data, onchain.data]);
 
   const { totalPortfolioUsd, availableAmmo } = useMemo(() => {
     const brokers = stocks.data?.brokers ?? [];
@@ -126,8 +128,15 @@ export function AccumulationView() {
       seen.add(k);
       out.push({ market: t.market, symbol: t.symbol });
     }
+    // Token-only holdings need the underlying stock quote, including before
+    // quick-add. Token prices and token quantities cannot stand in for shares.
+    for (const holding of mappedHoldings) {
+      const k = `${holding.market}:${holding.symbol}`;
+      if (heldKeys.has(k) || seen.has(k)) continue;
+      seen.add(k); out.push({ market: holding.market, symbol: holding.symbol });
+    }
     return out;
-  }, [targets, heldKeys]);
+  }, [targets, heldKeys, mappedHoldings]);
 
   const watchQuotes = useWatchQuotes(watchSymbols);
 
@@ -158,13 +167,14 @@ export function AccumulationView() {
         stocks.data,
         gate,
         watchQuotes.data ?? [],
-        ma20.data ?? {}
+        ma20.data ?? {},
+        mappedHoldings
       ),
-    [targets, stocks.data, gate, watchQuotes.data, ma20.data]
+    [targets, stocks.data, gate, watchQuotes.data, ma20.data, mappedHoldings]
   );
   const orphans = useMemo(
-    () => orphanHoldings(targets, stocks.data),
-    [targets, stocks.data]
+    () => orphanHoldings(targets, stocks.data, mappedHoldings, watchQuotes.data ?? []),
+    [targets, stocks.data, mappedHoldings, watchQuotes.data]
   );
   const rollups = useMemo(() => rollupSectors(derived), [derived]);
   const sectorColors = useMemo(

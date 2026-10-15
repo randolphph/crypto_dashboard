@@ -21,6 +21,10 @@ export interface PositionSnapshot {
   source: SnapshotSource;
   account?: string;
   symbol: string;
+  assetSymbol?: string;
+  quantityUnit?: 'token';
+  chainId?: string;
+  tokenAddress?: string;
   kind: SnapshotKind;
   market?: string;
   qty: number;
@@ -67,6 +71,7 @@ export interface PortfolioSummarySnapshot {
 }
 
 export interface SnapshotPayload {
+  assetAllocation?: Array<{ id: string; label: string; value: number }>;
   // Lowercased EVM address of the wallet that's currently unlocking the vault.
   // Backend partitions all rows by this so multiple users / envs don't mix.
   wallet: string;

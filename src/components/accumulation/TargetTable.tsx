@@ -29,6 +29,7 @@ type SortKey =
   | 'tier';
 
 const NUM = (v: number) => v.toLocaleString('en-US', { maximumFractionDigits: 2 });
+const QUANTITY = (v: number) => v.toLocaleString('en-US', { maximumFractionDigits: 8 });
 
 function sortValue(d: DerivedTarget, key: SortKey): number | string {
   switch (key) {
@@ -256,6 +257,7 @@ export function TargetTable({
             <SortHeader label="板块" k="sector" sortKey={sortKey} asc={asc} onSort={onSort} />
             <TableHead className="text-right">盈亏</TableHead>
             <TableHead className="text-right">今日%</TableHead>
+            <TableHead className="text-right">数量</TableHead>
             <SortHeader label="现有仓位" k="currentValue" sortKey={sortKey} asc={asc} onSort={onSort} className="text-right" />
             <TableHead className="text-right">现价</TableHead>
             <SortHeader label="三档锚价" k="tier" sortKey={sortKey} asc={asc} onSort={onSort} />
@@ -352,7 +354,13 @@ export function TargetTable({
                 )}
               </TableCell>
               <TableCell className="text-right tabular-nums">
+                {d.quantities.length ? d.quantities.map((quantity, index) => <div key={index} title={quantity.source}>
+                  {hidden ? '****' : QUANTITY(quantity.amount)} {quantity.unit}{quantity.label && <span className="ml-1 text-xs text-muted-foreground">{quantity.label}</span>}
+                </div>) : <span className="text-muted-foreground">—</span>}
+              </TableCell>
+              <TableCell className="text-right tabular-nums">
                 {d.isHeld ? hidden ? '****' : fmtUsd(d.currentValue) : '—'}
+                {!!d.mappedSources?.length && <p className="max-w-48 whitespace-normal text-[10px] text-muted-foreground" title={d.mappedSources.join('；')}>含标记美股 · {d.mappedSources.join(' / ')}</p>}
               </TableCell>
               <TableCell className="text-right tabular-nums">
                 {d.livePrice !== null ? (

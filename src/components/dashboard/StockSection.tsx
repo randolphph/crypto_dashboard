@@ -6,6 +6,8 @@ import { usePrivacyFormat, PRIVACY_MASK } from '@/hooks/usePrivacyFormat';
 import { formatCurrency } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import { PriceAge } from '@/components/common/PriceAge';
+import { AssetCategorySelect } from './AssetCategorySelect';
+import { stockCategoryKey, stockCashCategoryKey, defaultStockCategory } from '@/lib/portfolio/assetCategories';
 import type { valueLiabilities } from '@/lib/portfolio/liabilities';
 import {
   BROKER_LABEL,
@@ -189,6 +191,7 @@ function PositionsTable({ positions }: { positions: EnrichedPosition[] }) {
                   <div className="flex items-center gap-1.5">
                     <span className="font-medium">{primary}</span>
                     <SourceBadge source={p.source} />
+                    <AssetCategorySelect assetId={stockCategoryKey(p.broker, p.id)} label={`${p.symbol} ${BROKER_LABEL[p.broker]}`} defaultCategoryId={defaultStockCategory(p.symbol, p.kind, p.market)} nativeStockSymbol={p.market === 'US' ? p.symbol : undefined} />
                     {p.kind === 'option' && (
                       <span className="rounded-full bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-amber-700 dark:text-amber-400">
                         期权
@@ -366,6 +369,7 @@ function CashTable({
                       {c.note}
                     </span>
                   )}
+                  <span className="ml-2 inline-block"><AssetCategorySelect assetId={stockCashCategoryKey(c.broker, c.id)} label={`${BROKER_LABEL[c.broker]} ${c.currency} 现金`} defaultCategoryId="cash" /></span>
                 </td>
                 <td className="py-2 text-right tabular-nums">
                   {hidden ? '****' : formatCurrency(c.amount, c.currency)}

@@ -3,6 +3,7 @@
 import { usePrivacyFormat } from '@/hooks/usePrivacyFormat';
 import { cn } from '@/lib/utils';
 import type { DeribitData } from '@/types/deribit';
+import { AssetCategorySelect } from './AssetCategorySelect';
 
 interface DeribitSectionProps {
   data?: DeribitData;
@@ -72,6 +73,8 @@ export function DeribitSection({ data, isLoading, error }: DeribitSectionProps) 
       <div className="rounded-xl border bg-card p-5 shadow-sm">
         <p className="text-sm text-muted-foreground">账户总价值 (跨币种组合保证金)</p>
         <p className="text-2xl font-bold tabular-nums">{fmtUsd(totalEquityUsd)}</p>
+        <div className="mt-2"><AssetCategorySelect assetId="deribit:equity" label="Deribit 账户净值" defaultCategoryId="crypto" /></div>
+        <p className="mt-1 text-xs text-muted-foreground">按账户净值归类，下方保证金与合约明细不重复计入资产分布。</p>
       </div>
 
       {/* Account Summaries */}

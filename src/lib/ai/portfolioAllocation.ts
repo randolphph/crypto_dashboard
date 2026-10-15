@@ -30,6 +30,7 @@ export interface EconomicAllocationCandidate {
   valueUsd: number;
   baseCategory: EconomicCategory;
   description: string;
+  userStockSymbol?: string;
 }
 
 export interface EconomicAllocationInput {
@@ -66,6 +67,7 @@ interface AssetBalanceLike {
   usdValue: number;
   chainId?: string;
   dedupedToDefi?: boolean;
+  stockSymbol?: string;
 }
 
 interface BinanceAccountLike {
@@ -220,19 +222,21 @@ export function buildEconomicAllocationInput({
       const cashLike = BINANCE_CASH_LIKE.has(account.label);
       for (let balanceIndex = 0; balanceIndex < (account.balances?.length ?? 0); balanceIndex += 1) {
         const balance = account.balances?.[balanceIndex];
-        if (!balance || !finitePositive(balance.usdValue)) continue;
+        if (!balance || balance.dedupedToDefi || !finitePositive(balance.usdValue)) continue;
         const baseCategory = cashLike
           ? assetCategory(balance.asset)
           : '加密资产';
         candidates.push({
           id: `exchange:binance:${accountIndex}:${balanceIndex}:${balance.asset}`,
-          label: `${balance.asset} · Binance ${account.label}`,
+          label: `${balance.stockSymbol ? `${balance.stockSymbol} (${balance.asset})` : balance.asset} · Binance ${account.label}`,
           valueUsd: balance.usdValue,
-          baseCategory,
+          baseCategory: balance.stockSymbol ? '股票' : baseCategory,
+          userStockSymbol: balance.stockSymbol,
           description: [
             '平台=Binance',
             `账户=${account.label}`,
             `资产=${balance.asset}`,
+            ...(balance.stockSymbol ? [`用户已标记=美股 ${balance.stockSymbol}；按平台实际估值计入股票`] : []),
             cashLike ? '形态=可提取余额' : '形态=合约或策略账户保证金',
           ].join('；'),
         });
@@ -243,15 +247,17 @@ export function buildEconomicAllocationInput({
   if (okx?.configured !== false) {
     for (let index = 0; index < (okx?.balances?.length ?? 0); index += 1) {
       const balance = okx?.balances?.[index];
-      if (!balance || !finitePositive(balance.usdValue)) continue;
+      if (!balance || balance.dedupedToDefi || !finitePositive(balance.usdValue)) continue;
       candidates.push({
         id: `exchange:okx:${index}:${balance.asset}`,
-        label: `${balance.asset} · OKX`,
+        label: `${balance.stockSymbol ? `${balance.stockSymbol} (${balance.asset})` : balance.asset} · OKX`,
         valueUsd: balance.usdValue,
-        baseCategory: assetCategory(balance.asset),
+        baseCategory: balance.stockSymbol ? '股票' : assetCategory(balance.asset),
+        userStockSymbol: balance.stockSymbol,
         description: [
           '平台=OKX',
           `资产=${balance.asset}`,
+          ...(balance.stockSymbol ? [`用户已标记=美股 ${balance.stockSymbol}；按平台实际估值计入股票`] : []),
           '形态=统一账户余额，缺少子账户用途信息',
         ].join('；'),
       });
@@ -267,13 +273,15 @@ export function buildEconomicAllocationInput({
         : wallet.chains.map((item) => CHAIN_LABELS[item] ?? item).join('/');
       candidates.push({
         id: `wallet:${wallet.walletId}:${balanceIndex}:${balance.chainId ?? 'unknown'}:${balance.asset}`,
-        label: `${balance.asset} · ${wallet.walletName} · ${chain}`,
+        label: `${balance.stockSymbol ? `${balance.stockSymbol} (${balance.asset})` : balance.asset} · ${wallet.walletName} · ${chain}`,
         valueUsd: balance.usdValue,
-        baseCategory: assetCategory(balance.asset),
+        baseCategory: balance.stockSymbol ? '股票' : assetCategory(balance.asset),
+        userStockSymbol: balance.stockSymbol,
         description: [
           '位置=链上钱包',
           `网络=${chain || 'unknown'}`,
           `资产=${balance.asset}`,
+          ...(balance.stockSymbol ? [`用户已标记=美股 ${balance.stockSymbol}；按平台实际估值计入股票`] : []),
           '形态=钱包现货余额',
         ].join('；'),
       });
@@ -439,7 +447,7 @@ export function applyEconomicAnalysis(
   );
   for (const candidate of input.candidates) {
     const category =
-      classificationById.get(candidate.id) ?? candidate.baseCategory;
+      candidate.userStockSymbol ? '股票' : classificationById.get(candidate.id) ?? candidate.baseCategory;
     const available = Math.max(
       0,
       remainingByBase.get(candidate.baseCategory) ?? 0
@@ -503,6 +511,7 @@ export async function analyzeEconomicAllocation({
     '3. BTC、ETH 等波动币种的现货余额归为“加密资产”；含波动资产、LP 无常损失、杠杆、锁仓或明显智能合约策略风险的 DeFi 仓位也归为“加密资产”。',
     '4. 期权、期货、永续合约及其专用保证金账户归为“衍生品”。即使保证金币种是 USDT/USDC，也不能把合约或策略账户保证金归为类现金。普通公司股票与股票 ETF 归为“股票”。',
     '5. 同一币种位于不同平台、账户或网络时，必须分别判断，不得混淆。不得修改金额；classifications 只返回需要改变 baseCategory 的候选，保持原分类的候选不要返回。reason 使用不超过 25 个汉字。',
+    '用户已标记美股（userStockSymbol）的资产必须保留股票分类，按提供的对应美股代码理解；代币数量不等于股票股数，不得自行换算。',
     '6. summary 用 2 至 4 句中文，重点解释最重要的重分类和组合结构，不提供买卖建议。',
     'totalValueUsd 为净资产，liabilitiesValueUsd 为已经扣除的负债合计；baseline 是资产构成，负债不得重复扣除或归类为资产。',
     'JSON 格式示例：{"summary":"...","classifications":[{"id":"stock:ibkr:1","category":"类现金","reason":"超短期国债ETF"}]}。没有重分类时 classifications 返回空数组。',

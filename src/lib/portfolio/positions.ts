@@ -30,6 +30,7 @@ interface AssetBalanceLike {
   amount: number;
   usdValue: number;
   dedupedToDefi?: boolean;
+  stockSymbol?: string;
 }
 
 interface SubAccountLike {
@@ -176,6 +177,8 @@ export function buildPositionBreakdown(
     for (const acc of bin.accounts ?? []) {
       if (!BINANCE_CASH_LIKE.has(acc.label)) continue;
       for (const b of acc.balances ?? []) {
+        if (b.dedupedToDefi) continue;
+        if (b.stockSymbol) { stockLong += b.usdValue; stockLongDetails.push({ label: `Binance ${acc.label} ${b.stockSymbol} (${b.asset})`, value: b.usdValue }); continue; }
         if (isStable(b.asset)) continue;
         binanceSpot += b.usdValue;
       }
@@ -187,6 +190,7 @@ export function buildPositionBreakdown(
   if (okx && okx.configured !== false) {
     for (const b of okx.balances ?? []) {
       if (b.dedupedToDefi) continue;
+      if (b.stockSymbol) { stockLong += b.usdValue; stockLongDetails.push({ label: `OKX ${b.stockSymbol} (${b.asset})`, value: b.usdValue }); continue; }
       if (isStable(b.asset)) continue;
       okxSpot += b.usdValue;
     }
@@ -216,6 +220,7 @@ export function buildPositionBreakdown(
   for (const w of input.onchain ?? []) {
     for (const b of w.balances ?? []) {
       if (b.dedupedToDefi) continue;
+      if (b.stockSymbol) { stockLong += b.usdValue; stockLongDetails.push({ label: `${w.walletName} ${b.stockSymbol} (${b.asset})`, value: b.usdValue }); continue; }
       if (isStable(b.asset)) continue;
       onchainSpot += b.usdValue;
     }

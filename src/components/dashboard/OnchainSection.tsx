@@ -125,9 +125,10 @@ export function OnchainSection({ wallets, isLoading, error, isRefreshing, onRefr
                   数据不完整：{wallet.dataQuality.errors.join('；')}
                 </p>
               )}
-              <AssetTable balances={wallet.balances} />
+              <AssetTable balances={wallet.balances} location={{ source: 'onchain', walletId: wallet.walletId }} />
               {wallet.defiPositions && wallet.defiPositions.length > 0 && (
                 <DefiPositions
+                  walletId={wallet.walletId}
                   positions={wallet.defiPositions}
                   totalUsdValue={wallet.defiTotalUsdValue ?? 0}
                 />

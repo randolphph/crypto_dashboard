@@ -2,6 +2,8 @@
 
 import Image from 'next/image';
 import { usePrivacyFormat } from '@/hooks/usePrivacyFormat';
+import { AssetCategorySelect } from './AssetCategorySelect';
+import { defiCategoryKey } from '@/lib/portfolio/assetCategories';
 import type {
   DefiInvestType,
   DefiProtocolPosition,
@@ -19,9 +21,10 @@ const INVEST_TYPE_LABEL: Record<DefiInvestType, string> = {
 interface DefiPositionsProps {
   positions: DefiProtocolPosition[];
   totalUsdValue: number;
+  walletId: string;
 }
 
-export function DefiPositions({ positions, totalUsdValue }: DefiPositionsProps) {
+export function DefiPositions({ positions, totalUsdValue, walletId }: DefiPositionsProps) {
   const { fmtUsd, fmtCrypto } = usePrivacyFormat();
 
   if (positions.length === 0) return null;
@@ -44,7 +47,7 @@ export function DefiPositions({ positions, totalUsdValue }: DefiPositionsProps) 
             className="rounded-lg bg-muted/40 p-3"
           >
             <div className="mb-2 flex items-center justify-between">
-              <div className="flex items-center gap-2 min-w-0">
+              <div className="flex flex-wrap items-center gap-2 min-w-0">
                 {p.platformLogo && (
                   <Image
                     src={p.platformLogo}
@@ -61,6 +64,7 @@ export function DefiPositions({ positions, totalUsdValue }: DefiPositionsProps) 
                 <span className="rounded-full bg-secondary px-2 py-0.5 text-xs">
                   {p.network}
                 </span>
+                <AssetCategorySelect assetId={defiCategoryKey(walletId, p.platformId, p.chainId)} label={`${p.platformName} ${p.network}`} defaultCategoryId="crypto" />
               </div>
               <span className="text-sm tabular-nums">
                 {fmtUsd(p.totalUsdValue)}

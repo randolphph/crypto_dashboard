@@ -5,6 +5,8 @@ import { usePrivacyFormat } from '@/hooks/usePrivacyFormat';
 import { useFx } from '@/hooks/useFx';
 import { SourceIcon } from './SourceIcon';
 import type { StockCurrency } from '@/types/stocks';
+import { AssetCategorySelect } from './AssetCategorySelect';
+import { bankCategoryKey } from '@/lib/portfolio/assetCategories';
 
 // USD value of a single bank-cash row, using the same FX rates the rest of
 // the dashboard consumes. Returns 0 if FX hasn't loaded yet — the rollup will
@@ -88,9 +90,9 @@ export function CashSection() {
                   return (
                     <div
                       key={a.id}
-                      className="flex items-center justify-between py-1.5 text-sm border-b last:border-0"
+                      className="flex flex-wrap items-center justify-between gap-2 py-1.5 text-sm border-b last:border-0"
                     >
-                      <div className="flex items-center gap-2">
+                      <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
                         <span className="rounded-full bg-secondary px-2 py-0.5 text-xs font-medium">
                           {a.currency}
                         </span>
@@ -102,6 +104,7 @@ export function CashSection() {
                             {a.note}
                           </span>
                         )}
+                        <AssetCategorySelect assetId={bankCategoryKey(a.id)} label={`${a.bank} ${a.currency}`} defaultCategoryId="cash" />
                       </div>
                       <span className="text-xs text-muted-foreground tabular-nums">
                         ≈ {fmtUsd(usd)}

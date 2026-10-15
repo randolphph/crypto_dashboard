@@ -14,6 +14,7 @@ interface AssetBalanceLike {
   amount: number;
   usdValue: number;
   dedupedToDefi?: boolean;
+  stockSymbol?: string;
 }
 
 interface BinanceSubAccountLike {
@@ -109,6 +110,7 @@ function flattenBinance(data: BinanceAllDataLike | undefined): PositionSnapshot[
         priceLocal: asPrice(b.amount, b.usdValue),
         currency: 'USD',
         valueUsd: b.usdValue,
+        ...(b.stockSymbol && isCashAccount ? stockSnapshotFields(b) : {}),
       });
     }
   }
@@ -156,6 +158,7 @@ function flattenOkx(data: OkxDataLike | undefined): PositionSnapshot[] {
         priceLocal: asPrice(b.amount, b.usdValue),
         currency: 'USD',
         valueUsd: b.usdValue,
+        ...(b.stockSymbol ? stockSnapshotFields(b) : {}),
       };
     });
 }
@@ -262,6 +265,7 @@ function flattenOnchain(wallets: WalletBalance[] | undefined): PositionSnapshot[
         priceLocal: asPrice(b.amount, b.usdValue),
         currency: 'USD',
         valueUsd: b.usdValue,
+        ...(b.stockSymbol ? stockSnapshotFields(b) : {}),
       });
     }
     for (const protocol of w.defiPositions ?? []) {
@@ -280,6 +284,10 @@ function flattenOnchain(wallets: WalletBalance[] | undefined): PositionSnapshot[
     }
   }
   return out;
+}
+
+function stockSnapshotFields(balance: AssetBalanceLike & { chainId?: string; tokenAddress?: string }): Partial<PositionSnapshot> {
+  return { symbol: balance.stockSymbol, kind: 'stock', market: 'US', side: balance.amount < 0 ? 'short' : 'long', assetSymbol: balance.asset, quantityUnit: 'token', chainId: balance.chainId, tokenAddress: balance.tokenAddress };
 }
 
 // IBKR positions encode option metadata in the id field:
@@ -388,6 +396,7 @@ export interface BuildSnapshotInput {
   banks?: BankCashInput[];
   liabilities?: SnapshotPayload['liabilities'];
   portfolio: PortfolioSummarySnapshot;
+  assetAllocation?: SnapshotPayload['assetAllocation'];
 }
 
 export function buildSnapshot(input: BuildSnapshotInput): SnapshotPayload {
@@ -405,6 +414,7 @@ export function buildSnapshot(input: BuildSnapshotInput): SnapshotPayload {
     timestamp: Date.now(),
     positions,
     portfolio: input.portfolio,
+    assetAllocation: input.assetAllocation,
     ...(input.liabilities?.length ? { liabilities: input.liabilities } : {}),
     onchainDataTimes: input.onchain?.filter((wallet) => wallet.dataUpdatedAt).map((wallet) => ({
       walletId: wallet.walletId, walletName: wallet.walletName, updatedAt: wallet.dataUpdatedAt!,
@@ -423,10 +433,14 @@ export function snapshotFingerprint(payload: SnapshotPayload): string {
       x.account ?? '',
       x.symbol,
       x.kind,
+      x.assetSymbol ?? '',
+      x.chainId ?? '',
+      x.tokenAddress ?? '',
       Math.round(x.qty * 1e6),
       Math.round(x.valueUsd * 100),
     ]),
     t: Math.round(payload.portfolio.totalUsd * 100),
+    ...(payload.assetAllocation ? { categories: payload.assetAllocation.map((entry) => [entry.id, entry.label, Math.round(entry.value * 100)]) } : {}),
     ...(payload.liabilities?.length ? { liabilities: payload.liabilities.map((row) => [row.id, row.name, row.amount, row.currency, row.amountUsd]) } : {}),
   };
   return JSON.stringify(compact);

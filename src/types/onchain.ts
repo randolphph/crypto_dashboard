@@ -38,6 +38,8 @@ export interface DefiPositionItem {
 }
 
 export interface DefiProtocolPosition {
+  // User association derived from its classification, never an upstream quote.
+  stockSymbol?: string;
   platformId: string;
   platformName: string;
   platformLogo?: string;

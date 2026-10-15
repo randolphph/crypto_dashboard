@@ -41,7 +41,8 @@ import {
   classifyDeribit,
   classifyOnchain,
 } from '@/lib/portfolio/category';
-import { buildEconomicAllocationInput } from '@/lib/ai/portfolioAllocation';
+import { aggregateAssetCategories, buildClassificationAssets } from '@/lib/portfolio/assetCategories';
+import { useAssetCategoryStore } from '@/stores/assetCategoryStore';
 import { cn } from '@/lib/utils';
 import { hasOnchainWarning, isSuccessfulWallet, ONCHAIN_BROWSER_RETENTION_MS, ONCHAIN_WARNING_MS } from '@/lib/onchain/cachePolicy';
 import { assessHistoryRecording, shouldRecordHistory, type HistorySource } from '@/lib/portfolio/history';
@@ -101,6 +102,7 @@ export function Dashboard() {
   const onchain = useOnchainData();
   const stocks = useStockData();
   const customAssets = useCustomAssetStore((s) => s.assets);
+  const categoryConfig = useAssetCategoryStore();
   const liabilities = useLiabilityStore((s) => s.liabilities);
   const bankAccounts = useBankAccountStore((s) => s.accounts);
   const walletConfigs = useWalletStore((s) => s.wallets);
@@ -208,7 +210,7 @@ export function Dashboard() {
   const onCat = classifyOnchain(onchain.data);
 
   const stockBrokers = stocks.data?.brokers ?? [];
-  const stocksValue = stockBrokers.reduce((s, b) => s + b.positionsUsdValue, 0);
+  const stocksValue = stockBrokers.reduce((s, b) => s + b.positionsUsdValue, 0) + (binCat.stocks ?? 0) + (okxCat.stocks ?? 0) + (onCat.stocks ?? 0);
   const stockCashValue = stockBrokers.reduce((s, b) => s + b.cashUsdValue, 0);
 
   const cryptoValue =
@@ -217,59 +219,12 @@ export function Dashboard() {
     binCat.cash + okxCat.cash + onCat.cash + stockCashValue + bankCashValue;
   const otherValue = customAssets.reduce((s, a) => s + a.value, 0);
 
-  // Detail breakdowns power the click-to-drill-down on the pie chart and
-  // category strip. Each detail row should answer "where does this part of
-  // 加密/现金/股票/其它 actually come from?" at the source / broker level.
-  const cryptoDetails = [
-    { label: 'Binance', value: binCat.crypto },
-    { label: 'OKX', value: okxCat.crypto },
-    { label: 'Deribit', value: derCat.crypto },
-    { label: '链上', value: onCat.crypto },
-  ].filter((d) => d.value > 0);
-
-  // Bank cash detail rolls every account at the same institution into one
-  // row so the user's "招商银行" with three currencies shows as a single
-  // entry rather than three.
-  const bankByName = new Map<string, number>();
-  for (const a of bankAccounts) {
-    const usd = bankCashUsd(a.currency, a.amount);
-    bankByName.set(a.bank, (bankByName.get(a.bank) ?? 0) + usd);
-  }
-
-  const cashDetails = [
-    { label: 'Binance', value: binCat.cash },
-    { label: 'OKX', value: okxCat.cash },
-    { label: '链上', value: onCat.cash },
-    ...stockBrokers
-      .filter((b) => b.cashUsdValue > 0)
-      .map((b) => ({
-        label: `${BROKER_LABEL[b.broker]} 现金`,
-        value: b.cashUsdValue,
-      })),
-    ...Array.from(bankByName.entries()).map(([label, value]) => ({
-      label,
-      value,
-    })),
-  ].filter((d) => d.value > 0);
-
-  const stocksDetails = stockBrokers
-    .filter((b) => b.positionsUsdValue > 0)
-    .map((b) => ({
-      label: BROKER_LABEL[b.broker],
-      value: b.positionsUsdValue,
-    }));
-
-  const otherDetails = customAssets.map((a) => ({
-    label: a.name,
-    value: a.value,
-  }));
-
-  const categoryBreakdown = [
-    { label: '加密', value: cryptoValue, details: cryptoDetails },
-    { label: '股票', value: stocksValue, details: stocksDetails },
-    { label: '现金', value: cashValue, details: cashDetails },
-    { label: '其它', value: otherValue, details: otherDetails },
-  ].filter((c) => c.value > 0);
+  const classificationAssets = buildClassificationAssets({
+    binance: binance.data, okx: okx.data, deribit: deribit.data, onchain: onchain.data, stocks: stocks.data,
+    banks: bankAccounts.map((account) => ({ ...account, valueUsd: bankCashUsd(account.currency, account.amount) })),
+    customAssets,
+  });
+  const categoryBreakdown = aggregateAssetCategories(classificationAssets, categoryConfig).filter((item) => item.value !== 0);
 
   const assetsValue = breakdown.reduce((sum, item) => sum + item.value, 0);
   const liabilityValuation = valueLiabilities(liabilities, fx);
@@ -367,6 +322,7 @@ export function Dashboard() {
           deribit: deribit.data,
           onchain: onchain.data,
           stocks: stocks.data,
+          assetAllocation: categoryBreakdown.map(({ id, label, value }) => ({ id, label, value })),
           liabilities: liabilityValuation.items,
           banks: bankAccounts.map((a) => ({
             bank: a.bank,
@@ -401,24 +357,6 @@ export function Dashboard() {
     setLatestSnapshotPayload(snapshotPayload, snapshotHasWarnings);
   }, [snapshotPayload, snapshotHasWarnings, setLatestSnapshotPayload]);
 
-  const economicAllocationInput = buildEconomicAllocationInput({
-    totalValue,
-    liabilitiesValue: liabilityValuation.totalUsd,
-    categoryBreakdown,
-    stocks: stocks.data,
-    binance: binance.data,
-    okx: okx.data,
-    onchain: onchain.data,
-    deribit: deribit.data,
-    bankCash: bankAccounts.map((account) => ({
-      id: account.id,
-      bank: account.bank,
-      currency: account.currency,
-      valueUsd: bankCashUsd(account.currency, account.amount),
-    })),
-    customAssets,
-  });
-
   return (
     <div className="space-y-6">
       <PortfolioSummary
@@ -427,7 +365,7 @@ export function Dashboard() {
         liabilitiesValue={liabilityValuation.totalUsd}
         breakdown={accountBreakdown}
         categoryBreakdown={categoryBreakdown}
-        economicAllocationInput={economicAllocationInput}
+        classificationAssets={classificationAssets}
         isLoading={isLoading}
         historyRecording={historyRecording}
       />

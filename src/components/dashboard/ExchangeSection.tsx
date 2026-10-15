@@ -260,7 +260,7 @@ function ExchangeCard({
                 {account.error ? (
                   <p className="text-xs text-destructive">{account.error}</p>
                 ) : (
-                  <AssetTable balances={account.balances} />
+                  <AssetTable balances={account.balances} location={data.exchange.toLowerCase() === 'binance' ? { source: 'binance', account: account.label } : { source: 'okx' }} />
                 )}
               </div>
             ))}
@@ -270,8 +270,8 @@ function ExchangeCard({
           {hasGridBots && (
             <GridBotsTable bots={data.gridBots!} />
           )}
-          {!hasSubAccounts && !hasPositions && !hasGridBots && data && (
-            <AssetTable balances={data.balances} />
+          {!hasSubAccounts && data && (
+            <AssetTable balances={data.balances} location={data.exchange.toLowerCase() === 'okx' ? { source: 'okx' } : undefined} />
           )}
         </div>
       )}

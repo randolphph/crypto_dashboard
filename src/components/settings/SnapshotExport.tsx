@@ -67,12 +67,13 @@ export function SnapshotExport() {
   const doExport = async (format: 'json' | 'md') => {
     if (!wallet) return;
     try {
-      const all = await getSnapshots(wallet);
-      if (all.length === 0) {
+      const current = latestPayload?.wallet === wallet ? latestPayload : null;
+      const all = current ? [] : await getSnapshots(wallet);
+      const latest = current ?? all.at(-1);
+      if (!latest) {
         setError('IndexedDB 里还没有快照。先点「立即快照」生成一条。');
         return;
       }
-      const latest = all[all.length - 1];
       const stamp = new Date(latest.timestamp)
         .toISOString()
         .replace(/[:.]/g, '-');
@@ -242,7 +243,7 @@ export function SnapshotExport() {
       <div className="grid gap-2 sm:grid-cols-2">
         <button
           onClick={() => doExport('json')}
-          disabled={!wallet || stats?.count === 0}
+          disabled={!wallet || (!latestPayload && stats?.count === 0)}
           className="inline-flex items-center justify-center gap-2 rounded-lg border bg-background px-4 py-3 text-sm font-medium hover:bg-secondary disabled:cursor-not-allowed disabled:opacity-50"
         >
           <Download className="h-4 w-4" />
@@ -250,7 +251,7 @@ export function SnapshotExport() {
         </button>
         <button
           onClick={() => doExport('md')}
-          disabled={!wallet || stats?.count === 0}
+          disabled={!wallet || (!latestPayload && stats?.count === 0)}
           className="inline-flex items-center justify-center gap-2 rounded-lg border bg-background px-4 py-3 text-sm font-medium hover:bg-secondary disabled:cursor-not-allowed disabled:opacity-50"
         >
           <FileText className="h-4 w-4" />
