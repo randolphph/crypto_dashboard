@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Activity, AlertTriangle, BellRing, CheckCircle2, CircleOff, Clock3, DatabaseZap, Pencil, Plus, Trash2 } from 'lucide-react';
+import { Activity, AlertTriangle, BellRing, CheckCircle2, ChevronRight, CircleOff, Clock3, DatabaseZap, Pencil, Plus, Trash2 } from 'lucide-react';
 import { AlertList } from '@/components/monitoring/AlertList';
 import { CreateMonitorDialog } from '@/components/monitoring/CreateMonitorDialog';
 import { DataSourceSetup } from '@/components/monitoring/DataSourceSetup';
@@ -82,6 +82,36 @@ function MonitorItem({ monitor, selected, onSelect, catalog }: { monitor: Crypto
   return <button type="button" onClick={onSelect} aria-pressed={selected} className={cn('relative w-full overflow-hidden rounded-xl border px-3.5 py-3 text-left transition-all hover:saturate-150', surfaceClassName, selected ? 'border-foreground/20 shadow-sm ring-1 ring-foreground/5' : 'border-transparent hover:border-border', selected && 'before:absolute before:inset-y-2 before:left-0 before:w-0.5 before:rounded-full before:bg-foreground')}><div className="min-w-0"><p className="truncate text-sm font-semibold">{monitor.name}</p><p className="mt-1 truncate font-mono text-[11px] text-muted-foreground" title={fullTarget}>{compactTarget(fullTarget)}</p></div><div className="mt-3 flex items-center justify-between"><p className={cn('flex items-center gap-1.5 text-xs font-medium', monitor.enabled ? status.className : 'text-muted-foreground')}><span className="flex size-5 items-center justify-center rounded-full bg-background/80 ring-1 ring-current/15"><Icon className="size-3" /></span>{monitor.enabled ? status.label : '已停用'}</p><span title={`数据源：${TYPE_LABEL[monitor.type]}`} aria-label={`数据源：${TYPE_LABEL[monitor.type]}`} className="flex size-7 items-center justify-center"><MonitorTypeIcon type={monitor.type} decorated={false} className="size-7 rounded-none" /></span></div></button>;
 }
 
+function MonitorGroups({ monitors, selectedId, onSelect, catalog }: {
+  monitors: CryptoSentryMonitor[];
+  selectedId?: string;
+  onSelect: (id: string) => void;
+  catalog?: IntegrationCatalog;
+}) {
+  const groups = new Map<MonitorType, CryptoSentryMonitor[]>();
+  for (const monitor of monitors) {
+    const group = groups.get(monitor.type);
+    if (group) group.push(monitor);
+    else groups.set(monitor.type, [monitor]);
+  }
+
+  return (Object.keys(TYPE_LABEL) as MonitorType[]).map((type) => {
+    const group = groups.get(type);
+    if (!group) return null;
+    return <details key={type} className="group rounded-xl">
+      <summary className="flex cursor-pointer list-none items-center gap-2 rounded-lg px-2 py-2.5 text-sm transition-colors select-none hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring [&::-webkit-details-marker]:hidden">
+        <ChevronRight aria-hidden="true" className="size-3.5 shrink-0 text-muted-foreground transition-transform group-open:rotate-90 motion-reduce:transition-none" />
+        <MonitorTypeIcon type={type} className="size-7 shrink-0 rounded-lg" />
+        <span className="min-w-0 flex-1 truncate font-medium">{TYPE_LABEL[type]}</span>
+        <span className="rounded-md bg-muted px-1.5 py-0.5 text-xs tabular-nums text-muted-foreground" aria-label={`${group.length} 个监控任务`}>{group.length}</span>
+      </summary>
+      <div className="space-y-1 px-1 pb-2">
+        {group.map((monitor) => <MonitorItem key={monitor.id} monitor={monitor} selected={monitor.id === selectedId} onSelect={() => onSelect(monitor.id)} catalog={catalog} />)}
+      </div>
+    </details>;
+  });
+}
+
 export function MonitoringDashboard() {
   const [tab, setTab] = useState('monitors');
   const [createOpen, setCreateOpen] = useState(false);
@@ -112,7 +142,7 @@ export function MonitoringDashboard() {
       </TabsList>
 
       <TabsContent value="monitors" className="pt-3">
-        {monitorsQuery.error && !monitors.length ? <Card><CardContent className="flex min-h-52 flex-col items-center justify-center text-center"><AlertTriangle className="size-8 text-destructive" /><p className="mt-3 font-medium">无法读取监控任务</p><p className="mt-1 text-sm text-muted-foreground">{monitorsQuery.error.message}</p><Button className="mt-4" variant="outline" onClick={() => monitorsQuery.refetch()}>重试</Button></CardContent></Card> : <div className="grid items-start gap-4 lg:grid-cols-[280px_minmax(0,1fr)]"><Card className="gap-2 py-3 lg:sticky lg:top-20"><div className="flex items-center justify-between gap-3 px-4"><div className="flex items-baseline gap-2"><p className="font-semibold">任务</p><span className="text-xs text-muted-foreground">{monitors.length} 个</span></div><Button size="sm" onClick={() => setCreateOpen(true)} disabled={!catalogQuery.data || !readinessQuery.data}><Plus />添加</Button></div><CardContent className="space-y-1 px-2">{monitorsQuery.isLoading ? <><div className="h-24 animate-pulse rounded-lg bg-muted" /><div className="h-24 animate-pulse rounded-lg bg-muted" /></> : monitors.length === 0 ? <div className="py-10 text-center"><Activity className="mx-auto size-7 text-muted-foreground" /><p className="mt-3 text-sm font-medium">还没有监控</p><p className="mt-1 text-xs text-muted-foreground">添加美股监控，或先配置交易所和链上数据源。</p></div> : monitors.map((monitor) => <MonitorItem key={monitor.id} monitor={monitor} selected={monitor.id === selected?.id} onSelect={() => setSelectedId(monitor.id)} catalog={catalogQuery.data} />)}</CardContent></Card>
+        {monitorsQuery.error && !monitors.length ? <Card><CardContent className="flex min-h-52 flex-col items-center justify-center text-center"><AlertTriangle className="size-8 text-destructive" /><p className="mt-3 font-medium">无法读取监控任务</p><p className="mt-1 text-sm text-muted-foreground">{monitorsQuery.error.message}</p><Button className="mt-4" variant="outline" onClick={() => monitorsQuery.refetch()}>重试</Button></CardContent></Card> : <div className="grid items-start gap-4 lg:grid-cols-[280px_minmax(0,1fr)]"><Card className="gap-2 py-3 lg:sticky lg:top-20"><div className="flex items-center justify-between gap-3 px-4"><div className="flex items-baseline gap-2"><p className="font-semibold">任务</p><span className="text-xs text-muted-foreground">{monitors.length} 个</span></div><Button size="sm" onClick={() => setCreateOpen(true)} disabled={!catalogQuery.data || !readinessQuery.data}><Plus />添加</Button></div><CardContent className="space-y-1 px-2">{monitorsQuery.isLoading ? <><div className="h-24 animate-pulse rounded-lg bg-muted" /><div className="h-24 animate-pulse rounded-lg bg-muted" /></> : monitors.length === 0 ? <div className="py-10 text-center"><Activity className="mx-auto size-7 text-muted-foreground" /><p className="mt-3 text-sm font-medium">还没有监控</p><p className="mt-1 text-xs text-muted-foreground">添加美股监控，或先配置交易所和链上数据源。</p></div> : <MonitorGroups monitors={monitors} selectedId={selected?.id} onSelect={setSelectedId} catalog={catalogQuery.data} />}</CardContent></Card>
           <section className="min-w-0 space-y-4">{selected ? <><div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border bg-card px-4 py-3 shadow-[0_1px_2px_rgb(15_23_42/0.03)]"><div className="min-w-0"><h2 className="text-lg font-semibold tracking-tight">{selected.name}</h2><p className="mt-1 truncate font-mono text-xs text-muted-foreground" title={String(target(selected, catalogQuery.data))}>{compactTarget(target(selected, catalogQuery.data))}</p><div className="mt-2 flex flex-wrap items-center gap-2"><Badge variant="outline" className="gap-1.5 rounded-full pl-1.5"><MonitorTypeIcon type={selected.type} decorated={false} className="size-4 rounded" />{TYPE_LABEL[selected.type]}</Badge><span className="inline-flex items-center gap-1 text-xs text-muted-foreground"><Clock3 className="size-3.5" />每 {selected.intervalSeconds} 秒采样</span></div></div><div className="flex items-center gap-1"><span className="mr-2 hidden text-xs text-muted-foreground xl:inline">更新于 {formatDateTime(selected.lastDataAt)}</span>{!['aave_position', 'lp_position'].includes(selected.type) ? <Button size="sm" variant="ghost" onClick={() => setEditing(selected)}><Pencil />编辑</Button> : null}<Button size="sm" variant="ghost" onClick={() => updateMonitor.mutate({ id: selected.id, patch: { enabled: !selected.enabled } })} disabled={updateMonitor.isPending}><CircleOff />{selected.enabled ? '停用' : '启用'}</Button><Button size="icon-sm" variant="ghost" className="text-destructive" aria-label={`删除监控 ${selected.name}`} onClick={async () => { if (!window.confirm(`删除监控“${selected.name}”及其规则？`)) return; await deleteMonitor.mutateAsync(selected.id); setSelectedId(null); }}><Trash2 /></Button></div></div><SnapshotPanel snapshot={snapshotQuery.data} loading={snapshotQuery.isLoading} fetching={snapshotQuery.isFetching} error={snapshotQuery.error} onRefresh={() => void snapshotQuery.refetch()} />{catalogQuery.data ? <RuleManager monitor={selected} catalog={catalogQuery.data} /> : null}</> : <Card><CardContent className="flex min-h-64 flex-col items-center justify-center text-center"><Activity className="size-9 text-muted-foreground" /><p className="mt-3 font-medium">添加第一个监控任务</p><p className="mt-1 text-sm text-muted-foreground">行情、协议池和地址仓位都可以独立配置采集与告警条件。</p></CardContent></Card>}</section></div>}
       </TabsContent>
 
