@@ -88,6 +88,8 @@ function display(value: unknown): string {
 }
 
 function displayKeyValue(key: string, value: unknown): string {
+  if (key === 'source' && typeof value === 'string') return ({ sina: '新浪', yahoo: 'Yahoo', binance: '币安', auto: '自动' } as Record<string,string>)[value] ?? value;
+  if (key === 'session' && typeof value === 'string') return ({ regular: '正常交易时段', extended: '盘前 / 盘后', continuous: '连续交易' } as Record<string,string>)[value] ?? value;
   if (AAVE_RATE_METRIC_KEYS.has(key)) return formatRateNumber(value);
   if (['lpFee', 'protocolFee', 'lp_fee', 'protocol_fee'].includes(key)) {
     const fee = numberValue(value);
@@ -97,6 +99,7 @@ function displayKeyValue(key: string, value: unknown): string {
 }
 function label(key: string): string {
   const labels: Record<string, string> = {
+    symbol: '标的', source: '行情来源', quoteCurrency: '计价币种', priceBasis: '价格口径', session: '交易时段',
     metricCount: '指标数量',
     positionCount: '仓位数', positionAssetCount: '资产数', failedPositionCount: '读取失败', eventCount: '近期事件',
     scannedChainCount: '扫描网络', successfulChainCount: '成功网络', failedChainCount: '失败网络', positionChainCount: '仓位网络',
@@ -435,7 +438,7 @@ export function SnapshotPanel({ snapshot, loading, fetching, error, onRefresh }:
   const pool = record(snapshot.data.pool);
   const discovery = record(snapshot.data.discovery);
   const volumes = list(snapshot.data.volumes);
-  const marketDataAgeMetric = snapshot.monitorType === 'market'
+  const marketDataAgeMetric = ['market', 'stock_price'].includes(snapshot.monitorType)
     ? metrics.find((metric) => metric.name === 'data_age_seconds')
     : undefined;
   const marketDataAgeSeconds = numberValue(marketDataAgeMetric?.value);

@@ -25,6 +25,7 @@ type AvailableType = Exclude<MonitorType, 'aave_position' | 'lp_position'>;
 type DexType = Extract<AvailableType, `uniswap_${string}` | `pancake_${string}`>;
 
 const TYPES: Array<{ id: AvailableType; title: string; description: string; brand: ProtocolBrand }> = [
+  { id: 'stock_price', title: '美股价格', description: '股票价格、到价提醒与后台定时检查', brand: 'stock' },
   { id: 'market', title: 'Binance 行情', description: '价格、成交量、资金费率和 OI', brand: 'binance' },
   { id: 'aave_account', title: 'Aave 地址', description: '账户仓位、健康因子与资金变化', brand: 'aave' },
   { id: 'aave_pool', title: 'Aave 池子', description: '大额 Supply / Borrow / Liquidation 事件', brand: 'aave' },
@@ -65,6 +66,9 @@ export function CreateMonitorDialog({ open, onOpenChange, catalog, readiness, on
   const [tokenId, setTokenId] = useState(monitor?.config.tokenId ?? '');
   const [marketType, setMarketType] = useState<'spot' | 'perpetual'>(monitor?.config.marketType ?? 'spot');
   const [marketSymbol, setMarketSymbol] = useState(monitor?.config.providerSymbol ?? monitor?.config.poolAddress ?? monitor?.config.poolId ?? '');
+  const [stockSymbol, setStockSymbol] = useState(monitor?.config.symbol ?? '');
+  const [stockProvider, setStockProvider] = useState<NonNullable<MonitorCreateInput['config']['provider']>>(monitor?.config.provider ?? 'auto');
+  const [includeExtended, setIncludeExtended] = useState(monitor?.config.includeExtended ?? true);
   const [search, setSearch] = useState('');
   const [selectedReserves, setSelectedReserves] = useState<string[]>(monitor?.config.reserveAssetAddresses ?? []);
   const [selectedChains, setSelectedChains] = useState<number[]>(monitor?.config.chainIds ?? [1]);
@@ -178,9 +182,15 @@ export function CreateMonitorDialog({ open, onOpenChange, catalog, readiness, on
     setType('market'); setName(''); setIntervalMode('standard'); setIntervalValue('20'); setMaxStale('90'); setRpcId(''); setChainId(1); setVersion('v3');
     setWallet(''); setTokenId(''); setMarketType('spot'); setMarketSymbol(''); setSearch(''); setSelectedReserves([]);
     setSelectedChains([1]); setSelectedVersions(['v3']); setError(null);
+    setStockSymbol(''); setStockProvider('auto'); setIncludeExtended(true);
   };
 
   const buildConfig = (): MonitorCreateInput['config'] => {
+    if (type === 'stock_price') {
+      const symbol = stockSymbol.trim().toUpperCase();
+      if (!/^[A-Z][A-Z0-9]*(?:[.-][A-Z0-9]+)*$/.test(symbol) || symbol.length > 20) throw new Error('请输入有效美股代码，例如 NVDA、AAPL、BRK.B');
+      return { symbol, provider: stockProvider, includeExtended: stockProvider === 'binance' ? false : includeExtended };
+    }
     if (type === 'market') {
       if (!binanceId || !marketSymbol) throw new Error('请选择一个 Binance 市场');
       const market = marketsQuery.data?.items.find((item) => item.marketType === marketType && item.providerSymbol === marketSymbol);
@@ -264,6 +274,7 @@ export function CreateMonitorDialog({ open, onOpenChange, catalog, readiness, on
 
   const typeReady = (candidate: AvailableType) => {
     if (!catalogSupportsType(candidate)) return false;
+    if (candidate === 'stock_price') return true;
     if (candidate === 'market') return readiness.binance.ready;
     if (candidate.startsWith('aave')) return aaveNetworksFor(candidate).some((network) => (
       readiness.aave.networks.some((readyNetwork) => (
@@ -283,7 +294,7 @@ export function CreateMonitorDialog({ open, onOpenChange, catalog, readiness, on
     <Dialog open={open} onOpenChange={(next) => { if (!next && !submitting && !editing) reset(); onOpenChange(next); }}>
       <DialogContent className="max-h-[calc(100vh-2rem)] overflow-y-auto sm:max-w-3xl">
         <form onSubmit={submit} className="contents">
-          <DialogHeader><DialogTitle>{editing ? '编辑监控任务' : '添加监控任务'}</DialogTitle><DialogDescription>{editing ? '可修改监控对象、采样频率和过期阈值；监控类型保持不变。' : '选择协议和监控对象，再填写对应的链上标识。'}</DialogDescription></DialogHeader>
+          <DialogHeader><DialogTitle>{editing ? '编辑监控任务' : '添加监控任务'}</DialogTitle><DialogDescription>{editing ? '可修改监控对象、采样频率和过期阈值；监控类型保持不变。' : '选择监控类型，配置标的与检查频率。'}</DialogDescription></DialogHeader>
           <div className="space-y-5 py-1">
             {editing ? <div className="flex items-center gap-3 rounded-lg border bg-muted/35 px-3 py-2 text-sm"><ProtocolIcon brand={selectedTypeOption.brand} className="size-8 rounded-lg" /><span><span className="block text-xs text-muted-foreground">监控类型</span><span className="font-medium">{selectedTypeOption.title}</span></span></div> : <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
               {TYPES.map((item) => <button key={item.id} type="button" disabled={!typeReady(item.id)} onClick={() => {
@@ -292,6 +303,7 @@ export function CreateMonitorDialog({ open, onOpenChange, catalog, readiness, on
                 setMarketSymbol('');
                 setTokenId('');
                 setError(null);
+                if (item.id === 'stock_price') { setIntervalMode('economy'); setIntervalValue('60'); setMaxStale('180'); }
                 if (item.id.startsWith('aave')) {
                   const supportedNetworks = aaveNetworksFor(item.id);
                   const firstReadyNetwork = supportedNetworks.find((network) => readiness.aave.networks.some(
@@ -320,16 +332,26 @@ export function CreateMonitorDialog({ open, onOpenChange, catalog, readiness, on
                   setVersion(rpcNetworks[0]?.versions.v3 ? 'v3' : 'v4');
                   setSelectedVersions([rpcNetworks[0]?.versions.v3 ? 'v3' : 'v4']);
                 }
-              }} className={cn('flex items-start gap-3 rounded-lg border p-3 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-45', type === item.id && 'border-primary bg-primary/5 ring-1 ring-primary/20')}><ProtocolIcon brand={item.brand} className="size-9 rounded-lg" /><span className="min-w-0"><span className="block text-sm font-semibold">{item.title}</span><span className="mt-1 block text-xs leading-relaxed text-muted-foreground">{typeReady(item.id) ? item.description : '请先配置并测试数据源'}</span></span></button>)}
+              }} className={cn('flex items-start gap-3 rounded-lg border p-3 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-45', type === item.id && 'border-primary bg-primary/5 ring-1 ring-primary/20')}><ProtocolIcon brand={item.brand} className="size-9 rounded-lg" /><span className="min-w-0"><span className="block text-sm font-semibold">{item.title}</span><span className="mt-1 block text-xs leading-relaxed text-muted-foreground">{typeReady(item.id) ? item.description : item.id === 'stock_price' ? '当前监控服务尚未支持美股' : '请先配置并测试数据源'}</span></span></button>)}
             </div>}
 
             <div className="grid gap-4 sm:grid-cols-[1fr_180px_180px]">
               <div className="space-y-2"><Label htmlFor="monitor-name">监控名称</Label><Input id="monitor-name" value={name} onChange={(event) => setName(event.target.value)} placeholder="例如：BTC 永续异动" /></div>
-              <div className="space-y-2"><Label htmlFor="monitor-interval">采样频率</Label><select id="monitor-interval" value={intervalMode} onChange={(event) => { const mode = event.target.value; setIntervalMode(mode); const preset = catalog.samplingPresets.find((item) => item.id === mode); if (preset) setIntervalValue(String(preset.intervalSeconds)); }} className="h-8 w-full rounded-lg border bg-background px-2.5 text-sm">{catalog.samplingPresets.map((preset) => <option key={preset.id} value={preset.id}>{preset.id} · {preset.intervalSeconds}s</option>)}<option value="custom">自定义</option></select>{intervalMode === 'custom' ? <Input type="number" min={5} max={86400} value={interval} onChange={(event) => setIntervalValue(event.target.value)} placeholder="秒" /> : null}</div>
+              <div className="space-y-2"><Label htmlFor="monitor-interval">采样频率</Label><select id="monitor-interval" value={intervalMode} onChange={(event) => { const mode = event.target.value; setIntervalMode(mode); const preset = catalog.samplingPresets.find((item) => item.id === mode); if (preset) setIntervalValue(String(preset.intervalSeconds)); }} className="h-8 w-full rounded-lg border bg-background px-2.5 text-sm">{catalog.samplingPresets.map((preset) => <option key={preset.id} value={preset.id}>{preset.id} · {preset.intervalSeconds}s</option>)}<option value="custom">自定义</option></select>{intervalMode === 'custom' ? <Input aria-label="自定义采样间隔（秒）" type="number" min={5} max={86400} value={interval} onChange={(event) => setIntervalValue(event.target.value)} placeholder="秒" /> : null}</div>
               <div className="space-y-2"><Label htmlFor="monitor-stale">数据过期（秒）</Label><Input id="monitor-stale" type="number" min={5} max={86400} value={maxStale} onChange={(event) => setMaxStale(event.target.value)} /></div>
             </div>
 
             {type === 'market' ? <div className="space-y-3 rounded-xl border p-4"><div className="flex gap-2"><select value={marketType} onChange={(event) => { setMarketType(event.target.value as 'spot' | 'perpetual'); setMarketSymbol(''); }} className="h-8 rounded-lg border bg-background px-2.5 text-sm"><option value="spot">现货</option><option value="perpetual">永续</option></select><Input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="搜索 BTCUSDT 或 BTC/USD" /></div><div className="max-h-48 overflow-y-auto rounded-lg border">{markets.map((market) => <button key={`${market.marketType}-${market.providerSymbol}`} type="button" onClick={() => setMarketSymbol(market.providerSymbol)} className={cn('flex w-full items-center justify-between border-b px-3 py-2 text-left text-sm last:border-0', marketSymbol === market.providerSymbol && 'bg-accent')}><span className="font-medium">{market.canonicalSymbol}</span><span className="font-mono text-xs text-muted-foreground">{market.providerSymbol}</span></button>)}</div></div> : null}
+
+            {type === 'stock_price' ? <div className="space-y-4 rounded-xl border p-4">
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-2"><Label htmlFor="stock-symbol">美股代码</Label><Input id="stock-symbol" value={stockSymbol} maxLength={20} onChange={(event) => setStockSymbol(event.target.value.toUpperCase())} onBlur={() => { if (!name.trim() && stockSymbol.trim()) setName(`${stockSymbol.trim().toUpperCase()} 股价`); }} placeholder="NVDA、AAPL、BRK.B" autoCapitalize="characters" spellCheck={false} /></div>
+                <div className="space-y-2"><Label htmlFor="stock-provider">行情数据源</Label><select id="stock-provider" value={stockProvider} onChange={(event) => setStockProvider(event.target.value as typeof stockProvider)} className="h-8 w-full rounded-lg border bg-background px-2.5 text-sm"><option value="auto">自动 · 新浪 / Yahoo / 币安</option><option value="sina">新浪 · 美元股价</option><option value="yahoo">Yahoo · 美元股价</option><option value="binance">币安 · 股票永续标记价格</option></select></div>
+              </div>
+              {stockProvider === 'binance' ? <p className="text-xs text-muted-foreground">使用已上市股票永续合约的 USDT 标记价格，可连续监控；与美股交易所股价存在差异。</p> : <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={includeExtended} onChange={(event) => setIncludeExtended(event.target.checked)} />新浪 / Yahoo 包含盘前盘后行情</label>}
+              {stockProvider === 'auto' && <p className="text-xs leading-relaxed text-muted-foreground">自动按新浪 → Yahoo → 币安切换。币安使用 USDT 股票永续标记价格，休市期间也可报价；目标价格按实际来源币种比较，页面和警报会显示来源。</p>}
+              <p className="text-xs leading-relaxed text-muted-foreground">创建后，在「告警规则」中设置目标价格、触发方向和通知目标。后台持续检查，无需保持网页开启；休市或行情过期时不会用旧价格触发到价警报。</p>
+            </div> : null}
 
             {type === 'aave_account' ? <div className="space-y-3 rounded-xl border p-4">
               <div className="grid gap-3 sm:grid-cols-2">

@@ -2,10 +2,11 @@ import { useId } from 'react';
 import type { MonitorType } from '@/types/cryptoSentry';
 import { cn } from '@/lib/utils';
 
-export type ProtocolBrand = 'binance' | 'uniswap' | 'pancake' | 'aave';
+export type ProtocolBrand = 'binance' | 'uniswap' | 'pancake' | 'aave' | 'stock';
 
 const BRAND_BY_MONITOR: Record<MonitorType, ProtocolBrand> = {
   market: 'binance',
+  stock_price: 'stock',
   aave_account: 'aave',
   aave_pool: 'aave',
   aave_position: 'aave',
@@ -19,12 +20,14 @@ const BRAND_BY_MONITOR: Record<MonitorType, ProtocolBrand> = {
 };
 
 const BRAND_STYLES: Record<ProtocolBrand, string> = {
+  stock: 'bg-blue-500/10 text-blue-600 dark:text-blue-400',
   binance: 'bg-[#F0B90B]/12 text-[#C99400] dark:bg-[#F0B90B]/16 dark:text-[#F0B90B]',
   uniswap: 'bg-[#FF007A]/10 text-[#F50DB4] dark:bg-[#FF007A]/15 dark:text-[#FC72FF]',
   pancake: 'bg-[#1FC7D4]/12 text-[#168F98] dark:bg-[#1FC7D4]/16 dark:text-[#1FC7D4]',
   aave: 'bg-[#9391F7]/12 text-[#6865D9] dark:bg-[#9391F7]/16 dark:text-[#AAA8FF]',
 };
 const BRAND_COLORS: Record<ProtocolBrand, string> = {
+  stock: 'text-blue-600 dark:text-blue-400',
   binance: 'text-[#C99400] dark:text-[#F0B90B]',
   uniswap: 'text-[#F50DB4] dark:text-[#FC72FF]',
   pancake: 'text-[#168F98] dark:text-[#1FC7D4]',
@@ -33,6 +36,8 @@ const BRAND_COLORS: Record<ProtocolBrand, string> = {
 
 function BrandMark({ brand }: { brand: ProtocolBrand }) {
   const pancakeGradientId = useId();
+
+  if (brand === 'stock') return <svg aria-hidden="true" viewBox="0 0 24 24" className="size-[70%] fill-none stroke-current" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M4 4v16h16M7 15l4-5 4 3 5-7M16 6h4v4" /></svg>;
 
   if (brand === 'binance') {
     return <svg aria-hidden="true" viewBox="0 0 24 24" className="size-[62%] fill-current"><path d="m16.624 13.92 2.718 2.716-7.354 7.353-7.353-7.352 2.718-2.717 4.635 4.66 4.636-4.66Zm4.637-4.636L24 12l-2.715 2.716L18.568 12l2.693-2.716Zm-9.273 0 2.717 2.692-2.717 2.717L9.272 12l2.716-2.716Zm-9.272 0L5.409 12l-2.692 2.692L0 12l2.716-2.716ZM11.988.012l7.354 7.328-2.718 2.716-4.636-4.636-4.635 4.66-2.717-2.716L11.988.012Z" /></svg>;

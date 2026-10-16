@@ -2,6 +2,7 @@ export type MonitorStatus = 'warming_up' | 'ok' | 'stale' | 'error';
 export type SnapshotStatus = MonitorStatus | 'empty' | 'partial' | 'unsupported';
 export type MonitorType =
   | 'market'
+  | 'stock_price'
   | 'aave_account'
   | 'aave_pool'
   | 'uniswap_position'
@@ -245,6 +246,9 @@ export type MonitorConfig = Record<string, unknown> & {
   providerSymbol?: string;
   canonicalSymbol?: string;
   priceType?: 'last' | 'mark';
+  symbol?: string;
+  provider?: 'auto' | 'sina' | 'yahoo' | 'binance';
+  includeExtended?: boolean;
 };
 
 export interface CryptoSentryMonitor {
