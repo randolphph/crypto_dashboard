@@ -3,7 +3,9 @@ import {
   fetchHkQuotes,
   fetchKrQuotes,
   fetchUsQuotes,
-} from '@/lib/stocks/quotes';
+  syncStockSubscriptions,
+  stockSymbols,
+} from '@/lib/stocks/backgroundQuotes';
 import { fetchFx } from '@/lib/stocks/fx';
 import {
   fetchLongportPositions,
@@ -76,7 +78,8 @@ export async function POST(request: Request) {
   const limited = await enforceRateLimit(request, 'stocks', 30, 60);
   if (limited) return limited;
 
-  const requestStartedAt = new Date().toISOString();
+  const revision = Number(request.headers.get('x-stock-revision') ?? Date.now());
+
   let body: { positions: StockPosition[]; cash: CashBalance[] };
   try {
     body = parseStocksBody(await readJsonBody(request));
@@ -138,6 +141,13 @@ export async function POST(request: Request) {
           : String(ibkrResult.reason))
       : undefined;
 
+  const clientId = request.headers.get('x-stock-client-id');
+  await Promise.all([
+    syncStockSubscriptions(clientId, 'manual', stockSymbols(manualPositions), revision),
+    ...(ibkrResult.status === 'fulfilled' ? [syncStockSubscriptions(clientId, 'ibkr', stockSymbols(ibkrPositions), revision)] : []),
+    ...(lpPositionsResult.status === 'fulfilled' ? [syncStockSubscriptions(clientId, 'longport', stockSymbols(lpPositions), revision)] : []),
+  ]);
+
   const taggedManualPositions = manualPositions.map((p) => ({ p, source: 'manual' as DataSource }));
   const taggedApiPositions = [
     ...lpPositions.map((p) => ({ p, source: 'api' as DataSource })),
@@ -177,10 +187,11 @@ export async function POST(request: Request) {
   }
 
   const uniq = (xs: string[]) => [...new Set(xs.map((s) => s.trim()))].filter(Boolean);
-  const aSymbols = uniq(allPositions.filter(({ p }) => p.market === 'A').map(({ p }) => p.symbol));
-  const hSymbols = uniq(allPositions.filter(({ p }) => p.market === 'HK').map(({ p }) => p.symbol));
-  const uSymbols = uniq(allPositions.filter(({ p }) => p.market === 'US').map(({ p }) => p.symbol));
-  const kSymbols = uniq(allPositions.filter(({ p }) => p.market === 'KR').map(({ p }) => p.symbol));
+  const equities = allPositions.filter(({ p }) => p.kind !== 'option');
+  const aSymbols = uniq(equities.filter(({ p }) => p.market === 'A').map(({ p }) => p.symbol));
+  const hSymbols = uniq(equities.filter(({ p }) => p.market === 'HK').map(({ p }) => p.symbol));
+  const uSymbols = uniq(equities.filter(({ p }) => p.market === 'US').map(({ p }) => p.symbol));
+  const kSymbols = uniq(equities.filter(({ p }) => p.market === 'KR').map(({ p }) => p.symbol));
 
   const [aQuotes, hQuotes, uQuotes, kQuotes, fxResult] = await Promise.all([
     fetchAShareQuotes(aSymbols),
@@ -209,21 +220,24 @@ export async function POST(request: Request) {
   // have one; fall back to the IBKR mark only when the public sources miss the
   // ticker (OTC / foreign) or the position is an option — there the mark is the
   // OPTION's price, which the underlying-stock quote would wrongly replace.
-  const optionKeys = new Set(
-    allPositions
-      .filter(({ p }) => p.kind === 'option')
-      .map(({ p }) => quoteKey(p.market, p.symbol))
-  );
+  const optionIds = new Set(allPositions.filter(({ p }) => p.kind === 'option').map(({ p }) => p.id));
+  const optionQuotes = new Map<string, StockQuote>();
   for (const q of ibkrQuotes) {
+    if (q.positionId && optionIds.has(q.positionId)) {
+      optionQuotes.set(q.positionId, { ...q, priceSource: 'ibkr-flex', priceStatus: 'fallback' });
+      continue;
+    }
     const key = quoteKey(q.market, q.symbol);
     const existing = quoteMap.get(key);
-    if (existing && existing.price > 0 && !optionKeys.has(key)) {
+    if (existing && existing.price > 0) {
       // Keep the live public price/changePct; borrow IBKR's name if missing.
       quoteMap.set(key, { ...existing, name: existing.name ?? q.name });
     } else {
       quoteMap.set(key, {
         ...q,
-        priceUpdatedAt: q.priceUpdatedAt ?? requestStartedAt,
+        priceUpdatedAt: q.priceUpdatedAt,
+        priceSource: 'ibkr-flex',
+        priceStatus: 'fallback',
         changePct: q.changePct ?? existing?.changePct,
         name: q.name ?? existing?.name,
       });
@@ -237,7 +251,7 @@ export async function POST(request: Request) {
   }));
 
   const enriched: EnrichedPosition[] = allPositions.map(({ p, source }) => {
-    const q = quoteMap.get(quoteKey(p.market, p.symbol));
+    const q = p.kind === 'option' ? optionQuotes.get(p.id) : quoteMap.get(quoteKey(p.market, p.symbol));
     const price = q?.price ?? 0;
     const currency = q?.currency ?? marketCurrency(p.market);
     const mult = p.multiplier ?? 1;
@@ -247,9 +261,10 @@ export async function POST(request: Request) {
     // Prefer broker-supplied PnL (handles FIFO basis, corporate actions, etc.)
     // and fall back to the simple `(price - cost) * shares * multiplier`
     // calculation when the broker didn't provide one.
+    const brokerMark = p.broker === 'ibkr' ? ibkrQuotes.find((quote) => quote.positionId === p.id)?.price : undefined;
     const pnl =
       p.apiPnl !== undefined
-        ? p.apiPnl
+        ? p.apiPnl + (p.kind !== 'option' && brokerMark && price > 0 ? (price - brokerMark) * p.shares * mult : 0)
         : p.costBasis !== undefined && p.costBasis !== null
           ? (price - p.costBasis) * p.shares * mult
           : undefined;
@@ -268,6 +283,8 @@ export async function POST(request: Request) {
       ...p,
       price,
       priceUpdatedAt: q?.priceUpdatedAt,
+      priceSource: q?.priceSource,
+      priceStatus: q?.priceStatus,
       currency,
       marketValue,
       marketValueUsd,

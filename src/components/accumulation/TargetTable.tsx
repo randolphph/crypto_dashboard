@@ -366,7 +366,7 @@ export function TargetTable({
                 {d.livePrice !== null ? (
                   <span className="inline-flex flex-col items-end">
                     <span>{NUM(d.livePrice)}</span>
-                    <PriceAge updatedAt={d.priceUpdatedAt} />
+                    <PriceAge updatedAt={d.priceUpdatedAt} source={d.priceSource} status={d.priceStatus} />
                   </span>
                 ) : (
                   <span className="text-muted-foreground">无报价</span>

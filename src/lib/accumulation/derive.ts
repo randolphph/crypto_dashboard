@@ -48,6 +48,8 @@ export interface DerivedTarget {
   ma20IsLive: boolean;
   livePrice: number | null;
   priceUpdatedAt: string | null;
+  priceSource?: string;
+  priceStatus?: StockQuote['priceStatus'];
   // Whether this target is an existing holding in the dashboard feed. Not-held
   // (watch-list) names have currentValue 0 and price sourced from /api/quotes.
   isHeld: boolean;
@@ -99,6 +101,8 @@ function sameSymbol(a: string, b: string): boolean {
 interface LiveMatch {
   livePrice: number | null;
   priceUpdatedAt: string | null;
+  priceSource?: string;
+  priceStatus?: StockQuote['priceStatus'];
   isHeld: boolean;
   currentValue: number;
   pnlUsd: number | null;
@@ -172,6 +176,8 @@ function matchLive(
     return {
       livePrice: q && q.price > 0 ? q.price : null,
       priceUpdatedAt: q?.priceUpdatedAt ?? null,
+      priceSource: q?.priceSource,
+      priceStatus: q?.priceStatus,
       isHeld: mapped.length > 0,
       currentValue: mappedValue,
       pnlUsd: null,
@@ -202,6 +208,8 @@ function matchLive(
   return {
     livePrice: lead?.price ?? watchQuotes.get(quoteKey(target.market, target.symbol))?.price ?? null,
     priceUpdatedAt: lead?.priceUpdatedAt ?? watchQuotes.get(quoteKey(target.market, target.symbol))?.priceUpdatedAt ?? null,
+    priceSource: lead?.priceSource ?? watchQuotes.get(quoteKey(target.market, target.symbol))?.priceSource,
+    priceStatus: lead?.priceStatus ?? watchQuotes.get(quoteKey(target.market, target.symbol))?.priceStatus,
     isHeld: true,
     currentValue,
     pnlUsd,
@@ -223,6 +231,8 @@ export function deriveTarget(
   const {
     livePrice,
     priceUpdatedAt,
+    priceSource,
+    priceStatus,
     isHeld,
     currentValue,
     pnlUsd,
@@ -297,6 +307,8 @@ export function deriveTarget(
     ma20IsLive,
     livePrice,
     priceUpdatedAt,
+    priceSource,
+    priceStatus,
     isHeld,
     currentValue,
     pnlUsd,

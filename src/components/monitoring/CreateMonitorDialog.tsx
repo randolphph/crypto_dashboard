@@ -67,8 +67,6 @@ export function CreateMonitorDialog({ open, onOpenChange, catalog, readiness, on
   const [marketType, setMarketType] = useState<'spot' | 'perpetual'>(monitor?.config.marketType ?? 'spot');
   const [marketSymbol, setMarketSymbol] = useState(monitor?.config.providerSymbol ?? monitor?.config.poolAddress ?? monitor?.config.poolId ?? '');
   const [stockSymbol, setStockSymbol] = useState(monitor?.config.symbol ?? '');
-  const [stockProvider, setStockProvider] = useState<NonNullable<MonitorCreateInput['config']['provider']>>(monitor?.config.provider ?? 'auto');
-  const [includeExtended, setIncludeExtended] = useState(monitor?.config.includeExtended ?? true);
   const [search, setSearch] = useState('');
   const [selectedReserves, setSelectedReserves] = useState<string[]>(monitor?.config.reserveAssetAddresses ?? []);
   const [selectedChains, setSelectedChains] = useState<number[]>(monitor?.config.chainIds ?? [1]);
@@ -182,14 +180,14 @@ export function CreateMonitorDialog({ open, onOpenChange, catalog, readiness, on
     setType('market'); setName(''); setIntervalMode('standard'); setIntervalValue('20'); setMaxStale('90'); setRpcId(''); setChainId(1); setVersion('v3');
     setWallet(''); setTokenId(''); setMarketType('spot'); setMarketSymbol(''); setSearch(''); setSelectedReserves([]);
     setSelectedChains([1]); setSelectedVersions(['v3']); setError(null);
-    setStockSymbol(''); setStockProvider('auto'); setIncludeExtended(true);
+    setStockSymbol('');
   };
 
   const buildConfig = (): MonitorCreateInput['config'] => {
     if (type === 'stock_price') {
       const symbol = stockSymbol.trim().toUpperCase();
       if (!/^[A-Z][A-Z0-9]*(?:[.-][A-Z0-9]+)*$/.test(symbol) || symbol.length > 20) throw new Error('请输入有效美股代码，例如 NVDA、AAPL、BRK.B');
-      return { symbol, provider: stockProvider, includeExtended: stockProvider === 'binance' ? false : includeExtended };
+      return { symbol, provider: 'auto', includeExtended: true };
     }
     if (type === 'market') {
       if (!binanceId || !marketSymbol) throw new Error('请选择一个 Binance 市场');
@@ -346,10 +344,9 @@ export function CreateMonitorDialog({ open, onOpenChange, catalog, readiness, on
             {type === 'stock_price' ? <div className="space-y-4 rounded-xl border p-4">
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-2"><Label htmlFor="stock-symbol">美股代码</Label><Input id="stock-symbol" value={stockSymbol} maxLength={20} onChange={(event) => setStockSymbol(event.target.value.toUpperCase())} onBlur={() => { if (!name.trim() && stockSymbol.trim()) setName(`${stockSymbol.trim().toUpperCase()} 股价`); }} placeholder="NVDA、AAPL、BRK.B" autoCapitalize="characters" spellCheck={false} /></div>
-                <div className="space-y-2"><Label htmlFor="stock-provider">行情数据源</Label><select id="stock-provider" value={stockProvider} onChange={(event) => setStockProvider(event.target.value as typeof stockProvider)} className="h-8 w-full rounded-lg border bg-background px-2.5 text-sm"><option value="auto">自动 · 新浪 / Yahoo / 币安</option><option value="sina">新浪 · 美元股价</option><option value="yahoo">Yahoo · 美元股价</option><option value="binance">币安 · 股票永续标记价格</option></select></div>
+                <div className="space-y-2"><Label>行情数据源</Label><div className="flex h-8 items-center rounded-lg bg-muted/50 px-2.5 text-sm">自动获取最新有效行情</div></div>
               </div>
-              {stockProvider === 'binance' ? <p className="text-xs text-muted-foreground">使用已上市股票永续合约的 USDT 标记价格，可连续监控；与美股交易所股价存在差异。</p> : <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={includeExtended} onChange={(event) => setIncludeExtended(event.target.checked)} />新浪 / Yahoo 包含盘前盘后行情</label>}
-              {stockProvider === 'auto' && <p className="text-xs leading-relaxed text-muted-foreground">自动按新浪 → Yahoo → 币安切换。币安使用 USDT 股票永续标记价格，休市期间也可报价；目标价格按实际来源币种比较，页面和警报会显示来源。</p>}
+              <p className="text-xs leading-relaxed text-muted-foreground">后台同时检查新浪、Yahoo 和币安，自动采用行情时间最新的有效报价，包含盘前盘后。币安提供 USDT 股票永续标记价格；实际来源、币种和价格口径会显示在页面及警报中。</p>
               <p className="text-xs leading-relaxed text-muted-foreground">创建后，在「告警规则」中设置目标价格、触发方向和通知目标。后台持续检查，无需保持网页开启；休市或行情过期时不会用旧价格触发到价警报。</p>
             </div> : null}
 

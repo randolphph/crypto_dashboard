@@ -45,13 +45,17 @@ export interface StockPosition {
 }
 
 export interface StockQuote {
+  positionId?: string;
   symbol: string;
   market: StockMarket;
   price: number;
   currency: StockCurrency;
-  // When this price was fetched from its upstream source. Cache hits retain
-  // the original timestamp so the UI can reveal stale fallback data.
+  // Actual upstream quote time; background retrieval time is tracked separately.
+  // Legacy local fallback keeps its original fetch timestamp.
   priceUpdatedAt?: string;
+  priceReceivedAt?: string;
+  priceSource?: string;
+  priceStatus?: 'ok' | 'stale' | 'closed' | 'error' | 'fallback';
   changePct?: number;
   name?: string;
   error?: string;
@@ -60,6 +64,8 @@ export interface StockQuote {
 export interface EnrichedPosition extends StockPosition {
   price: number;
   priceUpdatedAt?: string;
+  priceSource?: string;
+  priceStatus?: StockQuote['priceStatus'];
   currency: StockCurrency;
   marketValue: number;
   marketValueUsd: number;

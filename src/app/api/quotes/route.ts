@@ -3,7 +3,8 @@ import {
   fetchHkQuotes,
   fetchKrQuotes,
   fetchUsQuotes,
-} from '@/lib/stocks/quotes';
+  syncStockSubscriptions,
+} from '@/lib/stocks/backgroundQuotes';
 import type { StockMarket, StockQuote } from '@/types/stocks';
 import {
   enforceRateLimit,
@@ -43,6 +44,8 @@ export async function POST(request: Request) {
     [...new Set(xs.map((s) => s.trim()))].filter(Boolean);
   const byMarket = (m: StockMarket) =>
     uniq(symbols.filter((s) => s.market === m).map((s) => s.symbol));
+
+  await syncStockSubscriptions(request.headers.get('x-stock-client-id'), 'watch', symbols, Number(request.headers.get('x-stock-revision') ?? Date.now()));
 
   const [aQuotes, hQuotes, uQuotes, kQuotes] = await Promise.all([
     fetchAShareQuotes(byMarket('A')),

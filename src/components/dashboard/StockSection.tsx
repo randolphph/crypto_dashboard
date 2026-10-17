@@ -159,7 +159,7 @@ function PositionsTable({ positions }: { positions: EnrichedPosition[] }) {
 
   return (
     <div className="overflow-x-auto">
-      <table className="w-full text-sm">
+      <table className="w-full min-w-[720px] text-sm">
         <thead>
           <tr className="border-b text-left text-muted-foreground">
             <th className="pb-2 font-medium">代码</th>
@@ -221,7 +221,7 @@ function PositionsTable({ positions }: { positions: EnrichedPosition[] }) {
                   {p.price > 0 ? (
                     <span className="inline-flex flex-col items-end">
                       <span>{formatCurrency(p.price, p.currency)}</span>
-                      <PriceAge updatedAt={p.priceUpdatedAt} />
+                      <PriceAge updatedAt={p.priceUpdatedAt} source={p.priceSource} status={p.priceStatus} error={p.quoteError} />
                     </span>
                   ) : (
                     '—'

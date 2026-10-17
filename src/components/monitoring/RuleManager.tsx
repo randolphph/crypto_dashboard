@@ -35,7 +35,7 @@ type DraftCondition = RuleCondition & { labelsText: string };
 
 function unitLabel(metric?: RuleMetricDefinition, monitor?: CryptoSentryMonitor): string {
   const unit = metric?.units[0];
-  if (unit === 'quote_asset' && monitor?.type === 'stock_price') return monitor.config.provider === 'binance' ? 'USDT' : !monitor.config.provider || monitor.config.provider === 'auto' ? 'USD / USDT' : 'USD';
+  if (unit === 'quote_asset' && monitor?.type === 'stock_price') return 'USD / USDT';
   const canonicalSymbol = typeof monitor?.config.canonicalSymbol === 'string' ? monitor.config.canonicalSymbol : '';
   const [baseAsset, quoteAsset] = canonicalSymbol.split('/');
   if (unit === 'base_asset' && baseAsset) return baseAsset;

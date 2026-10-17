@@ -232,6 +232,7 @@ export function parseFlexStatement(xml: string): IbkrSnapshot {
     }
     if (Number.isFinite(mark) && mark > 0) {
       quotes.push({
+        positionId: positions.at(-1)?.id,
         symbol,
         market,
         price: mark,
@@ -337,6 +338,11 @@ export async function fetchIbkrSnapshot(
 ): Promise<IbkrSnapshot> {
   const key = cacheKey(creds);
   const cached = await readCache(key);
+  // Older cached reports omit quote position IDs. In the complete ordered case
+  // the old parser emitted one quote immediately after each position.
+  if (cached && cached.data.quotes.length === cached.data.positions.length) {
+    cached.data.quotes = cached.data.quotes.map((quote, index) => ({ ...quote, positionId: quote.positionId ?? cached.data.positions[index]?.id }));
+  }
   if (cached && Date.now() - cached.ts < CACHE_TTL_MS) {
     return cached.data;
   }

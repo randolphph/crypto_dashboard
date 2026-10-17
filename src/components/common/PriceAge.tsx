@@ -15,7 +15,7 @@ function relativeAge(ageMs: number): string {
   return `${Math.floor(hours / 24)}天前`;
 }
 
-export function PriceAge({ updatedAt }: { updatedAt?: string | null }) {
+export function PriceAge({ updatedAt, source, status, error }: { updatedAt?: string | null; source?: string; status?: string; error?: string }) {
   const [now, setNow] = useState<number | null>(null);
 
   useEffect(() => {
@@ -25,15 +25,17 @@ export function PriceAge({ updatedAt }: { updatedAt?: string | null }) {
   }, []);
 
   const timestamp = updatedAt ? Date.parse(updatedAt) : NaN;
-  if (now === null || !Number.isFinite(timestamp)) return null;
+  if (now === null || (!Number.isFinite(timestamp) && !source)) return null;
 
   const ageMs = Math.max(0, now - timestamp);
+  const sourceName = source ? ({ sina: '新浪', yahoo: 'Yahoo', tencent: '腾讯', naver: 'Naver', local: '本地备用', 'ibkr-flex': 'IBKR 报表' } as Record<string, string>)[source] ?? source : undefined;
+  const notice = status === 'closed' ? '休市' : status === 'error' ? '更新失败' : status === 'stale' ? '行情延迟' : status === 'fallback' ? '备用估值' : undefined;
   return (
     <span
-      title={`报价抓取时间：${new Date(timestamp).toLocaleString()}`}
+      title={[Number.isFinite(timestamp) ? `${source && source !== 'local' ? '行情时间' : '报价抓取时间'}：${new Date(timestamp).toLocaleString()}` : '行情时间未知', sourceName, source === 'local' ? '后台行情暂不可用，临时使用本地采价' : error].filter(Boolean).join(' · ')}
       className={cn(
         'mt-0.5 inline-flex items-center gap-0.5 whitespace-nowrap text-[10px] leading-none',
-        ageMs >= 60 * 60_000
+        status === 'closed' ? 'text-muted-foreground' : status === 'error' || ageMs >= 60 * 60_000
           ? 'text-red-600 dark:text-red-400'
           : ageMs >= 2 * 60_000
             ? 'text-amber-600 dark:text-amber-400'
@@ -41,7 +43,7 @@ export function PriceAge({ updatedAt }: { updatedAt?: string | null }) {
       )}
     >
       <Clock3 className="h-2.5 w-2.5" />
-      {relativeAge(ageMs)}
+      {[sourceName, notice, Number.isFinite(timestamp) ? relativeAge(ageMs) : undefined].filter(Boolean).join(' · ')}
     </span>
   );
 }

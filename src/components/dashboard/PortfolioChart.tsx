@@ -94,7 +94,7 @@ export function PortfolioChart({ recording }: { recording: HistoryRecording }) {
   const cashFlowEvents = useCashFlowStore((s) => s.events);
   const trades = useTradeStore((s) => s.trades);
   const { fmtUsd, hidden } = usePrivacyFormat();
-  const [range, setRange] = useState<RangeId>('week');
+  const [range, setRange] = useState<RangeId>('month');
   const [selected, setSelected] = useState<PortfolioSnapshot | null>(null);
   const [mounted, setMounted] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
