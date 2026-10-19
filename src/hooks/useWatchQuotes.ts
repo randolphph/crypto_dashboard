@@ -16,7 +16,7 @@ export interface WatchSymbol {
 // from the shared useStockData() feed, so they're deliberately excluded by the
 // caller). Keyed only on the symbol set, so it refetches when the plan's
 // not-held names change but stays cached otherwise.
-export function useWatchQuotes(symbols: WatchSymbol[]) {
+export function useWatchQuotes(symbols: WatchSymbol[], enabled = true) {
   const wallet = useVaultStore((s) => s.address);
   const refreshInterval = useDashboardStore((s) => s.refreshInterval);
   // Stable key independent of array identity.
@@ -38,11 +38,11 @@ export function useWatchQuotes(symbols: WatchSymbol[]) {
       const json = (await res.json()) as { quotes?: StockQuote[] };
       return json.quotes ?? [];
     },
-    enabled: symbols.length > 0,
+    enabled: enabled && symbols.length > 0,
     refetchOnMount: false,
     refetchInterval: refreshInterval > 0 ? refreshInterval * 1000 : false,
   });
   const refetch = query.refetch;
-  useEffect(() => { if (wallet && symbols.length === 0) void refetch(); }, [wallet, symbols.length, refetch]);
+  useEffect(() => { if (enabled && wallet && symbols.length === 0) void refetch(); }, [enabled, wallet, symbols.length, refetch]);
   return query;
 }

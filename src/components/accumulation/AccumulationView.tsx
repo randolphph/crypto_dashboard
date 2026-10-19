@@ -115,7 +115,8 @@ export function AccumulationView() {
     const s = new Set<string>();
     for (const b of stocks.data?.brokers ?? [])
       for (const p of b.positions)
-        s.add(`${p.market}:${p.symbol.trim().toUpperCase()}`);
+        if (p.kind !== 'option' && Number.isFinite(p.price) && p.price > 0)
+          s.add(`${p.market}:${p.symbol.trim().toUpperCase()}`);
     return s;
   }, [stocks.data]);
 
@@ -138,7 +139,9 @@ export function AccumulationView() {
     return out;
   }, [targets, heldKeys, mappedHoldings]);
 
-  const watchQuotes = useWatchQuotes(watchSymbols);
+  // Resolve held instruments first on a cold page load. Otherwise every plan
+  // target briefly looks unheld and triggers an unnecessary second quote read.
+  const watchQuotes = useWatchQuotes(watchSymbols, !stocks.required || !stocks.isPending);
 
   // Real MA20 (Yahoo daily) for every plan symbol — overrides the manual ma20
   // so anchor prices track the actual 20-day average.

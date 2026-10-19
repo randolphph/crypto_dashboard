@@ -156,7 +156,8 @@ function holdingQuantities(target: AccumulationTarget, positions: EnrichedPositi
 // PnL, today's change, avg cost — so the加仓 table never re-derives or re-
 // fetches what the看板 already has. Value sums every matching row (handles a
 // stock + its options sharing a ticker) in USD; the price for proximity is the
-// local-currency mark of the largest match so it lines up with ma20.
+// local-currency stock mark so it lines up with ma20. Option marks never price
+// the underlying; stock costs are weighted across accounts by held quantity.
 //
 // When the target isn't a holding, we fall back to the supplemental watch quote
 // (price only — there's no position, so no value/PnL).
@@ -189,13 +190,18 @@ function matchLive(
   }
 
   const currentValue = matches.reduce((s, p) => s + p.marketValueUsd, 0) + mappedValue;
-  const priced = matches
-    .filter((p) => p.price > 0)
+  // A target's anchors refer to the underlying stock. Option marks are a
+  // different instrument even when their symbol matches the stock ticker.
+  const equities = matches.filter((p) => p.kind !== 'option');
+  const priced = equities
+    .filter((p) => Number.isFinite(p.price) && p.price > 0)
     .sort((a, b) => Math.abs(b.marketValueUsd) - Math.abs(a.marketValueUsd));
   const lead = priced[0];
+  const quote = watchQuotes.get(quoteKey(target.market, target.symbol));
+  const price = lead ?? (quote && Number.isFinite(quote.price) && quote.price > 0 ? quote : undefined);
 
-  const pnlParts = matches.filter((p) => p.pnlUsd !== undefined);
-  const pnlUsd = pnlParts.length && mapped.length === 0
+  const pnlParts = matches.filter((p) => typeof p.pnlUsd === 'number' && Number.isFinite(p.pnlUsd));
+  const pnlUsd = pnlParts.length === matches.length && mapped.length === 0
     ? pnlParts.reduce((s, p) => s + (p.pnlUsd ?? 0), 0)
     : null;
   // Aggregate cost basis value = current value − unrealized PnL; pct off that.
@@ -205,17 +211,28 @@ function matchLive(
       ? (pnlUsd / Math.abs(costValueUsd)) * 100
       : null;
 
+  const heldEquities = equities.filter((p) => Number.isFinite(p.shares) && p.shares !== 0);
+  const hasCompleteCost = mapped.length === 0 && heldEquities.length > 0 && heldEquities.every(
+    (p) => typeof p.costBasis === 'number' && Number.isFinite(p.costBasis) && p.costBasis >= 0
+  );
+  // Costs come from the same holdings as the dashboard. Absolute quantities
+  // keep a short position's per-share cost positive and avoid netting costs.
+  const costBasisLocal = hasCompleteCost
+    ? heldEquities.reduce((sum, p) => sum.plus(new Decimal(p.costBasis!).mul(Math.abs(p.shares))), new Decimal(0))
+      .div(heldEquities.reduce((sum, p) => sum.plus(Math.abs(p.shares)), new Decimal(0))).toNumber()
+    : null;
+
   return {
-    livePrice: lead?.price ?? watchQuotes.get(quoteKey(target.market, target.symbol))?.price ?? null,
-    priceUpdatedAt: lead?.priceUpdatedAt ?? watchQuotes.get(quoteKey(target.market, target.symbol))?.priceUpdatedAt ?? null,
-    priceSource: lead?.priceSource ?? watchQuotes.get(quoteKey(target.market, target.symbol))?.priceSource,
-    priceStatus: lead?.priceStatus ?? watchQuotes.get(quoteKey(target.market, target.symbol))?.priceStatus,
+    livePrice: price?.price ?? null,
+    priceUpdatedAt: price?.priceUpdatedAt ?? null,
+    priceSource: price?.priceSource,
+    priceStatus: price?.priceStatus,
     isHeld: true,
     currentValue,
     pnlUsd,
     pnlPct,
-    changePct: lead?.changePct ?? null,
-    costBasisLocal: mapped.length ? null : lead?.costBasis ?? null,
+    changePct: price?.changePct ?? null,
+    costBasisLocal,
     name: lead?.quoteName ?? lead?.name ?? null,
   };
 }

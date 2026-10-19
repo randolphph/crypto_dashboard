@@ -16,33 +16,16 @@ import {
   type DerivedTarget,
   type DerivedTier,
 } from '@/lib/accumulation/derive';
-import { MARKET_LABEL } from '@/types/stocks';
+import { MARKET_CURRENCY, MARKET_LABEL } from '@/types/stocks';
+import { formatCurrency } from '@/lib/format';
+import { sortTargets, type TargetSortKey as SortKey } from '@/lib/accumulation/sort';
 import { usePrivacyFormat } from '@/hooks/usePrivacyFormat';
 import { cn } from '@/lib/utils';
 import { StockLogo } from './StockLogo';
 import { PriceAge } from '@/components/common/PriceAge';
 
-type SortKey =
-  | 'symbol'
-  | 'sector'
-  | 'currentValue'
-  | 'tier';
-
 const NUM = (v: number) => v.toLocaleString('en-US', { maximumFractionDigits: 2 });
 const QUANTITY = (v: number) => v.toLocaleString('en-US', { maximumFractionDigits: 8 });
-
-function sortValue(d: DerivedTarget, key: SortKey): number | string {
-  switch (key) {
-    case 'symbol':
-      return d.target.symbol;
-    case 'sector':
-      return d.target.sector;
-    case 'currentValue':
-      return d.currentValue;
-    case 'tier':
-      return d.nearestTierLevel ?? 4;
-  }
-}
 
 function tierProximity(tier: DerivedTier): number {
   if (tier.triggered) return 1;
@@ -163,9 +146,11 @@ function SortHeader({
 }) {
   const active = sortKey === k;
   return (
-    <TableHead className={className}>
+    <TableHead className={className} aria-sort={active ? asc ? 'ascending' : 'descending' : 'none'}>
       <button
+        type="button"
         onClick={() => onSort(k)}
+        title={k === 'pnlUsd' ? '按盈亏金额排序（USD）' : undefined}
         className={cn(
           'inline-flex items-center gap-1 hover:text-foreground transition-colors',
           active ? 'text-foreground' : 'text-muted-foreground'
@@ -205,40 +190,10 @@ export function TargetTable({
     }
   };
 
-  const rows = useMemo(() => {
-    const sorted = [...derived].sort((a, b) => {
-      // A selected/hovered sector forms the first group. The active sort still
-      // applies inside that group and to all remaining rows.
-      if (activeSector) {
-        const am = (a.target.sector || '未分类') === activeSector ? 0 : 1;
-        const bm = (b.target.sector || '未分类') === activeSector ? 0 : 1;
-        if (am !== bm) return am - bm;
-      }
-      if (sortKey === 'tier') {
-        const at = a.nearestTierLevel;
-        const bt = b.nearestTierLevel;
-        // Rows without a current tier always stay at the end.
-        if (at === null && bt !== null) return 1;
-        if (at !== null && bt === null) return -1;
-        if (at !== null && bt !== null && at !== bt) {
-          return asc ? at - bt : bt - at;
-        }
-        // Within a tier, the closest target appears first.
-        const byProximity = b.proximity - a.proximity;
-        if (byProximity !== 0) return byProximity;
-        return a.target.symbol.localeCompare(b.target.symbol);
-      }
-      const va = sortValue(a, sortKey);
-      const vb = sortValue(b, sortKey);
-      if (typeof va === 'string' && typeof vb === 'string') {
-        return asc ? va.localeCompare(vb) : vb.localeCompare(va);
-      }
-      return asc
-        ? (va as number) - (vb as number)
-        : (vb as number) - (va as number);
-    });
-    return sorted;
-  }, [derived, sortKey, asc, activeSector]);
+  const rows = useMemo(
+    () => sortTargets(derived, sortKey, asc, activeSector),
+    [derived, sortKey, asc, activeSector]
+  );
 
   if (derived.length === 0) {
     return (
@@ -255,10 +210,11 @@ export function TargetTable({
           <TableRow>
             <SortHeader label="标的" k="symbol" sortKey={sortKey} asc={asc} onSort={onSort} />
             <SortHeader label="板块" k="sector" sortKey={sortKey} asc={asc} onSort={onSort} />
-            <TableHead className="text-right">盈亏</TableHead>
+            <SortHeader label="盈亏" k="pnlUsd" sortKey={sortKey} asc={asc} onSort={onSort} className="text-right" />
             <TableHead className="text-right">今日%</TableHead>
             <TableHead className="text-right">数量</TableHead>
             <SortHeader label="现有仓位" k="currentValue" sortKey={sortKey} asc={asc} onSort={onSort} className="text-right" />
+            <TableHead className="text-right" title="每股成本，与现价使用相同币种；多账户按持股数量加权">成本价</TableHead>
             <TableHead className="text-right">现价</TableHead>
             <SortHeader label="三档锚价" k="tier" sortKey={sortKey} asc={asc} onSort={onSort} />
             <TableHead className="w-10">
@@ -363,9 +319,14 @@ export function TargetTable({
                 {!!d.mappedSources?.length && <p className="max-w-48 whitespace-normal text-[10px] text-muted-foreground" title={d.mappedSources.join('；')}>含标记美股 · {d.mappedSources.join(' / ')}</p>}
               </TableCell>
               <TableCell className="text-right tabular-nums">
+                {d.costBasisLocal !== null
+                  ? <span title="复用资产看板持仓成本；多账户按持股数量加权">{hidden ? '****' : formatCurrency(d.costBasisLocal, MARKET_CURRENCY[d.target.market])}</span>
+                  : <span className="text-muted-foreground" title="暂无完整的股票成本数据">—</span>}
+              </TableCell>
+              <TableCell className="text-right tabular-nums">
                 {d.livePrice !== null ? (
                   <span className="inline-flex flex-col items-end">
-                    <span>{NUM(d.livePrice)}</span>
+                    <span>{formatCurrency(d.livePrice, MARKET_CURRENCY[d.target.market])}</span>
                     <PriceAge updatedAt={d.priceUpdatedAt} source={d.priceSource} status={d.priceStatus} />
                   </span>
                 ) : (
