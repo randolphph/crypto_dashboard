@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useMemo } from 'react';
-import { ArrowUpDown, Pencil, Trash2 } from 'lucide-react';
+import { useState, useMemo, useRef } from 'react';
+import { ArrowUpDown, Pencil, RotateCcw, Trash2 } from 'lucide-react';
 import {
   Table,
   TableBody,
@@ -17,6 +17,7 @@ import {
   type DerivedTier,
 } from '@/lib/accumulation/derive';
 import { MARKET_CURRENCY, MARKET_LABEL } from '@/types/stocks';
+import type { AccumulationTarget, TierPrices } from '@/types/accumulation';
 import { formatCurrency } from '@/lib/format';
 import { sortTargets, type TargetSortKey as SortKey } from '@/lib/accumulation/sort';
 import { usePrivacyFormat } from '@/hooks/usePrivacyFormat';
@@ -35,96 +36,133 @@ function tierProximity(tier: DerivedTier): number {
 
 const PCT = (v: number) => (v * 100).toFixed(v * 100 % 1 === 0 ? 0 : 1);
 
-// 三档锚价: 档1 hangs off ma20 (read-only); 档2/档3 show their drop relative
-// to 档1's anchor and let you edit that ratio inline. Committing rebuilds the
-// target's relRatios pair from the two current ratios so editing one keeps the
-// other.
-function TierCell({
-  d,
-  onUpdate,
-}: {
+type AnchorUpdates = Partial<Pick<AccumulationTarget, 'tierPrices' | 'relRatios'>>;
+type TierLevel = 1 | 2 | 3;
+
+function TierCell({ d, onUpdate }: {
   d: DerivedTarget;
-  onUpdate?: (id: string, updates: { relRatios: [number, number] }) => void;
+  onUpdate?: (id: string, updates: AnchorUpdates) => void;
 }) {
-  // Which tier level (2 or 3) is being edited, plus the draft percent text.
-  const [editing, setEditing] = useState<2 | 3 | null>(null);
+  const [editing, setEditing] = useState<{ level: TierLevel; kind: 'price' | 'ratio' } | null>(null);
   const [draft, setDraft] = useState('');
+  const [error, setError] = useState('');
+  const finished = useRef(false);
+  const currentRel = (level: 2 | 3) => d.tiers[level - 1].relToTier1 ?? 0;
+  const prices = (): TierPrices => [...(d.target.tierPrices ?? [null, null, null])];
 
-  const currentRel = (level: 2 | 3): number =>
-    d.tiers.find((t) => t.level === level)?.relToTier1 ?? 0;
-
-  const startEdit = (level: 2 | 3) => {
-    setEditing(level);
-    setDraft(PCT(currentRel(level)));
+  const startEdit = (tier: DerivedTier, kind: 'price' | 'ratio') => {
+    finished.current = false;
+    setError('');
+    setDraft(kind === 'price' ? String(tier.price) : PCT(tier.relToTier1 ?? 0));
+    setEditing({ level: tier.level, kind });
   };
-
   const commit = () => {
-    if (editing === null) return;
-    const pct = parseFloat(draft);
-    if (Number.isFinite(pct)) {
-      // Clamp to a sane 0–50% drop; ratios are fractions of 档1's price.
-      const r = Math.min(0.5, Math.max(0, pct / 100));
+    if (!editing || finished.current) return;
+    const value = draft.trim() === '' ? NaN : Number(draft);
+    if (!Number.isFinite(value) || (editing.kind === 'price' && value <= 0)) {
+      setError(editing.kind === 'price' ? '请输入大于0的有效价格' : '请输入有效比例');
+      return;
+    }
+    finished.current = true;
+    const next = prices();
+    if (editing.kind === 'price') {
+      next[editing.level - 1] = value;
+      onUpdate?.(d.target.id, { tierPrices: next });
+    } else {
       const pair: [number, number] = [currentRel(2), currentRel(3)];
-      pair[editing - 2] = r;
-      onUpdate?.(d.target.id, { relRatios: pair });
+      pair[editing.level - 2] = Math.min(0.5, Math.max(0, value / 100));
+      next[editing.level - 1] = null;
+      onUpdate?.(d.target.id, { relRatios: pair, tierPrices: next });
     }
     setEditing(null);
+    setError('');
   };
+  const editor = (tier: DerivedTier, kind: 'price' | 'ratio') => (
+    <input
+      autoFocus
+      aria-label={`${d.target.symbol} 档${tier.level}${kind === 'price' ? '锚价' : '下跌比例'}`}
+      aria-invalid={!!error}
+      type="number"
+      step={kind === 'price' ? 'any' : '0.5'}
+      min={kind === 'price' ? '0' : undefined}
+      value={draft}
+      onChange={(e) => { setDraft(e.target.value); setError(''); }}
+      onBlur={commit}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter') { e.preventDefault(); commit(); }
+        if (e.key === 'Escape') {
+          e.preventDefault();
+          finished.current = true;
+          setEditing(null);
+          setError('');
+        }
+      }}
+      className={cn('relative z-10 rounded border bg-background px-1 text-[11px] tabular-nums outline-none focus:ring-1 focus:ring-blue-500', kind === 'price' ? 'w-24' : 'w-12')}
+    />
+  );
 
   return (
-    <div className="flex items-center gap-1">
-      {d.tiers.map((tier) => {
-        const isEditing = editing === tier.level;
-        const proximity = tierProximity(tier);
-        const color = `var(--accumulation-tier-${tier.level})`;
-        return (
-          <span
-            key={tier.level}
-            title={`档${tier.level} · 锚价 ${NUM(tier.price)} · 接近 ${(proximity * 100).toFixed(0)}%${tier.relToTier1 !== null ? ` · 较档1 ↓${PCT(tier.relToTier1)}%` : ''}${tier.gapPct !== null ? ` · 距 ${(tier.gapPct * 100).toFixed(1)}%` : ''}`}
-            className="relative isolate inline-flex items-center gap-1 overflow-hidden rounded border bg-background px-1.5 py-0.5 text-[11px] text-foreground tabular-nums"
-            style={{
-              borderColor: `color-mix(in srgb, ${color} var(--accumulation-tier-border-opacity), transparent)`,
-            }}
-          >
+    <div className="flex flex-col items-start gap-1">
+      <div className="flex items-center gap-1">
+        {d.tiers.map((tier) => {
+          const proximity = tierProximity(tier);
+          const color = `var(--accumulation-tier-${tier.level})`;
+          const raw = d.target.tierPrices?.[tier.level - 1];
+          const manual = typeof raw === 'number' && Number.isFinite(raw) && raw > 0;
+          const relative = tier.relToTier1 ?? 0;
+          const relativeLabel = `${relative < 0 ? '↑' : '↓'}${PCT(Math.abs(relative))}%`;
+          return (
             <span
-              aria-hidden
-              className="absolute inset-y-0 left-0 z-0 transition-[width] duration-500"
-              style={{
-                width: `${proximity * 100}%`,
-                backgroundColor: `color-mix(in srgb, ${color} var(--accumulation-tier-fill-opacity), transparent)`,
-              }}
-            />
-            <span className="relative z-10 font-medium" style={{ color }}>
-              {NUM(tier.price)}
-            </span>
-            {tier.level !== 1 &&
-              (isEditing ? (
-                <input
-                  autoFocus
-                  type="number"
-                  step="0.5"
-                  value={draft}
-                  onChange={(e) => setDraft(e.target.value)}
-                  onBlur={commit}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') commit();
-                    if (e.key === 'Escape') setEditing(null);
-                  }}
-                  className="relative z-10 w-10 rounded border bg-background px-1 text-[11px] tabular-nums outline-none focus:ring-1 focus:ring-blue-500"
-                />
-              ) : (
+              key={tier.level}
+              title={`档${tier.level} · ${manual ? '手动' : '自动'}锚价 ${NUM(tier.price)} · 接近 ${(proximity * 100).toFixed(0)}%${tier.relToTier1 !== null ? ` · 较档1 ${relativeLabel}` : ''}${tier.gapPct !== null ? ` · 距 ${(tier.gapPct * 100).toFixed(1)}%` : ''}`}
+              className="relative isolate inline-flex items-center gap-1 overflow-hidden rounded border bg-background px-1.5 py-0.5 text-[11px] text-foreground tabular-nums"
+              style={{ borderColor: `color-mix(in srgb, ${color} var(--accumulation-tier-border-opacity), transparent)` }}
+            >
+              <span aria-hidden className="absolute inset-y-0 left-0 z-0 transition-[width] duration-500" style={{ width: `${proximity * 100}%`, backgroundColor: `color-mix(in srgb, ${color} var(--accumulation-tier-fill-opacity), transparent)` }} />
+              {editing?.level === tier.level && editing.kind === 'price' ? editor(tier, 'price') : (
                 <button
-                  onClick={() => startEdit(tier.level as 2 | 3)}
-                  title="点击编辑：相对档1锚价的下跌比例"
-                  className="relative z-10 inline-flex items-center gap-0.5 text-[10px] opacity-70 hover:opacity-100"
+                  type="button"
+                  disabled={!onUpdate}
+                  aria-label={`修改 ${d.target.symbol} 档${tier.level}锚价`}
+                  title={manual ? '手动价格，点击修改' : '点击输入手动价格'}
+                  onClick={() => startEdit(tier, 'price')}
+                  className="relative z-10 inline-flex items-center gap-0.5 font-medium hover:underline disabled:no-underline"
+                  style={{ color }}
                 >
-                  ↓{PCT(tier.relToTier1 ?? 0)}%
-                  <Pencil className="h-2.5 w-2.5" />
+                  {NUM(tier.price)}<Pencil className="h-2.5 w-2.5 opacity-60" />
                 </button>
+              )}
+              {manual && onUpdate && (
+                <button
+                  type="button"
+                  aria-label={`恢复 ${d.target.symbol} 档${tier.level}自动锚价`}
+                  title="手动价格 · 点击恢复自动计算"
+                  onClick={() => {
+                    finished.current = true;
+                    setEditing(null);
+                    setError('');
+                    const next = prices();
+                    next[tier.level - 1] = null;
+                    onUpdate(d.target.id, { tierPrices: next });
+                  }}
+                  className="relative z-10 text-muted-foreground hover:text-foreground"
+                ><RotateCcw className="h-3 w-3" /></button>
+              )}
+              {tier.level !== 1 && (editing?.level === tier.level && editing.kind === 'ratio' ? editor(tier, 'ratio') : (
+                <button
+                  type="button"
+                  disabled={!onUpdate}
+                  aria-label={`修改 ${d.target.symbol} 档${tier.level}下跌比例`}
+                  onClick={() => startEdit(tier, 'ratio')}
+                  title="编辑相对档1的下跌比例，恢复本档按比例计算"
+                  className="relative z-10 inline-flex items-center gap-0.5 text-[10px] opacity-70 hover:opacity-100"
+                >{relativeLabel}<Pencil className="h-2.5 w-2.5" /></button>
               ))}
-          </span>
-        );
-      })}
+            </span>
+          );
+        })}
+      </div>
+      {error && <span role="alert" className="text-[11px] text-red-500">{error}</span>}
     </div>
   );
 }
@@ -173,7 +211,7 @@ export function TargetTable({
   derived: DerivedTarget[];
   sectorColors: ReadonlyMap<string, string>;
   activeSector?: string | null;
-  onUpdate?: (id: string, updates: { relRatios: [number, number] }) => void;
+  onUpdate?: (id: string, updates: AnchorUpdates) => void;
   onDelete: (id: string) => void;
 }) {
   const { fmtUsd, hidden } = usePrivacyFormat();

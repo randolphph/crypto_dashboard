@@ -5,13 +5,14 @@ import type { StockMarket } from '@/types/stocks';
 // be added. The portfolio has one overall target; sectors only describe the
 // current holding mix, and individual symbols intentionally have no target
 // amount. Everything that can
-// drift (tier prices, gap-to-anchor, trigger proximity) is derived at render
+// drift (automatic tier prices, gap-to-anchor, trigger proximity) is derived at render
 // time in `lib/accumulation/derive.ts`.
 //
 // There is intentionally NO order/execution field anywhere in this module —
 // it is a visualization only.
 
 export type TargetStatus = 'active' | 'paused' | 'done';
+export type TierPrices = [number | null, number | null, number | null];
 
 export interface AccumulationTarget {
   id: string;
@@ -23,7 +24,7 @@ export interface AccumulationTarget {
   // 20-day moving average, hand-maintained. The anchor ladder hangs off this.
   ma20: number;
   // Three anchor offsets relative to ma20: price = ma20 * (1 + offset). Buying
-  // dips → negative offsets, e.g. [-0.03, -0.06, -0.10]. 档1 always hangs off
+  // dips → negative offsets, e.g. [-0.03, -0.06, -0.10]. Automatic 档1 hangs off
   // ma20 via tierOffsets[0]; tierOffsets[1]/[2] are the fallback for 档2/档3
   // when relRatios is absent.
   tierOffsets: [number, number, number];
@@ -33,6 +34,9 @@ export interface AccumulationTarget {
   // precedence over tierOffsets[1]/[2]; 档1 is unaffected. Edited inline in the
   // 三档锚价 column.
   relRatios?: [number, number];
+  // Absolute prices in local currency, edited inline. Each null entry keeps
+  // that tier automatic; positive values stay fixed when MA20 changes.
+  tierPrices?: TierPrices;
   // Legacy fields kept only so previously saved plans can still hydrate. They
   // no longer affect any amount shown in the UI.
   budgetRatios?: [number, number, number];

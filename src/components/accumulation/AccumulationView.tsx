@@ -25,6 +25,7 @@ import { usePrivacyFormat } from '@/hooks/usePrivacyFormat';
 import { SectorDonut } from './SectorDonut';
 import { FundingOverview } from './FundingOverview';
 import { TargetTable } from './TargetTable';
+import { OptionExposurePanel } from './OptionExposurePanel';
 import { buildSectorColorMap } from './sectorColors';
 import { cn } from '@/lib/utils';
 import { mappedStockHoldings } from '@/lib/portfolio/assetStockMapping';
@@ -73,6 +74,7 @@ export function AccumulationView() {
   useEffect(() => setHydrated(true), []);
 
   const fx = stocks.data?.fx ?? fxQuery.data;
+  const stockPositions = useMemo(() => stocks.data?.brokers.flatMap(b => b.positions) ?? [], [stocks.data]);
   const mappedHoldings = useMemo(() => mappedStockHoldings({ binance: binance.data, okx: okx.data, onchain: onchain.data }), [binance.data, okx.data, onchain.data]);
 
   const { totalPortfolioUsd, availableAmmo } = useMemo(() => {
@@ -136,8 +138,17 @@ export function AccumulationView() {
       if (heldKeys.has(k) || seen.has(k)) continue;
       seen.add(k); out.push({ market: holding.market, symbol: holding.symbol });
     }
+    for (const broker of stocks.data?.brokers ?? []) {
+      for (const position of broker.positions) {
+        if (position.kind !== 'option' || position.shares === 0) continue;
+        const k = `${position.market}:${position.symbol.trim().toUpperCase()}`;
+        if (heldKeys.has(k) || seen.has(k)) continue;
+        seen.add(k);
+        out.push({ market: position.market, symbol: position.symbol });
+      }
+    }
     return out;
-  }, [targets, heldKeys, mappedHoldings]);
+  }, [targets, heldKeys, mappedHoldings, stocks.data]);
 
   // Resolve held instruments first on a cold page load. Otherwise every plan
   // target briefly looks unheld and triggers an unnecessary second quote read.
@@ -299,6 +310,12 @@ export function AccumulationView() {
         onDelete={removeTarget}
       />
 
+      <OptionExposurePanel
+        positions={stockPositions}
+        quotes={watchQuotes.data ?? []}
+        fx={fx}
+      />
+
       {hydrated && targets.length === 0 && (
         <div className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
           还没有加仓标的。点击右上角「计划 JSON」粘贴计划。
@@ -385,6 +402,7 @@ function editablePlanTarget(target: AccumulationTarget) {
     ma20: target.ma20,
     tierOffsets: target.tierOffsets,
     ...(target.relRatios ? { relRatios: target.relRatios } : {}),
+    ...(target.tierPrices ? { tierPrices: target.tierPrices } : {}),
     status: target.status,
     ...(target.note ? { note: target.note } : {}),
   };
@@ -425,13 +443,20 @@ function ImportDialog({
     for (const raw of parsed) {
       const t = raw as Partial<AccumulationTarget>;
       if (
-        typeof t.symbol !== 'string' ||
+        !t || typeof t.symbol !== 'string' ||
         typeof t.market !== 'string' ||
         typeof t.ma20 !== 'number' ||
         !Array.isArray(t.tierOffsets) ||
         t.tierOffsets.length !== 3
       ) {
         setError(`标的字段不完整: ${JSON.stringify(raw).slice(0, 60)}…`);
+        return;
+      }
+      if (t.tierPrices !== undefined && (
+        !Array.isArray(t.tierPrices) || t.tierPrices.length !== 3 ||
+        !t.tierPrices.every((price) => price === null || (typeof price === 'number' && Number.isFinite(price) && price > 0))
+      )) {
+        setError(`${t.symbol}: tierPrices 必须包含三个正数或 null`);
         return;
       }
       out.push({
@@ -441,6 +466,7 @@ function ImportDialog({
         sector: typeof t.sector === 'string' ? t.sector : '未分类',
         ma20: t.ma20,
         tierOffsets: t.tierOffsets as [number, number, number],
+        ...(t.tierPrices ? { tierPrices: t.tierPrices } : {}),
         relRatios:
           Array.isArray(t.relRatios) && t.relRatios.length === 2
             ? (t.relRatios as [number, number])
@@ -473,8 +499,8 @@ function ImportDialog({
         <p className="mb-2 text-xs text-muted-foreground">
           A 股手动维护:每个标的 symbol / market(A·HK·US·KR) / sector / ma20 /
           tierOffsets[3] / status。总待加额度按「目标仓位 − 当前真实仓位」计算；
-          板块仅展示当前持仓构成，个股只维护候选标的和三档锚价。档2/档3也可在表格内直接编辑
-          「相对档1的下跌比例」(对应 relRatios[2])。
+          板块仅展示当前持仓构成。点击任一锚价可固定手动价格，逐档重置可恢复自动计算
+          （tierPrices[3] 中 null 表示自动）。档2/档3也可编辑相对档1的下跌比例（relRatios[2]）。
         </p>
         <textarea
           value={text}

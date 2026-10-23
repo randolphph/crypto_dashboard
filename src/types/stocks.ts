@@ -41,6 +41,9 @@ export interface StockPosition {
   // matches the underlying lot size (e.g., 500 for 0700).
   multiplier?: number;
   kind?: InstrumentKind;
+  optionType?: 'call' | 'put';
+  expiry?: string;
+  strike?: number;
   ledgerAccountId?: string;
 }
 

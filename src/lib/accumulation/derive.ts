@@ -262,17 +262,21 @@ export function deriveTarget(
   const ma20IsLive =
     typeof ma20Override === 'number' && Number.isFinite(ma20Override) && ma20Override > 0;
   const ma20 = ma20IsLive ? ma20Override! : target.ma20;
-  // 档1 anchors off ma20; 档2/档3 either drop a relative ratio off 档1's price
-  // (when relRatios is set) or fall back to their own ma20-relative offset.
-  const tier1Price = ma20 * (1 + target.tierOffsets[0]);
+  // Valid manual prices take precedence independently. Automatic ratios follow
+  // the effective tier1 price, including a manually edited tier1.
+  const manualPrice = (index: number): number | null => {
+    const price = target.tierPrices?.[index];
+    return typeof price === 'number' && Number.isFinite(price) && price > 0 ? price : null;
+  };
+  const tier1Price = manualPrice(0) ?? ma20 * (1 + target.tierOffsets[0]);
   const rel = target.relRatios;
   const tiers: DerivedTier[] = target.tierOffsets.map((offset, i) => {
-    const price =
+    const price = manualPrice(i) ?? (
       i === 0
         ? tier1Price
         : rel
           ? tier1Price * (1 - (rel[i - 1] ?? 0))
-          : ma20 * (1 + offset);
+          : ma20 * (1 + offset));
     const gapPct = livePrice !== null ? (livePrice - price) / price : null;
     const relToTier1 =
       i === 0 || tier1Price === 0 ? null : (tier1Price - price) / tier1Price;

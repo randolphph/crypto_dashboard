@@ -9,6 +9,7 @@ import type {
   StockQuote,
 } from '@/types/stocks';
 import type { IbkrExecution } from '@/types/ibkr';
+import { normalizeOptionPosition } from '@/lib/stocks/optionContract';
 
 const FLEX_BASE = 'https://gdcdyn.interactivebrokers.com/Universal/servlet';
 const SEND_URL = `${FLEX_BASE}/FlexStatementService.SendRequest`;
@@ -201,33 +202,40 @@ export function parseFlexStatement(xml: string): IbkrSnapshot {
       attrs.unrealizedPnL ??
       attrs.mtmPnl;
     const apiPnl = pnlRaw !== undefined ? parseFloat(pnlRaw) : NaN;
-    const multiplierRaw = parseFloat(attrs.multiplier ?? '1');
-    const multiplier =
-      Number.isFinite(multiplierRaw) && multiplierRaw > 0 ? multiplierRaw : 1;
     const kind: 'stock' | 'option' = assetCat === 'OPT' ? 'option' : 'stock';
-    positions.push({
+    const multiplierRaw = parseFloat(attrs.multiplier ?? '');
+    const multiplier =
+      Number.isFinite(multiplierRaw) && multiplierRaw > 0 ? multiplierRaw : undefined;
+    positions.push(normalizeOptionPosition({
       // Include strike/expiry/putCall in the id so multiple options on the
       // same underlying don't collide.
       id: `ibkr:pos:${symbol}:${attrs.strike ?? ''}:${attrs.expiry ?? ''}:${attrs.putCall ?? ''}:${attrs.currency}`,
       broker: 'ibkr',
       market,
-      symbol,
+      symbol: kind === 'option' ? attrs.underlyingSymbol?.trim() || symbol : symbol,
       name: description,
       shares: qty,
       costBasis: Number.isFinite(cost) && cost > 0 ? cost : undefined,
       apiPnl: Number.isFinite(apiPnl) ? apiPnl : undefined,
-      multiplier: multiplier !== 1 ? multiplier : undefined,
+      multiplier: kind === 'option' || multiplier !== 1 ? multiplier : undefined,
       kind,
-    });
+      ...(kind === 'option' ? {
+        optionType: attrs.putCall === 'C' ? 'call' as const : attrs.putCall === 'P' ? 'put' as const : undefined,
+        expiry: normalizeExpiry(attrs.expiry),
+        strike: Number.isFinite(Number(attrs.strike)) && attrs.strike?.trim() ? Number(attrs.strike) : undefined,
+      } : {}),
+    }));
 
     // IBKR's markPrice is the broker's authoritative price and covers OTC /
     // foreign tickers our free quote sources miss. Fall back to derived
-    // (positionValue / position) when markPrice isn't included in the query.
+    // positionValue / position / multiplier when markPrice is omitted.
     let mark = parseFloat(attrs.markPrice ?? '');
     if (!Number.isFinite(mark) || mark <= 0) {
       const pv = parseFloat(attrs.positionValue ?? '');
       if (Number.isFinite(pv) && pv !== 0 && qty !== 0) {
-        mark = pv / qty;
+        mark = kind === 'option'
+          ? multiplier !== undefined ? pv / qty / multiplier : NaN
+          : pv / qty;
       }
     }
     if (Number.isFinite(mark) && mark > 0) {
@@ -342,6 +350,9 @@ export async function fetchIbkrSnapshot(
   // the old parser emitted one quote immediately after each position.
   if (cached && cached.data.quotes.length === cached.data.positions.length) {
     cached.data.quotes = cached.data.quotes.map((quote, index) => ({ ...quote, positionId: quote.positionId ?? cached.data.positions[index]?.id }));
+  }
+  if (cached) {
+    cached.data = { ...cached.data, positions: cached.data.positions.map(normalizeOptionPosition) };
   }
   if (cached && Date.now() - cached.ts < CACHE_TTL_MS) {
     return cached.data;

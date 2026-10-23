@@ -8,6 +8,7 @@ import { useDashboardStore } from '@/stores/dashboardStore';
 import { useApiKeyStore } from '@/stores/apiKeyStore';
 import { readApiError } from '@/lib/fetchError';
 import type { StocksData } from '@/types/stocks';
+import { normalizeStockData } from '@/lib/stocks/optionContract';
 
 export function useStockData() {
   const wallet = useVaultStore((s) => s.address);
@@ -38,6 +39,7 @@ export function useStockData() {
       return res.json();
     },
     refetchOnMount: false,
+    select: normalizeStockData,
     refetchInterval: refreshInterval > 0 ? refreshInterval * 1000 : false,
     enabled: required,
   });
