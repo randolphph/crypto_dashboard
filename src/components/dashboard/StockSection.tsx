@@ -159,12 +159,13 @@ function PositionsTable({ positions }: { positions: EnrichedPosition[] }) {
 
   return (
     <div className="overflow-x-auto">
-      <table className="w-full min-w-[720px] text-sm">
+      <table className="w-full min-w-[800px] text-sm">
         <thead>
           <tr className="border-b text-left text-muted-foreground">
             <th className="pb-2 font-medium">代码</th>
             <th className="pb-2 font-medium">市场</th>
             <th className="pb-2 text-right font-medium">数量</th>
+            <th className="pb-2 text-right font-medium" title="每股／每单位成本，与现价使用相同币种">成本价</th>
             <th className="pb-2 text-right font-medium">现价</th>
             <SortHeader label="涨跌" k="changePct" />
             <SortHeader label="市值 (USD)" k="marketValueUsd" />
@@ -216,6 +217,11 @@ function PositionsTable({ positions }: { positions: EnrichedPosition[] }) {
                 </td>
                 <td className="py-2 text-right tabular-nums">
                   {hidden ? PRIVACY_MASK : p.shares.toLocaleString()}
+                </td>
+                <td className="py-2 text-right tabular-nums">
+                  {typeof p.costBasis === 'number' && Number.isFinite(p.costBasis)
+                    ? hidden ? PRIVACY_MASK : formatCurrency(p.costBasis, p.currency)
+                    : '—'}
                 </td>
                 <td className="py-2 text-right tabular-nums">
                   {p.price > 0 ? (
