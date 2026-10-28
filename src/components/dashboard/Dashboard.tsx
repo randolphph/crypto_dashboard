@@ -497,6 +497,7 @@ export function Dashboard() {
                 embedded
                 autoOpenForm
                 initialBroker={isStockTab(activeTab) ? activeTab : 'ths'}
+                livePositions={stocks.data?.brokers.flatMap(b => b.positions)}
               />
             </>
           )}

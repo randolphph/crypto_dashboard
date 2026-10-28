@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import Link from 'next/link';
 import { useLedgerStore } from '@/stores/ledgerStore';
 import { saveAShareTrade, recoverAShareTrade } from '@/lib/stocks/saveManualTrade';
@@ -9,6 +9,7 @@ import { Plus, Trash2, Pencil, X, ArrowLeftRight } from 'lucide-react';
 import { useStockPositionStore } from '@/stores/stockPositionStore';
 import { useCashBalanceStore } from '@/stores/cashBalanceStore';
 import { useCashToastStore } from '@/stores/cashToastStore';
+import { useAShareName } from '@/hooks/useAShareName';
 import { cn } from '@/lib/utils';
 import {
   BROKER_LABEL,
@@ -18,6 +19,7 @@ import {
   type StockCurrency,
   type StockMarket,
   type StockPosition,
+  type EnrichedPosition,
 } from '@/types/stocks';
 
 const BROKERS: StockBroker[] = ['ths', 'longport', 'ibkr'];
@@ -33,7 +35,11 @@ interface StockPositionsManagerProps {
   embedded?: boolean;
   autoOpenForm?: boolean;
   initialBroker?: StockBroker;
+  livePositions?: EnrichedPosition[];
 }
+
+const EMPTY_LIVE_POSITIONS: EnrichedPosition[] = [];
+const nameKey = (market: StockMarket, symbol: string) => `${market}:${symbol.trim().toUpperCase()}`;
 
 function PlaceholderForMarket(market: StockMarket): string {
   if (market === 'A') return '例如 600519';
@@ -46,6 +52,7 @@ export function StockPositionsManager({
   embedded,
   autoOpenForm,
   initialBroker,
+  livePositions = EMPTY_LIVE_POSITIONS,
 }: StockPositionsManagerProps = {}) {
   const { positions, addPosition, removePosition, updatePosition } =
     useStockPositionStore();
@@ -58,7 +65,7 @@ export function StockPositionsManager({
     DEFAULT_MARKET[initialBroker ?? 'ths']
   );
   const [symbol, setSymbol] = useState('');
-  const [name, setName] = useState('');
+  const [name, setName] = useState<string | null>(null);
   const [shares, setShares] = useState('');
   const [costBasis, setCostBasis] = useState('');
   const [entryMode, setEntryMode] = useState<'buy' | 'opening'>('buy');
@@ -85,7 +92,7 @@ export function StockPositionsManager({
   const recordAShare = (side: 'buy' | 'sell', quantity: number, price: number, p?: StockPosition) => {
     transactionId.current ??= crypto.randomUUID();
     const accountId = tradeFields.accountId || p?.ledgerAccountId || defaultAccountId;
-    const result = saveAShareTrade({ transactionId: transactionId.current, accountId, positionId: p?.id, symbol: p?.symbol ?? symbol, name: p?.name ?? name, side, quantity, price, occurredAt: new Date(tradeFields.occurredAt).getTime(), commission: Number(tradeFields.commission || 0), tax: Number(tradeFields.tax || 0), otherFee: Number(tradeFields.otherFee || 0) });
+    const result = saveAShareTrade({ transactionId: transactionId.current, accountId, positionId: p?.id, symbol: p?.symbol ?? symbol, name: p ? positionName(p) : formName, side, quantity, price, occurredAt: new Date(tradeFields.occurredAt).getTime(), commission: Number(tradeFields.commission || 0), tax: Number(tradeFields.tax || 0), otherFee: Number(tradeFields.otherFee || 0) });
     if (result.recorded && result.plan) pushCashToast({ broker: 'ths', currency: 'CNY', delta: result.plan.cashDelta, reason: `${side === 'buy' ? '买入' : '卖出'} ${p?.symbol ?? symbol}` });
     setSavedMessage('交易已保存并同步到账本'); setSyncedAccountId(accountId); setSynced(true);
   };
@@ -95,6 +102,21 @@ export function StockPositionsManager({
   const [tradeShares, setTradeShares] = useState('');
   const [tradePrice, setTradePrice] = useState('');
   const [tradeError, setTradeError] = useState<string | null>(null);
+  const knownNames = useMemo(() => {
+    const names = new Map<string, string>();
+    for (const p of livePositions) {
+      const value = p.name?.trim() || p.quoteName?.trim();
+      if (value) names.set(nameKey(p.market, p.symbol), value);
+    }
+    for (const p of positions) if (p.name?.trim()) names.set(nameKey(p.market, p.symbol), p.name.trim());
+    return names;
+  }, [livePositions, positions]);
+  const tradingPosition = positions.find(p => p.id === tradingId);
+  const lookupSymbol = showForm ? symbol : tradingPosition?.symbol ?? '';
+  const lookupMarket = showForm ? market : tradingPosition?.market;
+  const lookup = useAShareName(lookupSymbol, lookupMarket === 'A' && (showForm || !!tradingPosition), lookupMarket ? knownNames.get(nameKey(lookupMarket, lookupSymbol)) : undefined);
+  const formName = name ?? knownNames.get(nameKey(market, symbol)) ?? (market === 'A' ? lookup.name : '');
+  const positionName = (p: StockPosition) => knownNames.get(nameKey(p.market, p.symbol)) || (tradingId === p.id ? lookup.name : '') || undefined;
 
   useEffect(() => {
     if (autoOpenForm) setShowForm(true);
@@ -105,7 +127,7 @@ export function StockPositionsManager({
     setBroker(initialBroker ?? 'ths');
     setMarket(DEFAULT_MARKET[initialBroker ?? 'ths']);
     setSymbol('');
-    setName('');
+    setName(null);
     setShares('');
     setCostBasis('');
     setShowForm(false);
@@ -117,7 +139,7 @@ export function StockPositionsManager({
     setBroker(p.broker);
     setMarket(p.market);
     setSymbol(p.symbol);
-    setName(p.name ?? '');
+    setName(p.name?.trim() || null);
     setShares(String(p.shares));
     setCostBasis(p.costBasis !== undefined ? String(p.costBasis) : '');
     setShowForm(true);
@@ -135,7 +157,7 @@ export function StockPositionsManager({
       broker,
       market,
       symbol: symbol.trim(),
-      name: name.trim() || undefined,
+      name: formName.trim() || undefined,
       shares: sharesNum,
       costBasis: costNum,
     };
@@ -205,7 +227,10 @@ export function StockPositionsManager({
   const handleBrokerChange = (b: StockBroker) => {
     setBroker(b);
     // Only auto-switch market when adding (not editing), to keep edits sticky.
-    if (!editingId) setMarket(DEFAULT_MARKET[b]);
+    if (!editingId) {
+      if (market !== DEFAULT_MARKET[b]) setName(null);
+      setMarket(DEFAULT_MARKET[b]);
+    }
   };
 
   const startTrade = (id: string, action: 'buy' | 'sell') => {
@@ -371,14 +396,14 @@ export function StockPositionsManager({
                   >
                     <div className="flex items-center justify-between">
                       <div>
-                        <div className="flex items-center gap-2">
+                        <div className="flex flex-wrap items-center gap-2">
                           <span className="font-medium">{p.symbol}</span>
                           <span className="rounded-full bg-secondary px-2 py-0.5 text-xs font-medium">
                             {MARKET_LABEL[p.market]}
                           </span>
-                          {p.name && (
+                          {positionName(p) && (
                             <span className="text-xs text-muted-foreground">
-                              {p.name}
+                              {positionName(p)}
                             </span>
                           )}
                         </div>
@@ -425,6 +450,9 @@ export function StockPositionsManager({
 
                     {tradingId === p.id && (
                       <div className="mt-3 space-y-2 rounded-md border bg-muted/30 p-3">
+                        <p className="text-sm font-medium" aria-live="polite">{tradeAction === 'buy' ? '买入' : '卖出'} · {positionName(p) ? `${positionName(p)}（${p.symbol}）` : p.symbol}</p>
+                        {p.market === 'A' && lookup.loading && <p role="status" className="text-xs text-muted-foreground">正在查询股票名称…</p>}
+                        {p.market === 'A' && lookup.unavailable && <p className="text-xs text-muted-foreground">暂未查到名称，可在编辑持仓中手动填写。</p>}
                         <div className="flex gap-1">
                           <button
                             onClick={() => setTradeAction('buy')}
@@ -516,8 +544,9 @@ export function StockPositionsManager({
 
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
-              <label className="text-sm font-medium">券商</label>
+              <label htmlFor="stock-position-broker" className="text-sm font-medium">券商</label>
               <select
+                id="stock-position-broker"
                 value={broker}
                 onChange={(e) => handleBrokerChange(e.target.value as StockBroker)}
                 className="mt-1 w-full rounded-lg border bg-background px-3 py-2 text-sm"
@@ -530,10 +559,11 @@ export function StockPositionsManager({
               </select>
             </div>
             <div>
-              <label className="text-sm font-medium">市场</label>
+              <label htmlFor="stock-position-market" className="text-sm font-medium">市场</label>
               <select
+                id="stock-position-market"
                 value={market}
-                onChange={(e) => setMarket(e.target.value as StockMarket)}
+                onChange={(e) => { setMarket(e.target.value as StockMarket); setName(null); }}
                 className="mt-1 w-full rounded-lg border bg-background px-3 py-2 text-sm"
               >
                 {MARKETS.map((m) => (
@@ -547,20 +577,25 @@ export function StockPositionsManager({
 
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
-              <label className="text-sm font-medium">代码</label>
+              <label htmlFor="stock-position-symbol" className="text-sm font-medium">代码</label>
               <input
+                id="stock-position-symbol"
                 type="text"
                 value={symbol}
-                onChange={(e) => setSymbol(e.target.value)}
+                onChange={(e) => { setSymbol(e.target.value); setName(null); }}
                 placeholder={PlaceholderForMarket(market)}
                 className="mt-1 w-full rounded-lg border bg-background px-3 py-2 text-sm font-mono"
               />
+              {market === 'A' && <p role="status" aria-live="polite" className="mt-1 text-xs text-muted-foreground">
+                {lookup.name ? `股票名称：${lookup.name}` : lookup.loading ? '正在查询股票名称…' : lookup.unavailable ? '暂未查到名称，可手动填写。' : '输入完整 A 股代码后显示名称'}
+              </p>}
             </div>
             <div>
-              <label className="text-sm font-medium">名称 (可选)</label>
+              <label htmlFor="stock-position-name" className="text-sm font-medium">名称 (可选)</label>
               <input
+                id="stock-position-name"
                 type="text"
-                value={name}
+                value={formName}
                 onChange={(e) => setName(e.target.value)}
                 placeholder="留空则用行情返回的名称"
                 className="mt-1 w-full rounded-lg border bg-background px-3 py-2 text-sm"
