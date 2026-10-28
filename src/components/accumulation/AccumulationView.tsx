@@ -12,6 +12,9 @@ import { useWatchQuotes, type WatchSymbol } from '@/hooks/useWatchQuotes';
 import { useMa20 } from '@/hooks/useMa20';
 import { useBankAccountStore } from '@/stores/bankAccountStore';
 import { useCustomAssetStore } from '@/stores/customAssetStore';
+import { useGoldQuote } from '@/hooks/useGoldQuote';
+import { useGoldStore } from '@/stores/goldStore';
+import { valueGoldHoldings } from '@/lib/portfolio/gold';
 import {
   deriveTargets,
   rollupSectors,
@@ -69,6 +72,8 @@ export function AccumulationView() {
   const fxQuery = useFx();
   const bankAccounts = useBankAccountStore((s) => s.accounts);
   const customAssets = useCustomAssetStore((s) => s.assets);
+  const goldHoldings = useGoldStore(s => s.holdings);
+  const goldQuote = useGoldQuote(goldHoldings.length > 0);
 
   const [hydrated, setHydrated] = useState(false);
   useEffect(() => setHydrated(true), []);
@@ -77,6 +82,7 @@ export function AccumulationView() {
   const stockPositions = useMemo(() => stocks.data?.brokers.flatMap(b => b.positions) ?? [], [stocks.data]);
   const mappedHoldings = useMemo(() => mappedStockHoldings({ binance: binance.data, okx: okx.data, onchain: onchain.data }), [binance.data, okx.data, onchain.data]);
 
+  const goldMarketValueUsd = valueGoldHoldings(goldHoldings, fx, goldQuote.data).totalUsd;
   const { totalPortfolioUsd, availableAmmo } = useMemo(() => {
     const brokers = stocks.data?.brokers ?? [];
     const stocksTotal = brokers.reduce((s, b) => s + b.totalUsdValue, 0);
@@ -90,7 +96,7 @@ export function AccumulationView() {
         (s: number, w: { totalUsdValue: number }) => s + w.totalUsdValue,
         0
       ) ?? 0;
-    const customTotal = customAssets.reduce((s, a) => s + a.value, 0);
+    const customTotal = customAssets.reduce((s, a) => s + a.value, 0) + (goldMarketValueUsd ?? NaN);
     const total =
       (binance.data?.totalUsdValue ?? 0) +
       (okx.data?.totalUsdValue ?? 0) +
@@ -108,6 +114,7 @@ export function AccumulationView() {
     stocks.data,
     bankAccounts,
     customAssets,
+    goldMarketValueUsd,
     fx,
   ]);
 

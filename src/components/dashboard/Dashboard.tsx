@@ -1,13 +1,14 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { Plus, Bitcoin, LineChart, Banknote } from 'lucide-react';
+import { Plus, Bitcoin, LineChart, Banknote, Coins } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { PortfolioSummary } from './PortfolioSummary';
 import { ExchangeSection } from './ExchangeSection';
 import { DeribitSection } from './DeribitSection';
 import { OnchainSection } from './OnchainSection';
 import { StockSection } from './StockSection';
+import { GoldSection } from './GoldSection';
 import { CashSection } from './CashSection';
 import { WalletManager } from '@/components/settings/WalletManager';
 import { StockPositionsManager } from '@/components/settings/StockPositionsManager';
@@ -29,6 +30,9 @@ import { useSnapshotPersist } from '@/hooks/useSnapshotPersist';
 import { buildSnapshot } from '@/lib/portfolio/snapshot';
 import { useVaultStore } from '@/stores/vaultStore';
 import { useCustomAssetStore } from '@/stores/customAssetStore';
+import { useGoldQuote } from '@/hooks/useGoldQuote';
+import { useGoldStore } from '@/stores/goldStore';
+import { valueGoldHoldings } from '@/lib/portfolio/gold';
 import { useBankAccountStore } from '@/stores/bankAccountStore';
 import { useWalletStore } from '@/stores/walletStore';
 import { useFx } from '@/hooks/useFx';
@@ -86,6 +90,7 @@ const tabGroups = [
     iconClass: 'text-emerald-500',
     tabs: [{ id: 'bank', label: '银行' }],
   },
+  { id: 'physical', label: '实物资产', Icon: Coins, iconClass: 'text-yellow-600', tabs: [{ id: 'gold', label: '黄金' }] },
 ] as const;
 
 type TabId =
@@ -102,6 +107,8 @@ export function Dashboard() {
   const onchain = useOnchainData();
   const stocks = useStockData();
   const customAssets = useCustomAssetStore((s) => s.assets);
+  const goldHoldings = useGoldStore(s => s.holdings);
+  const goldQuote = useGoldQuote(goldHoldings.length > 0 || activeTab === 'gold');
   const categoryConfig = useAssetCategoryStore();
   const liabilities = useLiabilityStore((s) => s.liabilities);
   const bankAccounts = useBankAccountStore((s) => s.accounts);
@@ -116,6 +123,7 @@ export function Dashboard() {
     !!value && value.cnyUsd > 0 && value.hkdUsd > 0 && value.krwUsd > 0;
   const stocksFx = isFxValid(stocks.data?.fx) ? stocks.data?.fx : undefined;
   const fx = stocksFx ?? (isFxValid(fxQuery.data) ? fxQuery.data : undefined);
+  const goldValuation = valueGoldHoldings(goldHoldings, fx, goldQuote.data);
 
   const isLoading =
     binance.isLoading ||
@@ -123,7 +131,8 @@ export function Dashboard() {
     deribit.isLoading ||
     onchain.isLoading ||
     stocks.isLoading ||
-    ((bankNeedsFx || liabilityNeedsFx) && !fx && fxQuery.isLoading);
+    ((bankNeedsFx || liabilityNeedsFx) && !fx && fxQuery.isLoading) ||
+    (goldHoldings.length > 0 && !goldValuation.complete && (goldQuote.isLoading || fxQuery.isLoading));
 
   const hasError =
     binance.isError ||
@@ -139,7 +148,8 @@ export function Dashboard() {
     binance.data?.error != null ||
     okx.data?.error != null ||
     deribit.data?.error != null ||
-    ((bankNeedsFx || liabilityNeedsFx) && !fx && !fxQuery.isLoading);
+    ((bankNeedsFx || liabilityNeedsFx) && !fx && !fxQuery.isLoading) ||
+    (goldHoldings.length > 0 && (!goldValuation.complete || goldQuote.isError));
 
   const hasDataQualityIssue =
     binance.data?.dataQuality?.complete === false ||
@@ -149,7 +159,8 @@ export function Dashboard() {
       onchain.data.some(
         (wallet) => hasOnchainWarning(wallet)
       )) ||
-    stocks.data?.dataQuality?.complete === false;
+    stocks.data?.dataQuality?.complete === false ||
+    (goldHoldings.length > 0 && goldValuation.priceStatus !== 'live');
 
   const brokerById = (b: StockBroker) =>
     stocks.data?.brokers.find((x) => x.broker === b);
@@ -197,6 +208,7 @@ export function Dashboard() {
       label: '银行', value: bankCashValue, isLoading: bankNeedsFx && !fx && fxQuery.isFetching,
     },
     ...customAssets.map((a) => ({ label: a.name, value: a.value })),
+    goldHoldings.length > 0 && { label: '黄金', value: goldValuation.totalUsd ?? NaN, isLoading: !goldValuation.complete && (goldQuote.isLoading || fxQuery.isLoading) },
   ].filter((item): item is { label: string; value: number; isLoading?: boolean } => !!item);
 
   // Category-level rollup: the high-level "where are my eggs" view. We can't
@@ -217,14 +229,15 @@ export function Dashboard() {
     binCat.crypto + okxCat.crypto + derCat.crypto + onCat.crypto;
   const cashValue =
     binCat.cash + okxCat.cash + onCat.cash + stockCashValue + bankCashValue;
-  const otherValue = customAssets.reduce((s, a) => s + a.value, 0);
+  const otherValue = customAssets.reduce((s, a) => s + a.value, 0) + (goldValuation.totalUsd ?? NaN);
 
   const classificationAssets = buildClassificationAssets({
     binance: binance.data, okx: okx.data, deribit: deribit.data, onchain: onchain.data, stocks: stocks.data,
     banks: bankAccounts.map((account) => ({ ...account, valueUsd: bankCashUsd(account.currency, account.amount) })),
     customAssets,
+    gold: goldValuation.items,
   });
-  const categoryBreakdown = aggregateAssetCategories(classificationAssets, categoryConfig).filter((item) => item.value !== 0);
+  const categoryBreakdown = goldValuation.complete ? aggregateAssetCategories(classificationAssets, categoryConfig).filter((item) => item.value !== 0) : [];
 
   const assetsValue = breakdown.reduce((sum, item) => sum + item.value, 0);
   const liabilityValuation = valueLiabilities(liabilities, fx);
@@ -285,12 +298,13 @@ export function Dashboard() {
       dataQuality: stocks.data?.dataQuality,
     },
     { label: '银行汇率', required: bankNeedsFx, value: fx ? bankCashValue : undefined, loading: !fx && fxQuery.isLoading },
+    { label: '黄金', required: goldHoldings.length > 0, value: goldValuation.totalUsd ?? undefined, loading: !goldValuation.complete && (goldQuote.isLoading || fxQuery.isLoading), warnings: [...(goldValuation.priceStatus === 'stale' ? ['使用国内最近成交价，请留意行情时间'] : []), ...(!goldValuation.costComplete ? ['买入成本缺少汇率，盈亏暂不可用'] : [])], error: goldQuote.error?.message ?? (goldValuation.complete ? undefined : '黄金行情或持仓数据不可用') },
     { label: '负债', required: liabilities.length > 0, value: liabilityValuation.totalUsd, loading: liabilityNeedsFx && !fx && fxQuery.isLoading, error: liabilityValuation.complete ? undefined : '汇率不可用，无法换算负债' },
   ];
   const historyRecording = assessHistoryRecording({ totalValue, sources: historySources });
   const historyWarnings = JSON.stringify(historyRecording.warnings);
   const historyStatus = historyRecording.status;
-  const valuationUpdatedAt = Math.max(binance.dataUpdatedAt, okx.dataUpdatedAt, deribit.dataUpdatedAt, onchain.dataUpdatedAt, stocks.dataUpdatedAt, fxQuery.dataUpdatedAt);
+  const valuationUpdatedAt = Math.max(binance.dataUpdatedAt, okx.dataUpdatedAt, deribit.dataUpdatedAt, onchain.dataUpdatedAt, stocks.dataUpdatedAt, fxQuery.dataUpdatedAt, goldQuote.dataUpdatedAt);
   useEffect(() => {
     if (historyStatus !== 'ready' && historyStatus !== 'estimated') return;
     const next = historyStatus === 'estimated'
@@ -324,6 +338,7 @@ export function Dashboard() {
           stocks: stocks.data,
           assetAllocation: categoryBreakdown.map(({ id, label, value }) => ({ id, label, value })),
           liabilities: liabilityValuation.items,
+          gold: goldValuation.items.filter((h): h is typeof h & { valueUsd: number } => h.valueUsd !== null),
           banks: bankAccounts.map((a) => ({
             bank: a.bank,
             currency: a.currency,
@@ -469,6 +484,7 @@ export function Dashboard() {
         />
       )}
       {activeTab === 'bank' && <CashSection />}
+      {activeTab === 'gold' && <GoldSection fx={fx} quote={goldQuote.data} quoteError={goldQuote.error?.message} quoteLoading={goldQuote.isLoading} />}
 
       <Dialog
         open={addDialog !== null}

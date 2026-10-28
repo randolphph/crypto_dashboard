@@ -2,16 +2,20 @@ import type { AssetBalance } from '@/types/common';
 import { BROKER_LABEL, type StocksData, type StockBroker } from '@/types/stocks';
 import type { WalletBalance } from '@/types/onchain';
 import { assetMappingKey, defiCategoryKey, type AssetLocation } from './assetStockMapping';
+import type { ValuedGoldHolding } from '@/types/gold';
 export { defiCategoryKey } from './assetStockMapping';
 
 export interface AssetCategory { id: string; name: string; color: string }
 export const US_STOCK_CATEGORY_ID = 'us-stocks';
 export const US_STOCK_CATEGORY: AssetCategory = { id: US_STOCK_CATEGORY_ID, name: '美股', color: '#6366f1' };
+export const GOLD_CATEGORY_ID = 'gold';
+export const GOLD_CATEGORY: AssetCategory = { id: GOLD_CATEGORY_ID, name: '黄金', color: '#d97706' };
 export const DEFAULT_ASSET_CATEGORIES: AssetCategory[] = [
   { id: 'cash', name: '现金及等价物', color: '#10b981' },
   { id: 'stocks', name: '股票', color: '#3b82f6' },
   { id: 'crypto', name: '加密资产', color: '#f59e0b' },
   US_STOCK_CATEGORY,
+  GOLD_CATEGORY,
 ];
 export const CATEGORY_PALETTE = ['#8b5cf6', '#06b6d4', '#ec4899', '#ef4444', '#84cc16', '#f97316'];
 export interface CategoryConfiguration {
@@ -34,6 +38,7 @@ export const stockCategoryKey = (broker: StockBroker, id: string) => `stock:${br
 export const stockCashCategoryKey = (broker: StockBroker, id: string) => `stock-cash:${broker}:${id}`;
 export const bankCategoryKey = (id: string) => `bank:${id}`;
 export const customCategoryKey = (id: string) => `custom:${id}`;
+export const goldCategoryKey = (id: string) => `gold:${id}`;
 export const balanceCategoryKey = (location: AssetLocation, balance: AssetBalance) => `balance:${assetMappingKey(location, balance)}`;
 const STABLES = new Set(['USDT','USDC','USDG','USD1','DAI','FDUSD','TUSD','BUSD','PYUSD','USDP','USDD']);
 export function defaultStockCategory(symbol: string, kind?: string, market?: string): string {
@@ -83,6 +88,7 @@ export interface ClassificationInput {
   stocks?: StocksData;
   banks: Array<{ id: string; bank: string; currency: string; valueUsd: number }>;
   customAssets: Array<{ id: string; name: string; value: number }>;
+  gold?: ValuedGoldHolding[];
 }
 export function buildClassificationAssets(input: ClassificationInput): ClassificationAsset[] {
   const rows: ClassificationAsset[] = [];
@@ -123,6 +129,7 @@ export function buildClassificationAssets(input: ClassificationInput): Classific
   }
   for (const bank of input.banks) add({ id: bankCategoryKey(bank.id), label: `${bank.bank} ${bank.currency}`, source: '银行', value: bank.valueUsd, defaultCategoryId: 'cash' });
   for (const asset of input.customAssets) add({ id: customCategoryKey(asset.id), label: asset.name, source: '自定义资产', value: asset.value });
+  for (const holding of input.gold ?? []) if (holding.valueUsd !== null) add({ id: goldCategoryKey(holding.id), label: holding.name, source: holding.valuationBasis === 'cost' ? '黄金（成本估值）' : holding.priceSource === 'sina-sge' ? '黄金（上金所 Au99.99）' : '黄金（国际现货估值）', value: holding.valueUsd, defaultCategoryId: GOLD_CATEGORY_ID });
   // The same economic asset may be returned in several fragments. Its tag
   // stays stable and its valuation is included exactly once per fragment.
   const unique = new Map<string, ClassificationAsset>();

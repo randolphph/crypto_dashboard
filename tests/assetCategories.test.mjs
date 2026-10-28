@@ -23,7 +23,7 @@ function fixture() {
 test('default categories cover assets once using account equity, DeFi dedup and cash equivalents', () => {
   const assets = buildClassificationAssets(fixture());
   const buckets = aggregateAssetCategories(assets, config());
-  assert.deepEqual(buckets.map((entry) => entry.label), ['现金及等价物', '股票', '加密资产', '美股']);
+  assert.deepEqual(buckets.map((entry) => entry.label), ['现金及等价物', '股票', '加密资产', '美股', '黄金']);
   assert.equal(assets.reduce((sum, entry) => sum + entry.value, 0), 5175);
   assert.equal(buckets.reduce((sum, entry) => sum + entry.value, 0), 5175);
   assert.equal(buckets.find((entry) => entry.id === 'stocks').value, 200);
@@ -89,6 +89,7 @@ test('category CRUD, reassignment, default rules and reset survive reload withou
     restored.getState().resetAssignment('stock:ibkr:nvda');
     assert.equal(resolveAssetCategory(restored.getState(), 'stock:ibkr:nvda', 'stocks'), 'stocks');
     restored.getState().deleteCategory('stocks', 'crypto');
+    restored.getState().deleteCategory('gold', 'crypto');
     assert.throws(() => restored.getState().deleteCategory('crypto', 'stocks'), /至少保留/);
   } finally { globalThis.window = oldWindow; globalThis.localStorage = oldStorage; }
 });

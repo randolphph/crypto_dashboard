@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { CATEGORY_PALETTE, DEFAULT_ASSET_CATEGORIES, US_STOCK_CATEGORY, US_STOCK_CATEGORY_ID, type CategoryConfiguration } from '@/lib/portfolio/assetCategories';
+import { CATEGORY_PALETTE, DEFAULT_ASSET_CATEGORIES, US_STOCK_CATEGORY, US_STOCK_CATEGORY_ID, GOLD_CATEGORY, GOLD_CATEGORY_ID, type CategoryConfiguration } from '@/lib/portfolio/assetCategories';
 import { normalizeStockSymbol } from '@/lib/portfolio/assetStockMapping';
 
 interface AssetCategoryState extends CategoryConfiguration {
@@ -47,12 +47,13 @@ export const useAssetCategoryStore = create<AssetCategoryState>()(persist((set) 
     if (!state.categories.some((c) => c.id === id)) throw new Error('分类不存在');
     return { defaultCategoryId: id };
   }),
-}), { name: 'crypto-dashboard-asset-categories', version: 2,
+}), { name: 'crypto-dashboard-asset-categories', version: 3,
   migrate: (persisted) => {
     const state = persisted as CategoryConfiguration;
     const categories = state.categories ?? DEFAULT_ASSET_CATEGORIES;
     const existing = categories.find((entry) => entry.id === US_STOCK_CATEGORY_ID || entry.name === '美股');
-    const assignments = Object.fromEntries(Object.entries(state.assignments ?? {}).map(([key,value]) => [key, existing && value === existing.id ? US_STOCK_CATEGORY_ID : value]));
+    const existingGold = categories.find(entry => entry.id === GOLD_CATEGORY_ID || entry.name === '黄金');
+    const assignments = Object.fromEntries(Object.entries(state.assignments ?? {}).map(([key,value]) => [key, existing && value === existing.id ? US_STOCK_CATEGORY_ID : existingGold && value === existingGold.id ? GOLD_CATEGORY_ID : value]));
     const usStockSymbols = { ...state.usStockSymbols };
     try {
       const saved = typeof window !== 'undefined' ? window.localStorage.getItem('crypto-dashboard-asset-stock-mappings') : null;
@@ -64,10 +65,12 @@ export const useAssetCategoryStore = create<AssetCategoryState>()(persist((set) 
         if (!assignments[id] || assignments[id] === 'stocks') assignments[id] = US_STOCK_CATEGORY_ID;
       }
     } catch { /* Invalid legacy metadata must not prevent category hydration. */ }
-    return { ...state, categories: existing ? categories.map((entry) => entry.id === existing.id ? { ...entry, id: US_STOCK_CATEGORY_ID } : entry) : [...categories, US_STOCK_CATEGORY], usStockSymbols,
+    const withStocks = existing ? categories.map((entry) => entry.id === existing.id ? { ...entry, id: US_STOCK_CATEGORY_ID } : entry) : [...categories, US_STOCK_CATEGORY];
+    const withGold = existingGold ? withStocks.map(entry => entry.id === existingGold.id ? { ...entry, id: GOLD_CATEGORY_ID } : entry) : [...withStocks, GOLD_CATEGORY];
+    return { ...state, categories: withGold, usStockSymbols,
       assignments,
-      redirects: { ...state.redirects, ...(existing && existing.id !== US_STOCK_CATEGORY_ID ? { [existing.id]: US_STOCK_CATEGORY_ID } : {}) },
-      defaultCategoryId: state.defaultCategoryId === existing?.id ? categories.find((entry) => entry.id !== existing?.id)?.id ?? 'cash' : state.defaultCategoryId ?? 'cash',
+      redirects: { ...state.redirects, ...(existing && existing.id !== US_STOCK_CATEGORY_ID ? { [existing.id]: US_STOCK_CATEGORY_ID } : {}), ...(existingGold && existingGold.id !== GOLD_CATEGORY_ID ? { [existingGold.id]: GOLD_CATEGORY_ID } : {}) },
+      defaultCategoryId: state.defaultCategoryId === existing?.id ? categories.find((entry) => entry.id !== existing?.id)?.id ?? 'cash' : state.defaultCategoryId === existingGold?.id ? GOLD_CATEGORY_ID : state.defaultCategoryId ?? 'cash',
     };
   },
 }));

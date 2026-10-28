@@ -39,8 +39,9 @@ export function FundingOverview({
     pendingBudget: number;
   };
 }) {
-  const { fmtUsd, hidden } = usePrivacyFormat();
-  const sharePct = (funding.aiShareOfPortfolio * 100).toFixed(1);
+  const { fmtUsd: formatUsd, hidden } = usePrivacyFormat();
+  const fmtUsd = (value: number) => Number.isFinite(value) ? formatUsd(value) : '—';
+  const sharePct = Number.isFinite(funding.aiShareOfPortfolio) ? (funding.aiShareOfPortfolio * 100).toFixed(1) : '—';
   const targetSharePct = targetPortfolioShare * 100;
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState(String(Number(targetSharePct.toFixed(1))));

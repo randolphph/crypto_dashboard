@@ -485,7 +485,7 @@ export function PortfolioSummary({
                 {Number.isFinite(totalValue) ? fmtUsd(totalValue) : '—'}
               </p>
             )}
-            <p className="text-xs text-muted-foreground">资产合计 {fmtUsd(assetsValue)} · 负债合计 {liabilitiesValue === undefined ? '—（汇率不可用）' : fmtUsd(liabilitiesValue)}</p>
+            <p className="text-xs text-muted-foreground">资产合计 {Number.isFinite(assetsValue) ? fmtUsd(assetsValue) : '—'} · 负债合计 {liabilitiesValue === undefined ? '—（汇率不可用）' : fmtUsd(liabilitiesValue)}</p>
             {!isLoading && todayDelta && (
               <TodayDeltaLine delta={todayDelta} />
             )}
@@ -542,7 +542,7 @@ export function PortfolioSummary({
                     <span role="status" aria-label={`${item.label} 金额加载中`}>
                       <LoaderCircle className="h-4 w-4 animate-spin text-muted-foreground" aria-hidden="true" />
                     </span>
-                  ) : fmtUsd(item.value)}
+                  ) : Number.isFinite(item.value) ? fmtUsd(item.value) : '—'}
                 </p>
               </div>
             ))}

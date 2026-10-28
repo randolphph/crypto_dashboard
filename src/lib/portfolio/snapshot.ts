@@ -387,6 +387,7 @@ function flattenBanks(banks: BankCashInput[] | undefined): PositionSnapshot[] {
 }
 
 export interface BuildSnapshotInput {
+  gold?: SnapshotPayload['gold'];
   wallet: string;
   binance?: BinanceAllDataLike;
   okx?: OkxDataLike;
@@ -415,6 +416,7 @@ export function buildSnapshot(input: BuildSnapshotInput): SnapshotPayload {
     positions,
     portfolio: input.portfolio,
     assetAllocation: input.assetAllocation,
+    ...(input.gold?.length ? { gold: input.gold } : {}),
     ...(input.liabilities?.length ? { liabilities: input.liabilities } : {}),
     onchainDataTimes: input.onchain?.filter((wallet) => wallet.dataUpdatedAt).map((wallet) => ({
       walletId: wallet.walletId, walletName: wallet.walletName, updatedAt: wallet.dataUpdatedAt!,
@@ -440,6 +442,7 @@ export function snapshotFingerprint(payload: SnapshotPayload): string {
       Math.round(x.valueUsd * 100),
     ]),
     t: Math.round(payload.portfolio.totalUsd * 100),
+    ...(payload.gold?.length ? { gold: payload.gold.map(h => [h.id, h.name, h.grams, h.buyPricePerGram, h.currency, h.valueUsd, h.costUsd, h.valueCny, h.priceCnyPerGram, h.priceSource, h.priceUpdatedAt, h.priceStatus, h.valuationBasis]) } : {}),
     ...(payload.assetAllocation ? { categories: payload.assetAllocation.map((entry) => [entry.id, entry.label, Math.round(entry.value * 100)]) } : {}),
     ...(payload.liabilities?.length ? { liabilities: payload.liabilities.map((row) => [row.id, row.name, row.amount, row.currency, row.amountUsd]) } : {}),
   };

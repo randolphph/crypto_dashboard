@@ -28,7 +28,7 @@ export function useSnapshotPersist(
   useEffect(() => {
     if (!enabled || !payload) return;
     if (inFlightRef.current) return;
-    if (payload.positions.length === 0 && !payload.liabilities?.length) return;
+    if (payload.positions.length === 0 && !payload.liabilities?.length && !payload.gold?.length) return;
 
     const now = Date.now();
     if (now - lastSentAtRef.current < MIN_INTERVAL_MS) return;

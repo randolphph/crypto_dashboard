@@ -1,3 +1,5 @@
+import type { ValuedGoldHolding } from '@/types/gold';
+
 export type SnapshotSource =
   | 'binance'
   | 'okx'
@@ -71,6 +73,7 @@ export interface PortfolioSummarySnapshot {
 }
 
 export interface SnapshotPayload {
+  gold?: Array<ValuedGoldHolding & { valueUsd: number }>;
   assetAllocation?: Array<{ id: string; label: string; value: number }>;
   // Lowercased EVM address of the wallet that's currently unlocking the vault.
   // Backend partitions all rows by this so multiple users / envs don't mix.

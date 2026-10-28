@@ -6,6 +6,7 @@ import {
   LineChart,
   Landmark,
   Box,
+  Coins,
   type LucideIcon,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -22,6 +23,7 @@ import { cn } from '@/lib/utils';
 function classify(
   label: string
 ): { Icon: LucideIcon; colorClass: string } {
+  if (label === '黄金') return { Icon: Coins, colorClass: 'text-yellow-600' };
   // Crypto exchanges
   if (label === 'Binance' || label === 'OKX' || label === 'Deribit') {
     return { Icon: Bitcoin, colorClass: 'text-amber-500' };

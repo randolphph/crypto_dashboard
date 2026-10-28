@@ -96,6 +96,8 @@ export interface AiSummary {
     optionsValueUsd: number;
     deribitEquityUsd: number;
     cashImpliedUsd: number;
+    goldCostUsd: number | null;
+    goldMarketValueUsd: number;
   };
   byVenue: Record<string, number>;
   byUnderlying: Array<{
@@ -109,6 +111,7 @@ export interface AiSummary {
 }
 
 export interface AiSnapshotExport {
+  gold?: SnapshotPayload['gold'];
   assetAllocation?: SnapshotPayload['assetAllocation'];
   context: string;
   wallet: string;
@@ -381,7 +384,10 @@ function buildSummary(
     byCategory.cryptoPerpsShortUsd + // perp short reduces directional exposure but balance is still tied up
     byCategory.optionsValueUsd +
     byCategory.deribitEquityUsd;
-  byCategory.cashImpliedUsd = snapshot.portfolio.totalUsd + (snapshot.portfolio.liabilitiesUsd ?? 0) - categorised;
+  const goldMarketValueUsd = (snapshot.gold ?? []).reduce((sum, h) => sum + h.valueUsd, 0);
+  const goldCosts = (snapshot.gold ?? []).map(h => h.costUsd ?? (h.valuationBasis === 'cost' ? h.valueUsd : null));
+  const goldCostUsd = goldCosts.every(v => v !== null) ? goldCosts.reduce<number>((sum, v) => sum + v!, 0) : null;
+  byCategory.cashImpliedUsd = snapshot.portfolio.totalUsd + (snapshot.portfolio.liabilitiesUsd ?? 0) - categorised - goldMarketValueUsd;
 
   // Round and sort underlyings by absolute net exposure for compact JSON.
   const byUnderlying = Array.from(underlying.entries())
@@ -407,6 +413,8 @@ function buildSummary(
       optionsValueUsd: round2(byCategory.optionsValueUsd),
       deribitEquityUsd: round2(byCategory.deribitEquityUsd),
       cashImpliedUsd: round2(byCategory.cashImpliedUsd),
+      goldCostUsd: goldCostUsd === null ? null : round2(goldCostUsd),
+      goldMarketValueUsd: round2(goldMarketValueUsd),
     },
     byVenue: Object.fromEntries(
       Object.entries(byVenue).map(([k, v]) => [k, round2(v)])
@@ -498,6 +506,7 @@ export function snapshotToAiJson(snapshot: SnapshotPayload): AiSnapshotExport {
   }
 
   const notes: string[] = [];
+  if (snapshot.gold?.length) notes.push('黄金按 valuationBasis 标示估值口径：spot 为现货参考市值（sina-sge 是国内上金所 Au99.99 人民币/克报价，gold-api 为旧国际报价），cost 为历史成本估值；报价来源与时间见各持仓。黄金不计入隐含现金，成本和盈亏按快照汇率折算。');
   if (oldFormatCount > 0) {
     notes.push(
       `${oldFormatCount} 行使用了旧快照格式 (缺 side / optionType / entryPrice)。手动重新快照即可补齐。`
@@ -528,6 +537,7 @@ export function snapshotToAiJson(snapshot: SnapshotPayload): AiSnapshotExport {
     notes,
     onchainDataTimes: snapshot.onchainDataTimes,
     assetAllocation: snapshot.assetAllocation,
+    ...(snapshot.gold?.length ? { gold: snapshot.gold } : {}),
   };
 }
 
@@ -836,6 +846,10 @@ export function snapshotToMarkdown(snapshot: SnapshotPayload): string {
     lines.push('');
     lines.push(`## ${snapshot.liabilities.every((row) => row.broker === 'ths') ? 'A 股负债' : '负债'}（已从净资产扣除）`);
     lines.push(table(['名称', '币种', '未偿金额', 'USD'], snapshot.liabilities.map((row) => [row.name, row.currency, fmtNum(row.amount), fmtUsd(row.amountUsd)])));
+  }
+  if (snapshot.gold?.length) {
+    lines.push('', '## 黄金', 'spot 为现货参考市值；sina-sge 使用国内上金所 Au99.99 报价，gold-api 为旧国际报价；cost 为旧快照的成本估值。');
+    lines.push(table(['名称', '克数 (g)', '每克买入价', '币种', '买入总额', 'USD 估值', '估值口径', '报价来源', '国内单价 CNY/g', '报价时间'], snapshot.gold.map(h => [h.name.replace(/\|/g, '\\|'), fmtNum(h.grams), fmtNum(h.buyPricePerGram), h.currency, fmtNum(h.costLocal), fmtUsd(h.valueUsd), h.valuationBasis, h.priceSource ?? '—', h.priceCnyPerGram === undefined ? '—' : fmtNum(h.priceCnyPerGram), h.priceUpdatedAt ?? '—'])));
   }
   for (const wallet of snapshot.onchainDataTimes ?? []) {
     lines.push(`链上钱包 ${wallet.walletName} 的实际数据时间：${new Date(wallet.updatedAt).toISOString()}（快照保存时间不代表重新查询链上数据）。`);

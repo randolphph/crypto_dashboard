@@ -460,7 +460,7 @@ export function deriveFunding(
     aiTargetTotal,
     pendingBudget,
     aiShareOfPortfolio:
-      totalPortfolioUsd > 0 ? aiCurrentTotal / totalPortfolioUsd : 0,
+      !Number.isFinite(totalPortfolioUsd) ? NaN : totalPortfolioUsd > 0 ? aiCurrentTotal / totalPortfolioUsd : 0,
     availableAmmo,
     ammoCoverage:
       pendingBudget > 0 ? availableAmmo / pendingBudget : Infinity,
