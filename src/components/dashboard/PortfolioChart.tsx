@@ -194,9 +194,9 @@ export function PortfolioChart({ recording }: { recording: HistoryRecording }) {
   }, [snapshots, range, cashFlowEvents, trades]);
 
   const lastSnapshot = snapshots.at(-1);
-  const recordingNotice = recording.status === 'ready' ? null : (
-    <div role="status" data-history-recording-notice className={`mb-2 rounded-md border px-3 py-2 text-xs ${recording.status === 'estimated' || recording.status === 'blocked' ? 'border-warning/30 bg-warning/5 text-warning dark:text-warning classic:border-amber-500/30 classic:bg-amber-500/5 classic:text-amber-700 classic:dark:text-amber-400' : 'text-muted-foreground'}`}>
-      <p>{recording.status === 'estimated' ? '资产曲线按当前估值记录（含缓存或部分数据）' : recording.status === 'loading' ? '资产曲线等待数据加载完成' : '资产曲线暂停记录：部分资产尚无可用估值'}{lastSnapshot ? ` · 最近记录 ${new Date(lastSnapshot.timestamp).toLocaleString()}` : ''}</p>
+  const recordingNotice = recording.canRecord ? null : (
+    <div role="status" data-history-recording-notice className={`mb-2 rounded-md border px-3 py-2 text-xs ${recording.status === 'blocked' ? 'border-warning/30 bg-warning/5 text-warning dark:text-warning classic:border-amber-500/30 classic:bg-amber-500/5 classic:text-amber-700 classic:dark:text-amber-400' : 'text-muted-foreground'}`}>
+      <p>{recording.status === 'loading' ? '资产曲线等待数据加载完成' : '资产曲线暂停记录：部分资产尚无可用估值'}{lastSnapshot ? ` · 最近记录 ${new Date(lastSnapshot.timestamp).toLocaleString()}` : ''}</p>
       {recording.warnings.length > 0 || recording.blockers.length > 0 ? <details className="mt-1"><summary className="cursor-pointer">查看数据来源与原因</summary><ul className="mt-1 space-y-1 break-words">{[...recording.blockers, ...recording.warnings].map((reason) => <li key={reason}>{reason}</li>)}</ul></details> : null}
     </div>
   );
@@ -263,7 +263,7 @@ export function PortfolioChart({ recording }: { recording: HistoryRecording }) {
   return (
     <div className="mt-4">
       {recordingNotice}
-      {data.some((point) => point.quality === 'estimated') ? <p className="mb-2 text-xs text-warning dark:text-warning classic:text-amber-700 classic:dark:text-amber-400">此区间含估算记录，涨跌可能受到缓存或部分数据影响。</p> : null}
+      {!recording.canRecord && data.some((point) => point.quality === 'estimated') ? <p className="mb-2 text-xs text-warning dark:text-warning classic:text-amber-700 classic:dark:text-amber-400">此区间含估算记录，涨跌可能受到缓存或部分数据影响。</p> : null}
       <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
         <div className="flex items-center gap-3 text-sm">
           {data.length >= 2 && (
