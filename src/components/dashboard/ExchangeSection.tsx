@@ -1,9 +1,17 @@
 'use client';
 
+import { useMemo, useState } from 'react';
+import dynamic from 'next/dynamic';
+import { RotateCcw } from 'lucide-react';
 import { usePrivacyFormat } from '@/hooks/usePrivacyFormat';
 import { cn } from '@/lib/utils';
 import { AssetTable } from './AssetTable';
 import type { AssetBalance } from '@/types/common';
+import { buildExchangeTreemap } from '@/lib/portfolio/exchangeTreemap';
+
+const ExchangeTreemap = dynamic(() => import('./ExchangeTreemap').then(module => module.ExchangeTreemap), {
+  ssr: false, loading: () => <div className="h-[340px] animate-pulse rounded-lg bg-muted/40 sm:h-[360px]" />,
+});
 
 interface SubAccount {
   label: string;
@@ -65,7 +73,7 @@ function FuturesPositionsTable({ positions }: { positions: FuturesPosition[] }) 
         </span>
       </div>
       <div className="overflow-x-auto">
-        <table className="w-full text-sm">
+        <table className="w-full min-w-[720px] text-sm">
           <thead>
             <tr className="border-b text-left text-muted-foreground">
               <th className="pb-2 font-medium">合约</th>
@@ -142,7 +150,7 @@ function GridBotsTable({ bots }: { bots: GridBotSummary[] }) {
         </span>
       </div>
       <div className="overflow-x-auto">
-        <table className="w-full text-sm">
+        <table className="w-full min-w-[560px] text-sm">
           <thead>
             <tr className="border-b text-left text-muted-foreground">
               <th className="pb-2 font-medium">合约</th>
@@ -204,13 +212,17 @@ function ExchangeCard({
   error?: Error | null;
   name: string;
 }) {
-  const { fmtUsd } = usePrivacyFormat();
+  const { fmtUsd, hidden } = usePrivacyFormat();
+  const [view, setView] = useState<'map' | 'details'>('map');
+  const [replayKey, setReplayKey] = useState(0);
   const hasSubAccounts = data?.accounts && data.accounts.length > 0;
   const hasPositions = data?.futuresPositions && data.futuresPositions.length > 0;
   const hasGridBots = data?.gridBots && data.gridBots.length > 0;
+  const model = useMemo(() => buildExchangeTreemap(data?.accounts?.length ? data.accounts
+    : [{ label: '账户资产', balances: data?.balances ?? [] }]), [data]);
 
   return (
-    <div className="rounded-xl border bg-card p-5 shadow-sm">
+    <section aria-label={`${name} 资产`} data-exchange-card={name} className="rounded-xl border bg-card p-5 shadow-sm">
       <div className="flex items-center justify-between mb-4">
         <h3 className="font-semibold text-lg">{name}</h3>
         {data?.error ? (
@@ -236,6 +248,17 @@ function ExchangeCard({
           数据不完整：{data.dataQuality.errors.join('；')}
         </div>
       )}
+      {!isLoading && data && !data.error && <div className="mb-4 flex items-center justify-between gap-3">
+        <div role="group" aria-label={`${name} 展示方式`} className="inline-flex rounded-lg bg-muted/50 p-1">
+          {(['map', 'details'] as const).map(mode => <button key={mode} type="button" aria-pressed={view === mode}
+            onClick={() => setView(mode)} className={cn('rounded-md px-3 py-1 text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+              view === mode ? 'bg-background font-medium text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground')}>
+            {mode === 'map' ? '持仓分布' : '明细'}
+          </button>)}
+        </div>
+        {view === 'map' && model.total > 0 && <button type="button" aria-label={`重播 ${name} 持仓图动画`} title="重播动画"
+          onClick={() => setReplayKey(key => key + 1)} className="rounded-md p-2 text-muted-foreground hover:bg-secondary hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"><RotateCcw className="size-3.5" /></button>}
+      </div>}
       {isLoading ? (
         <div className="space-y-2">
           {[...Array(3)].map((_, i) => (
@@ -246,7 +269,13 @@ function ExchangeCard({
         <p className="text-sm text-destructive">{data.error}</p>
       ) : (
         <div className="space-y-4">
-          {hasSubAccounts &&
+          {view === 'map' && <>
+            {model.total > 0 ? <ExchangeTreemap exchange={name} model={model} hidden={hidden} replayKey={replayKey} />
+              : <p className="rounded-lg border border-dashed px-4 py-8 text-center text-sm text-muted-foreground">暂无可绘制的资产</p>}
+            {model.excludedCount > 0 && <p className="text-xs text-muted-foreground">负值或缺少估值的资产保留在明细中，图中仅展示正值资产。</p>}
+            {data?.accounts?.filter(account => account.error).map(account => <p key={account.label} className="text-xs text-destructive">{account.label}：{account.error}</p>)}
+          </>}
+          {view === 'details' && hasSubAccounts &&
             data.accounts!.map((account) => (
               <div key={account.label}>
                 <div className="flex items-center justify-between mb-2">
@@ -270,12 +299,12 @@ function ExchangeCard({
           {hasGridBots && (
             <GridBotsTable bots={data.gridBots!} />
           )}
-          {!hasSubAccounts && data && (
+          {view === 'details' && !hasSubAccounts && data && (
             <AssetTable balances={data.balances} location={data.exchange.toLowerCase() === 'okx' ? { source: 'okx' } : undefined} />
           )}
         </div>
       )}
-    </div>
+    </section>
   );
 }
 
@@ -294,7 +323,7 @@ export function ExchangeSection({ binance, okx }: ExchangeSectionProps) {
   }
 
   return (
-    <div className="grid gap-6 md:grid-cols-2">
+    <div className="flex flex-col gap-6">
       {cards.map((c) => (
         <ExchangeCard
           key={c.name}

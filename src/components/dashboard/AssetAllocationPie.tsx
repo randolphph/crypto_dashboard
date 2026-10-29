@@ -7,6 +7,7 @@ import { ChevronDown, RotateCcw, X } from 'lucide-react';
 import { usePrivacyFormat } from '@/hooks/usePrivacyFormat';
 import type { AssetCategoryDetail, ClassificationAsset } from '@/lib/portfolio/assetCategories';
 import { CHART_SERIES } from '@/lib/theme/colors';
+import { tokenIconUrl } from '@/lib/portfolio/assetIconSource';
 import { AssetCategoryManager } from './AssetCategoryManager';
 import { TokenIcon } from './TokenIcon';
 
@@ -159,7 +160,7 @@ export function AssetAllocationPie({ breakdown, assets }: { breakdown: Allocatio
                 symbol={detail.icon.symbol} size={16}
                 src={detail.icon.src ?? (detail.icon.market
                   ? `/api/stock-logo/${detail.icon.market}/${encodeURIComponent(detail.icon.symbol)}`
-                  : `/api/token-logo/${encodeURIComponent(detail.icon.symbol)}`)} />
+                  : tokenIconUrl(detail.icon.symbol))} />
             </span>}
           </span>
           <span className="shrink-0 text-right tabular-nums"><span className="font-medium">{fmtUsd(detail.value)}</span>{active.value > 0 && <span className="mt-0.5 block text-[11px] text-muted-foreground">{hidden ? '**%' : shareLabel(detail.value / active.value * 100)}</span>}</span>

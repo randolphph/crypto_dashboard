@@ -1,13 +1,34 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { existsSync, readFileSync } from 'node:fs';
 import { createTsLoader } from './helpers/loadTs.mjs';
 
 const params = (symbol) => ({ params: Promise.resolve({ symbol }) });
 const request = new Request('http://localhost/api/token-logo/BTC');
-const route = (fetchWithTimeout) => createTsLoader({
+const route = (fetchWithTimeout, bundled = false) => createTsLoader({
   '@/lib/http/fetch': { fetchWithTimeout },
-  '@/lib/prices': { SYMBOL_TO_COINGECKO: { BTC: 'bitcoin', USDT: 'tether' } },
+  '@/lib/prices': { SYMBOL_TO_COINGECKO: { BTC: 'bitcoin', USDT: 'tether', BNB: 'binancecoin' } },
+  ...(!bundled ? { '@/lib/portfolio/tokenIcons': { bundledTokenIconUrl: () => null } } : {}),
 })('app/api/token-logo/[symbol]/route.ts');
+
+test('all bundled logos remain available when the metadata API is rate limited', async () => {
+  const { BUNDLED_TOKEN_ICONS, bundledTokenIconUrl } = createTsLoader()('lib/portfolio/tokenIcons.ts');
+  const calls = [];
+  const { GET } = route(async url => { calls.push(String(url)); return new Response(null, { status: 429 }); }, true);
+  for (const symbol of Object.keys(BUNDLED_TOKEN_ICONS)) {
+    const response = await GET(request, params(symbol));
+    assert.equal(response.status, 307, symbol);
+    const path = new URL(response.headers.get('Location'), request.url).pathname;
+    assert.equal(path, bundledTokenIconUrl(symbol));
+    const file = new URL(`../public${path}`, import.meta.url);
+    assert.ok(existsSync(file), symbol);
+    assert.ok(readFileSync(file).length > 100, symbol);
+  }
+  assert.equal(bundledTokenIconUrl('ldtrx'), bundledTokenIconUrl('TRX'));
+  assert.equal(bundledTokenIconUrl('PENDLE(Ethereum)'), bundledTokenIconUrl('PENDLE'));
+  for (const symbol of ['UNKNOWN', '__proto__', 'constructor']) assert.equal(bundledTokenIconUrl(symbol), null);
+  assert.deepEqual(calls, []);
+});
 
 test('token logos reuse known coin IDs and cache both metadata and image responses', async () => {
   const calls = [];
@@ -39,11 +60,37 @@ test('unrecognized tokens do not trigger searches and untrusted image hosts are 
   assert.match(calls[0], /\/coins\/tether\?/);
 });
 
-test('an unavailable icon provider returns a cacheable missing image for the UI fallback', async () => {
+test('common exchange assets and earn receipts resolve to exact coin IDs with high-resolution images', async () => {
+  for (const [symbol, id] of [['BNB', 'binancecoin'], ['ENA', 'ethena'], ['LDENA', 'ethena'], ['SUI', 'sui'], ['USDE', 'ethena-usde']]) {
+    const calls = [];
+    const { GET } = route(async url => {
+      calls.push(String(url));
+      return calls.length === 1
+        ? Response.json({ image: { small: 'https://coin-images.coingecko.com/small.png', large: 'https://coin-images.coingecko.com/large.png' } })
+        : new Response(new Uint8Array([137, 80, 78, 71]), { headers: { 'Content-Type': 'image/png' } });
+    });
+    const response = await GET(new Request(`http://localhost/api/token-logo/${symbol}?size=large`), params(symbol));
+    assert.equal(response.status, 200, symbol);
+    assert.ok(calls[0].includes(`/coins/${id}?`), symbol);
+    assert.equal(calls[1], 'https://coin-images.coingecko.com/large.png');
+  }
+});
+
+test('temporary icon failures are never cached as permanently missing images', async () => {
+  for (const status of [429, 500, 503]) {
+    const { GET } = route(async () => new Response(null, { status }));
+    const response = await GET(request, params('BNB'));
+    assert.equal(response.status, 503);
+    assert.equal(response.headers.get('Cache-Control'), 'no-store');
+    assert.ok(Number(response.headers.get('Retry-After')) > 0);
+  }
+});
+
+test('an unavailable icon provider returns an uncached temporary failure for the UI fallback', async () => {
   const { GET } = route(async () => { throw new Error('timeout'); });
   const response = await GET(request, params('BTC'));
-  assert.equal(response.status, 404);
-  assert.match(response.headers.get('Cache-Control'), /max-age=86400/);
+  assert.equal(response.status, 503);
+  assert.equal(response.headers.get('Cache-Control'), 'no-store');
 });
 
 test('classification preserves source logos and option underlying icons without changing values or labels', () => {

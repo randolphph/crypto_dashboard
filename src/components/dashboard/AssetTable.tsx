@@ -6,6 +6,7 @@ import type { AssetBalance } from '@/types/common';
 import type { AssetLocation } from '@/lib/portfolio/assetStockMapping';
 import { AssetCategorySelect } from './AssetCategorySelect';
 import { balanceCategoryKey, defaultBalanceCategory } from '@/lib/portfolio/assetCategories';
+import { assetIconSource } from '@/lib/portfolio/assetIconSource';
 
 interface AssetTableProps {
   balances: AssetBalance[];
@@ -42,7 +43,7 @@ export function AssetTable({ balances, location }: AssetTableProps) {
             >
               <td className="py-2 font-medium">
                 <span className="inline-flex flex-wrap items-center gap-2">
-                  <TokenIcon src={item.logo} symbol={item.asset} />
+                  <TokenIcon {...assetIconSource(item)} symbol={item.asset} />
                   <span>{item.asset}</span>
                   {location && !item.dedupedToDefi && <AssetCategorySelect assetId={balanceCategoryKey(location, item)} label={item.asset} defaultCategoryId={defaultBalanceCategory(item, location.source !== 'binance' || ['现货','理财','资金账户'].includes(location.account))} />}
                   {item.dedupedToDefi && (

@@ -4,15 +4,17 @@ import { useState } from 'react';
 
 interface TokenIconProps {
   src?: string;
+  fallbackSrc?: string;
   symbol: string;
   size?: number;
 }
 
-export function TokenIcon({ src, symbol, size = 20 }: TokenIconProps) {
-  const [errored, setErrored] = useState(false);
+export function TokenIcon({ src, fallbackSrc, symbol, size = 20 }: TokenIconProps) {
+  const [failedSources, setFailedSources] = useState<string[]>([]);
+  const activeSrc = [src, fallbackSrc].find(value => value && !failedSources.includes(value));
   const px = `${size}px`;
 
-  if (!src || errored) {
+  if (!activeSrc) {
     const letter = (symbol.replace(/[^A-Za-z0-9]/g, '')[0] ?? '?').toUpperCase();
     return (
       <span
@@ -24,19 +26,17 @@ export function TokenIcon({ src, symbol, size = 20 }: TokenIconProps) {
     );
   }
 
-  // Token icons come from a third-party CDN (Trust Wallet's GitHub repo) — no
-  // point routing through next/image's optimizer, and broken URLs need a
-  // graceful fallback that <Image> doesn't make easy.
-  // eslint-disable-next-line @next/next/no-img-element
+  // Source CDN and same-origin cached images share the same small layout.
   return (
+    // eslint-disable-next-line @next/next/no-img-element
     <img
-      src={src}
+      src={activeSrc}
       alt=""
       width={size}
       height={size}
       loading="lazy"
       className="shrink-0 rounded-full"
-      onError={() => setErrored(true)}
+      onError={() => setFailedSources(current => current.includes(activeSrc) ? current : [...current, activeSrc])}
     />
   );
 }
