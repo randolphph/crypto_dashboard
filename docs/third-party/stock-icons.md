@@ -10,3 +10,11 @@ The local asset filename contains a content hash and is cached for one year.
 `src/lib/portfolio/stockIcons.ts` applies exact market/ticker overrides so the
 new URL bypasses previously cached incorrect images. Other stock logos retain
 their existing provider and caching. Brand marks remain owned by their issuer.
+
+Marvell (US: MRVL / MRVL.US) uses the unchanged 180 × 180 PNG
+[touch icon](https://investor.marvell.com/_assets/_da667c3a8a3190ba2b293219dc0fb94d/marvell/files/theme/images/favicons/apple-touch-icon.png)
+linked by its [official investor website](https://investor.marvell.com/),
+downloaded on 2026-10-29. Its transparent dark mark, like the upstream provider's
+128 px PNG, needs contrast on dark backgrounds. Shared stock icons therefore
+use a white backing; crypto icons keep their original presentation. The bundled
+MRVL URL also bypasses previously cached provider failures.

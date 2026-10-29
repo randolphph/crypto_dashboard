@@ -35,7 +35,7 @@ export function TokenIcon({ src, fallbackSrc, symbol, size = 20 }: TokenIconProp
       width={size}
       height={size}
       loading="lazy"
-      className="shrink-0 rounded-full"
+      className={`shrink-0 rounded-full${activeSrc.startsWith('/stock-icons/') || activeSrc.startsWith('/api/stock-logo/') ? ' bg-white' : ''}`}
       onError={() => setFailedSources(current => current.includes(activeSrc) ? current : [...current, activeSrc])}
     />
   );

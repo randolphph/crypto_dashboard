@@ -24,3 +24,16 @@ test('legacy stock-logo URLs redirect to the official icon without fetching the 
   assert.equal(response.headers.get('Location'), bundledStockIconUrl('A', '600036'));
   assert.deepEqual(calls, []);
 });
+
+test('Marvell uses a bundled official icon for exact US stock aliases and bypasses the upstream provider', async () => {
+  const src = stockIconUrl('US', 'MRVL');
+  assert.match(src, /^\/stock-icons\/marvell-/);
+  assert.ok(existsSync(new URL(`../public${src}`, import.meta.url)));
+  for (const symbol of ['mrvl', ' MRVL.US ']) assert.equal(stockIconUrl('US', symbol), src);
+  for (const market of ['A', 'HK', 'KR']) assert.equal(bundledStockIconUrl(market, 'MRVL'), null);
+  assert.equal(bundledStockIconUrl('US', 'MRVLX'), null);
+  const { GET } = createTsLoader({ '@/lib/http/fetch': { fetchWithTimeout: async () => { throw new Error('upstream unavailable'); } } })('app/api/stock-logo/[market]/[symbol]/route.ts');
+  const response = await GET(new Request('http://localhost/api/stock-logo/US/MRVL'), { params: Promise.resolve({ market: 'US', symbol: 'MRVL' }) });
+  assert.equal(response.status, 307);
+  assert.equal(response.headers.get('Location'), src);
+});

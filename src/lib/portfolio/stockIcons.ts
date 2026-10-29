@@ -2,6 +2,7 @@ import type { StockMarket } from '@/types/stocks';
 
 export function bundledStockIconUrl(market: string, symbol: string): string | null {
   const raw = symbol.trim().toUpperCase();
+  if (market === 'US' && ['MRVL', 'MRVL.US'].includes(raw)) return '/stock-icons/marvell-c7150c334a.png';
   const cmb = market === 'A' && ['600036', '600036.SH', '600036.SS', 'SH600036'].includes(raw)
     || market === 'HK' && ['3968', '03968', '3968.HK', '03968.HK', 'HK3968', 'HK03968'].includes(raw);
   return cmb ? '/stock-icons/china-merchants-bank-5db6ec2e10.png' : null;
