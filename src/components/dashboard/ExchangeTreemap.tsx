@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from 'react';
 import { init, use as registerECharts } from 'echarts/core';
 import { TreemapChart, type TreemapSeriesOption } from 'echarts/charts';
 import { TooltipComponent, AriaComponent } from 'echarts/components';
@@ -15,31 +15,33 @@ import type { AssetBalance } from '@/types/common';
 registerECharts([TreemapChart, TooltipComponent, AriaComponent, SVGRenderer, LabelLayout]);
 type Model = ReturnType<typeof buildExchangeTreemap>;
 type ChartNode = NonNullable<TreemapSeriesOption['data']>[number];
-interface Props { exchange: string; model: Model; hidden: boolean; replayKey: number }
+interface Props { exchange: string; model: Model; hidden: boolean; replayKey: number; onReplay: () => void }
 interface TileOverlay {
   node: ExchangeTreeNode;
   x: number; y: number; width: number; height: number;
   src: string | null;
   maxIconSize: number | null;
   color: string;
+  fill: string;
+  dataIndex: number;
 }
 const ICON_RATIO = .32;
 const escape = (value: string) => value.replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]!));
 
 // F13 · Nested Treemap, basics-gallery.html · "Where the work went".
 // Retain two levels, parent bands, direct area encoding, squareRatio 1.2,
-// SVG rendering and the 900 ms quarticOut reveal. No drill-down or zoom.
+// SVG layout; HTML tiles assemble in a staggered reveal. No drill-down or zoom.
 export function ExchangeTreemap(props: Props) {
-  const { exchange, model, hidden, replayKey } = props;
+  const { exchange, model, hidden, replayKey, onReplay } = props;
   const rootRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<HTMLDivElement>(null);
   const [tiles, setTiles] = useState<TileOverlay[]>([]);
-  const currentRef = useRef(props);
+  const currentRef = useRef({ exchange, model, hidden });
   const paintRef = useRef<(() => void) | null>(null);
-  useEffect(() => { currentRef.current = { exchange, model, hidden, replayKey }; paintRef.current?.(); }, [exchange, model, hidden, replayKey]);
-  useLayoutEffect(() => {
-    if (tiles.length && rootRef.current) rootRef.current.dataset.animationState = 'ready';
-  }, [tiles]);
+  const settleRef = useRef<(() => void) | null>(null);
+  const showTipRef = useRef<((dataIndex: number) => void) | null>(null);
+  useEffect(() => { currentRef.current = { exchange, model, hidden }; paintRef.current?.(); }, [exchange, model, hidden]);
+  useLayoutEffect(() => { if (tiles.length) settleRef.current?.(); }, [tiles, replayKey]);
 
   useEffect(() => {
     const root = rootRef.current;
@@ -49,10 +51,21 @@ export function ExchangeTreemap(props: Props) {
     const motion = matchMedia('(prefers-reduced-motion: reduce)');
     let visible = false;
     let disposed = false;
+    let assemblyPass = 0;
     let iconFrame: number | null = null;
     const images = new Map<string, { image: HTMLImageElement; status: 'loading' | 'ready' | 'error' }>();
     let layouts = new Map<string, TileOverlay>();
     let overlaySignature = '';
+    const settle = () => {
+      const pass = ++assemblyPass;
+      const animations = [...root.querySelectorAll('[data-treemap-tile]')].flatMap(tile => tile.getAnimations()).filter(animation => animation.playState !== 'finished');
+      root.dataset.animationState = animations.length ? 'entering' : 'ready';
+      if (animations.length) void Promise.allSettled(animations.map(animation => animation.finished)).then(() => {
+        if (!disposed && pass === assemblyPass) root.dataset.animationState = 'ready';
+      });
+    };
+    settleRef.current = settle;
+    showTipRef.current = dataIndex => chart.dispatchAction(dataIndex < 0 ? { type: 'hideTip' } : { type: 'showTip', seriesIndex: 0, dataIndex });
     const queueIcons = () => {
       if (disposed || iconFrame !== null) return;
       iconFrame = requestAnimationFrame(() => { iconFrame = null; paint(false, true); });
@@ -112,19 +125,19 @@ export function ExchangeTreemap(props: Props) {
         while (!dark && 1.05 / (luminance(color) + .05) < 4.5) color = color.map(n => Math.floor(n * .92));
         return `rgb(${color.join(', ')})`;
       };
-      const leaves = new Map<number, Pick<TileOverlay, 'node' | 'src' | 'color' | 'maxIconSize'>>();
+      const leaves = new Map<number, Pick<TileOverlay, 'node' | 'src' | 'color' | 'maxIconSize' | 'fill' | 'dataIndex'>>();
       layouts = new Map();
       const data = model.groups.map((group, index) => {
         const fill = tileColor(css.getPropertyValue(CHART_SERIES[index % CHART_SERIES.length].slice(4, -1)).trim());
-        return { ...group, itemStyle: { color: fill }, children: group.children?.map((child): ChartNode => {
+        return { ...group, itemStyle: { color: 'transparent' }, children: group.children?.map((child): ChartNode => {
           const balance = child.other ? undefined : child.balances.find(balance => balance.logo) ?? child.balances[0];
           const image = balance ? loadIcon(balance, Math.min(host.clientWidth, host.clientHeight) * ICON_RATIO) : null;
           const maxIconSize = image && !isVector(image) ? Math.min(image.naturalWidth, image.naturalHeight) / pixelRatio() : null;
-          return { ...child, itemStyle: { color: fill }, label: { color: text,
+          return { ...child, itemStyle: { color: 'transparent' }, label: { color: text,
             // Native labels supply ECharts' public layout rectangles. The
             // visible labels and centered icons share one clipped overlay.
             fontSize: 0, padding: 0,
-            formatter: params => { leaves.set(params.dataIndex, { node: child, src: image?.src ?? null, color: text, maxIconSize }); return child.name; },
+            formatter: params => { leaves.set(params.dataIndex, { node: child, src: image?.src ?? null, color: text, maxIconSize, fill, dataIndex: params.dataIndex }); return child.name; },
           } };
         }) };
       });
@@ -167,10 +180,9 @@ export function ExchangeTreemap(props: Props) {
       if (!iconsOnly) chart.dispatchAction({ type: 'hideTip' });
       if (!iconsOnly) root.dataset.animationState = 'entering';
       root.dataset.animated = String(!motion.matches);
-      chart.setOption({ animation: !motion.matches, animationDuration: 900, animationEasing: 'quarticOut',
-        animationDurationUpdate: 250, aria: { enabled: true, label: { description: hidden
+      chart.setOption({ animation: false, aria: { enabled: true, label: { description: hidden
           ? `${exchange} 持仓矩形树图，金额和数量已隐藏` : `${exchange} 持仓矩形树图，${model.assetCount} 项资产，按账户分组，面积表示 USD 金额` } },
-        tooltip: { triggerOn: 'mousemove|click', confine: true, appendTo: 'body',
+        tooltip: { triggerOn: 'mousemove', confine: true, appendTo: 'body',
           backgroundColor: css.getPropertyValue('--popover').trim(), borderColor: css.getPropertyValue('--border').trim(),
           textStyle: { color: css.getPropertyValue('--popover-foreground').trim(), fontSize: 12 },
           extraCssText: 'z-index:70;max-width:min(320px,calc(100vw - 80px));white-space:normal;border-radius:8px;',
@@ -183,42 +195,53 @@ export function ExchangeTreemap(props: Props) {
       if (!next.length) return;
       const signature = JSON.stringify(next);
       if (signature !== overlaySignature) { overlaySignature = signature; setTiles(next); }
-      else root.dataset.animationState = 'ready';
+      else settle();
     });
     const observer = new IntersectionObserver(entries => {
       if (!visible && entries.some(entry => entry.isIntersecting)) { visible = true; paint(true); observer.disconnect(); }
     }, { threshold: .15 });
     observer.observe(root);
-    const resize = new ResizeObserver(() => { root.dataset.animationState = 'entering'; chart.resize(); }); resize.observe(root);
+    const resize = new ResizeObserver(() => {
+      chart.dispatchAction({ type: 'hideTip' });
+      root.dataset.animationState = 'entering'; chart.resize();
+    }); resize.observe(root);
     const theme = new MutationObserver(() => paint());
     theme.observe(document.documentElement, { attributes: true, attributeFilter: ['class', 'data-color-scheme'] });
     const motionChanged = () => paint(true); motion.addEventListener('change', motionChanged);
     return () => {
       disposed = true;
+      assemblyPass++;
       if (iconFrame !== null) cancelAnimationFrame(iconFrame);
       for (const { image } of images.values()) { image.onload = null; image.onerror = null; }
-      paintRef.current = null; observer.disconnect(); resize.disconnect(); theme.disconnect();
+      paintRef.current = null; settleRef.current = null; showTipRef.current = null; observer.disconnect(); resize.disconnect(); theme.disconnect();
       motion.removeEventListener('change', motionChanged); chart.dispose();
     };
-  }, [replayKey]);
+  }, []);
 
-  return <div ref={rootRef} data-exchange-treemap={exchange} data-animation-state="pending"
-    role="img" aria-label={hidden ? `${exchange} 持仓矩形树图，金额和数量已隐藏` : `${exchange} 持仓矩形树图`}
-    className="relative h-[340px] w-full sm:h-[360px]">
+  const replay = () => { showTipRef.current?.(-1); onReplay(); };
+  return <div ref={rootRef} data-exchange-treemap={exchange} data-replay-key={replayKey} data-animation-state="pending"
+    role="group" aria-label={hidden ? `${exchange} 持仓矩形树图，金额和数量已隐藏` : `${exchange} 持仓矩形树图`}
+    tabIndex={0} onClick={replay}
+    onKeyDown={event => { if (event.target === event.currentTarget && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); replay(); } }}
+    className="relative h-[340px] w-full cursor-pointer rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:h-[360px]">
     <div ref={chartRef} className="h-full w-full" />
-    <div aria-hidden="true" className="pointer-events-none absolute inset-0 overflow-hidden">
-      {tiles.map(tile => {
+    <div className="pointer-events-none absolute inset-0 overflow-hidden">
+      {tiles.map((tile, index) => {
         const size = Math.min(tile.width, tile.height) * ICON_RATIO;
         const letter = tile.node.other ? '⋯' : (tile.node.name.replace(/[^A-Za-z0-9]/g, '')[0] ?? '?').toUpperCase();
-        return <div key={tile.node.id} data-treemap-tile={tile.node.id}
-          className="absolute overflow-hidden"
-          style={{ left: tile.x, top: tile.y, width: tile.width, height: tile.height, color: tile.color }}>
-          <span data-treemap-icon className="absolute flex items-center justify-center overflow-hidden rounded-full"
+        return <div key={`${replayKey}:${tile.node.id}`} data-treemap-tile={tile.node.id}
+          className="exchange-treemap-piece absolute overflow-hidden"
+          style={{ left: tile.x, top: tile.y, width: tile.width, height: tile.height, color: tile.color, backgroundColor: tile.fill,
+            animationDelay: `${Math.min(index, 18) * 35}ms`, '--piece-x': `${index % 2 ? 18 : -18}px`, '--piece-y': `${index % 3 ? 22 : -22}px` } as CSSProperties}>
+          <button type="button" data-treemap-icon data-treemap-replay aria-label={`重播 ${exchange} ${tile.node.account} ${tile.node.name} 持仓图动画`}
+            onPointerEnter={event => { if (event.pointerType === 'mouse') showTipRef.current?.(tile.dataIndex); }}
+            onFocus={() => showTipRef.current?.(tile.dataIndex)} onBlur={() => showTipRef.current?.(-1)}
+            className="pointer-events-auto absolute flex cursor-pointer items-center justify-center overflow-hidden rounded-full border-0 bg-transparent p-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-current"
             style={{ left: '50%', top: '50%', width: size, height: size, transform: 'translate(-50%, -50%)', fontSize: size * .48, fontWeight: 600 }}>
             {tile.src ? /* eslint-disable-next-line @next/next/no-img-element */
               <img src={tile.src} alt="" width={size} height={size} className="block object-contain"
                 style={{ width: Math.min(size, tile.maxIconSize ?? size), height: Math.min(size, tile.maxIconSize ?? size) }} /> : letter}
-          </span>
+          </button>
           {tile.height >= 80 && tile.width >= 60 && <span data-treemap-label className="absolute left-2 top-2 max-w-[calc(100%-16px)] truncate text-xs font-semibold">{tile.node.name}</span>}
           {tile.height >= 160 && tile.width >= 120 && <span className="absolute left-2 top-7 max-w-[calc(100%-16px)] truncate text-xs font-medium">
             {hidden ? '****** · **%' : `${formatUsd(tile.node.value)} · ${(tile.node.value / model.total * 100).toFixed(1)}%`}
@@ -226,5 +249,13 @@ export function ExchangeTreemap(props: Props) {
         </div>;
       })}
     </div>
+    <style>{`
+      @keyframes exchange-treemap-assemble {
+        from { opacity:0; transform:translate(var(--piece-x),var(--piece-y)) scale(.78) }
+        to { opacity:1; transform:translate(0,0) scale(1) }
+      }
+      .exchange-treemap-piece { animation:exchange-treemap-assemble 520ms cubic-bezier(.16,1,.3,1) both; transform-origin:center }
+      @media(prefers-reduced-motion:reduce) { .exchange-treemap-piece { animation:none } }
+    `}</style>
   </div>;
 }

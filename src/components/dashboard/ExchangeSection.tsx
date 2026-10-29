@@ -2,7 +2,6 @@
 
 import { useMemo, useState } from 'react';
 import dynamic from 'next/dynamic';
-import { RotateCcw } from 'lucide-react';
 import { usePrivacyFormat } from '@/hooks/usePrivacyFormat';
 import { cn } from '@/lib/utils';
 import { AssetTable } from './AssetTable';
@@ -256,8 +255,6 @@ function ExchangeCard({
             {mode === 'map' ? '持仓分布' : '明细'}
           </button>)}
         </div>
-        {view === 'map' && model.total > 0 && <button type="button" aria-label={`重播 ${name} 持仓图动画`} title="重播动画"
-          onClick={() => setReplayKey(key => key + 1)} className="rounded-md p-2 text-muted-foreground hover:bg-secondary hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"><RotateCcw className="size-3.5" /></button>}
       </div>}
       {isLoading ? (
         <div className="space-y-2">
@@ -270,7 +267,7 @@ function ExchangeCard({
       ) : (
         <div className="space-y-4">
           {view === 'map' && <>
-            {model.total > 0 ? <ExchangeTreemap exchange={name} model={model} hidden={hidden} replayKey={replayKey} />
+            {model.total > 0 ? <ExchangeTreemap exchange={name} model={model} hidden={hidden} replayKey={replayKey} onReplay={() => setReplayKey(key => key + 1)} />
               : <p className="rounded-lg border border-dashed px-4 py-8 text-center text-sm text-muted-foreground">暂无可绘制的资产</p>}
             {model.excludedCount > 0 && <p className="text-xs text-muted-foreground">负值或缺少估值的资产保留在明细中，图中仅展示正值资产。</p>}
             {data?.accounts?.filter(account => account.error).map(account => <p key={account.label} className="text-xs text-destructive">{account.label}：{account.error}</p>)}

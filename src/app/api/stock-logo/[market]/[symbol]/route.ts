@@ -1,5 +1,6 @@
 import type { StockMarket } from '@/types/stocks';
 import { fetchWithTimeout } from '@/lib/http/fetch';
+import { bundledStockIconUrl } from '@/lib/portfolio/stockIcons';
 
 const LOGO_BASE = 'https://financialmodelingprep.com/image-stock';
 const LOGO_REVALIDATE_SECONDS = 30 * 24 * 60 * 60;
@@ -45,6 +46,11 @@ export async function GET(
   ) {
     return new Response(null, { status: 404 });
   }
+
+  const bundled = bundledStockIconUrl(market, symbol);
+  if (bundled) return new Response(null, { status: 307, headers: {
+    Location: bundled, 'Cache-Control': 'public, max-age=604800, s-maxage=2592000',
+  } });
 
   for (const logoSymbol of logoSymbols(market as StockMarket, symbol)) {
     try {

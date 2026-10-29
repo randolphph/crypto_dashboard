@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import dynamic from 'next/dynamic';
 import { ChevronDown, ChevronUp, ChevronsUpDown } from 'lucide-react';
 import { usePrivacyFormat, PRIVACY_MASK } from '@/hooks/usePrivacyFormat';
 import { formatCurrency } from '@/lib/format';
@@ -9,6 +10,8 @@ import { PriceAge } from '@/components/common/PriceAge';
 import { AssetCategorySelect } from './AssetCategorySelect';
 import { stockCategoryKey, stockCashCategoryKey, defaultStockCategory } from '@/lib/portfolio/assetCategories';
 import type { valueLiabilities } from '@/lib/portfolio/liabilities';
+import { buildIbkrScatter } from '@/lib/portfolio/ibkrScatter';
+import { buildAShareRanking } from '@/lib/portfolio/aShareRanking';
 import {
   BROKER_LABEL,
   MARKET_LABEL,
@@ -18,6 +21,13 @@ import {
   type EnrichedPosition,
   type StockBroker,
 } from '@/types/stocks';
+
+const IbkrScatter = dynamic(() => import('./IbkrScatter').then(module => module.IbkrScatter), {
+  ssr: false, loading: () => <div className="h-[400px] animate-pulse rounded-lg bg-muted/40" />,
+});
+const AShareRanking = dynamic(() => import('./AShareRanking').then(module => module.AShareRanking), {
+  ssr: false, loading: () => <div className="h-[300px] animate-pulse rounded-lg bg-muted/40" />,
+});
 
 function SourceBadge({ source }: { source: DataSource }) {
   const isApi = source === 'api';
@@ -265,6 +275,13 @@ export function StockSection({
 }: StockSectionProps) {
   const { fmtUsd, hidden } = usePrivacyFormat();
   const label = BROKER_LABEL[broker];
+  const [views, setViews] = useState<Partial<Record<StockBroker, 'chart' | 'details'>>>({});
+  const view = views[broker] ?? 'chart';
+  const setView = (mode: 'chart' | 'details') => setViews(current => ({ ...current, [broker]: mode }));
+  const [replayKey, setReplayKey] = useState(0);
+  const scatter = useMemo(() => buildIbkrScatter(data?.positions ?? []), [data]);
+  const ranking = useMemo(() => buildAShareRanking(data?.positions ?? []), [data]);
+  const hasChart = broker === 'ibkr' || broker === 'ths';
 
   if (isLoading) {
     return (
@@ -338,7 +355,28 @@ export function StockSection({
       {cash.length > 0 && (
         <CashTable cash={cash} totalUsd={data?.cashUsdValue ?? 0} />
       )}
-      {positions.length > 0 && <PositionsTable positions={positions} />}
+      {positions.length > 0 && hasChart && <>
+        <div className="mb-4 flex items-center justify-between gap-3">
+          <div role="group" aria-label={`${label} 展示方式`} className="inline-flex rounded-lg bg-muted/50 p-1">
+            {(['chart', 'details'] as const).map(mode => <button key={mode} type="button" aria-pressed={view === mode}
+              onClick={() => setView(mode)} className={cn('rounded-md px-3 py-1 text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                view === mode ? 'bg-background font-medium text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground')}>
+              {mode === 'chart' ? broker === 'ibkr' ? '持仓散点' : '持仓排名' : '明细'}
+            </button>)}
+          </div>
+        </div>
+        {view === 'chart' && broker === 'ibkr' && <>
+          {scatter.points.length > 0 ? <IbkrScatter model={scatter} hidden={hidden} replayKey={replayKey} onReplay={() => setReplayKey(key => key + 1)} />
+            : <p className="rounded-lg border border-dashed px-4 py-8 text-center text-sm text-muted-foreground">暂无可绘制的持仓，请在明细中查看市值与成本数据。</p>}
+          {scatter.omitted.length > 0 && <p className="mt-3 text-xs text-muted-foreground">{scatter.omitted.length} 笔持仓缺少有效市值或盈亏率，保留在明细中。</p>}
+        </>}
+        {view === 'chart' && broker === 'ths' && <>
+          {ranking.rows.length > 0 ? <AShareRanking model={ranking} hidden={hidden} replayKey={replayKey} onReplay={() => setReplayKey(key => key + 1)} />
+            : <p className="rounded-lg border border-dashed px-4 py-8 text-center text-sm text-muted-foreground">暂无可排名的持仓，请在明细中查看估值数据。</p>}
+          {ranking.omitted.length > 0 && <p className="mt-3 text-xs text-muted-foreground">{ranking.omitted.length} 笔持仓未参与排名，可在明细中查看。</p>}
+        </>}
+      </>}
+      {positions.length > 0 && (!hasChart || view === 'details') && <PositionsTable positions={positions} />}
       {positions.length === 0 && cash.length === 0 && <p className="text-sm text-muted-foreground">暂无持仓与现金</p>}
     </div>
   );
@@ -359,7 +397,7 @@ function CashTable({
         <span className="text-xs text-muted-foreground">{fmtUsd(totalUsd)}</span>
       </div>
       <div className="overflow-x-auto">
-        <table className="w-full text-sm">
+        <table className="w-full min-w-[420px] text-sm">
           <tbody>
             {cash.map((c) => (
               <tr key={c.id} className="border-b last:border-0">

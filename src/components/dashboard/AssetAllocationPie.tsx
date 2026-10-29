@@ -3,11 +3,12 @@
 import { useId, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from 'react';
 import { createPortal } from 'react-dom';
 import dynamic from 'next/dynamic';
-import { ChevronDown, RotateCcw, X } from 'lucide-react';
+import { ChevronDown, X } from 'lucide-react';
 import { usePrivacyFormat } from '@/hooks/usePrivacyFormat';
 import type { AssetCategoryDetail, ClassificationAsset } from '@/lib/portfolio/assetCategories';
 import { CHART_SERIES } from '@/lib/theme/colors';
 import { tokenIconUrl } from '@/lib/portfolio/assetIconSource';
+import { stockIconUrl } from '@/lib/portfolio/stockIcons';
 import { AssetCategoryManager } from './AssetCategoryManager';
 import { TokenIcon } from './TokenIcon';
 
@@ -133,11 +134,12 @@ export function AssetAllocationPie({ breakdown, assets }: { breakdown: Allocatio
     onPointerLeave={() => setHovered(null)} onKeyDown={event => { if (event.key === 'Escape') close(); }}>
     <div className="mb-2 flex flex-wrap items-start justify-between gap-2">
       <div><h2 className="text-sm font-semibold tracking-tight">资产分布</h2><p className="mt-1 text-xs text-muted-foreground">按分类汇总 · USD</p></div>
-      <div className="flex items-center gap-1"><button type="button" aria-label="重播资产分布动画" title="重播动画" onClick={() => setReplayKey(key => key + 1)} className="rounded-md p-2 text-muted-foreground hover:bg-secondary hover:text-foreground"><RotateCcw className="size-3.5" /></button><AssetCategoryManager assets={assets} /></div>
+      <AssetCategoryManager assets={assets} />
     </div>
     {positive.length > 0 ? <div className="grid grid-cols-[120px_minmax(0,1fr)] items-center gap-2 sm:grid-cols-[140px_minmax(0,1fr)] sm:gap-3">
-      <div role="img" aria-label="资产分类占比饼图" className="w-[120px] shrink-0 sm:w-[140px]">
-        <CustomAllocationPie items={positive} activeLabel={active?.label ?? null} replayKey={replayKey} onHover={setHovered} onToggle={toggle} />
+      <div className="w-[120px] shrink-0 sm:w-[140px]">
+        <CustomAllocationPie items={positive} activeLabel={active?.label ?? null} replayKey={replayKey} onHover={setHovered}
+          onReplay={() => { close(); setReplayKey(key => key + 1); }} />
       </div>
       <ol className="-mx-2.5 space-y-px" aria-label="正值资产分类">{positive.map((item, index) => row(item, index))}</ol>
     </div> : <p className="rounded-lg border border-dashed px-4 py-5 text-center text-xs text-muted-foreground">暂无正值资产数据</p>}
@@ -159,7 +161,7 @@ export function AssetAllocationPie({ breakdown, assets }: { breakdown: Allocatio
               <TokenIcon key={`${detail.icon.src ?? ''}:${detail.icon.market ?? ''}:${detail.icon.symbol}`}
                 symbol={detail.icon.symbol} size={16}
                 src={detail.icon.src ?? (detail.icon.market
-                  ? `/api/stock-logo/${detail.icon.market}/${encodeURIComponent(detail.icon.symbol)}`
+                  ? stockIconUrl(detail.icon.market, detail.icon.symbol)
                   : tokenIconUrl(detail.icon.symbol))} />
             </span>}
           </span>

@@ -13,7 +13,7 @@ interface Props {
   activeLabel: string | null;
   replayKey: number;
   onHover: (label: string | null) => void;
-  onToggle: (label: string) => void;
+  onReplay: () => void;
 }
 
 // G13 · Big Slice (Custom Pie), from Lieflat Charts' Glance gallery.
@@ -74,7 +74,6 @@ export function CustomAllocationPie(props: Props) {
     chart.on('mouseover', event => { const label = select(event); if (label) propsRef.current.onHover(label); });
     chart.on('mouseout', () => propsRef.current.onHover(null));
     chart.on('globalout', () => propsRef.current.onHover(null));
-    chart.on('click', event => { const label = select(event); if (label) propsRef.current.onToggle(label); });
     chart.on('finished', () => { root.dataset.animationState = 'ready'; });
     const observer = new IntersectionObserver(entries => {
       if (!visible && entries.some(entry => entry.isIntersecting)) { visible = true; paint(true); observer.disconnect(); }
@@ -94,5 +93,8 @@ export function CustomAllocationPie(props: Props) {
     };
   }, [props.replayKey]);
 
-  return <div ref={rootRef} data-allocation-custom-pie data-animation-state="pending" className="aspect-square w-full" />;
+  return <div ref={rootRef} data-allocation-custom-pie data-replay-key={props.replayKey} data-animation-state="pending"
+    role="button" tabIndex={0} aria-label="资产分类占比饼图，点击重播动画" onClick={props.onReplay}
+    onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); props.onReplay(); } }}
+    className="aspect-square w-full cursor-pointer rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" />;
 }

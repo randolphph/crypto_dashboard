@@ -98,6 +98,16 @@ type TabId =
 
 export function Dashboard() {
   const [activeTab, setActiveTab] = useState<TabId>('exchanges');
+  const tabContentRef = useRef<HTMLDivElement>(null);
+  const [tabMinHeight, setTabMinHeight] = useState(0);
+  const selectTab = (tab: TabId) => {
+    if (tab === activeTab) return;
+    // A shorter panel (including a lazy chart's loading state) must not
+    // shorten the document past the current viewport and clamp scrollY.
+    const top = tabContentRef.current?.getBoundingClientRect().top;
+    setTabMinHeight(top === undefined ? 0 : Math.max(0, window.innerHeight - top));
+    setActiveTab(tab);
+  };
   const [addDialog, setAddDialog] = useState<AddDialog | null>(null);
   const queryClient = useQueryClient();
 
@@ -405,7 +415,7 @@ export function Dashboard() {
                     {group.tabs.map((tab) => (
                       <button
                         key={tab.id}
-                        onClick={() => setActiveTab(tab.id)}
+                        onClick={() => selectTab(tab.id)}
                         className={cn(
                           'whitespace-nowrap px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px',
                           activeTab === tab.id
@@ -453,38 +463,40 @@ export function Dashboard() {
       </div>
 
       {/* Tab Content */}
-      {activeTab === 'exchanges' && (
-        <ExchangeSection binance={binance} okx={okx} />
-      )}
-      {activeTab === 'deribit' && (
-        <DeribitSection
-          data={deribit.data}
-          isLoading={deribit.isLoading}
-          error={deribit.error as Error | null}
-        />
-      )}
-      {activeTab === 'onchain' && (
-        <OnchainSection
-          wallets={onchain.data ?? []}
-          isLoading={onchain.isLoading}
-          error={onchain.error as Error | null}
-          isRefreshing={onchain.isFetching}
-          onRefresh={() => { void onchain.refreshNow(); }}
-        />
-      )}
-      {(activeTab === 'ths' ||
-        activeTab === 'longport' ||
-        activeTab === 'ibkr') && (
-        <StockSection
-          broker={activeTab}
-          data={brokerById(activeTab)}
-          isLoading={stocks.isLoading}
-          error={stocks.error as Error | null}
-          aShareBalance={activeTab === 'ths' ? { assetsValue: aShareAssetsValue, liabilitiesValue: liabilityValuation.totalUsd, netValue: aShareNetValue, liabilities: liabilityValuation.items } : undefined}
-        />
-      )}
-      {activeTab === 'bank' && <CashSection />}
-      {activeTab === 'gold' && <GoldSection fx={fx} quote={goldQuote.data} quoteError={goldQuote.error?.message} quoteLoading={goldQuote.isLoading} />}
+      <div ref={tabContentRef} data-dashboard-tab-content style={{ minHeight: tabMinHeight }}>
+        {activeTab === 'exchanges' && (
+          <ExchangeSection binance={binance} okx={okx} />
+        )}
+        {activeTab === 'deribit' && (
+          <DeribitSection
+            data={deribit.data}
+            isLoading={deribit.isLoading}
+            error={deribit.error as Error | null}
+          />
+        )}
+        {activeTab === 'onchain' && (
+          <OnchainSection
+            wallets={onchain.data ?? []}
+            isLoading={onchain.isLoading}
+            error={onchain.error as Error | null}
+            isRefreshing={onchain.isFetching}
+            onRefresh={() => { void onchain.refreshNow(); }}
+          />
+        )}
+        {(activeTab === 'ths' ||
+          activeTab === 'longport' ||
+          activeTab === 'ibkr') && (
+          <StockSection
+            broker={activeTab}
+            data={brokerById(activeTab)}
+            isLoading={stocks.isLoading}
+            error={stocks.error as Error | null}
+            aShareBalance={activeTab === 'ths' ? { assetsValue: aShareAssetsValue, liabilitiesValue: liabilityValuation.totalUsd, netValue: aShareNetValue, liabilities: liabilityValuation.items } : undefined}
+          />
+        )}
+        {activeTab === 'bank' && <CashSection />}
+        {activeTab === 'gold' && <GoldSection fx={fx} quote={goldQuote.data} quoteError={goldQuote.error?.message} quoteLoading={goldQuote.isLoading} />}
+      </div>
 
       <Dialog
         open={addDialog !== null}
