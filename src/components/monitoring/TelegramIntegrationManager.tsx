@@ -96,7 +96,7 @@ function TelegramDialog({
             </div>
           </div>
           {discovery.data ? <div className="space-y-3 rounded-xl border p-3">
-            <div className="flex items-start gap-2"><div className="rounded-lg bg-primary/10 p-2 text-primary"><Bot className="size-4" /></div><div className="min-w-0"><p className="flex items-center gap-1.5 text-sm font-medium"><CheckCircle2 className="size-3.5 text-positive" />已验证 {discovery.data.bot.displayName}</p><p className="truncate text-xs text-muted-foreground">{discovery.data.bot.username ? `@${discovery.data.bot.username}` : `Bot ID ${discovery.data.bot.id}`}</p></div></div>
+            <div className="flex items-start gap-2"><div className="rounded-lg bg-primary/10 p-2 text-primary classic:bg-blue-500/10 classic:text-blue-600"><Bot className="size-4" /></div><div className="min-w-0"><p className="flex items-center gap-1.5 text-sm font-medium"><CheckCircle2 className="size-3.5 text-positive classic:text-emerald-600" />已验证 {discovery.data.bot.displayName}</p><p className="truncate text-xs text-muted-foreground">{discovery.data.bot.username ? `@${discovery.data.bot.username}` : `Bot ID ${discovery.data.bot.id}`}</p></div></div>
             {discovery.data.chats.length ? <div className="grid max-h-56 gap-2 overflow-y-auto">{discovery.data.chats.map((chat) => <label key={chat.id} className={`flex cursor-pointer items-start gap-2 rounded-lg border px-3 py-2 text-sm ${chatId === chat.id ? 'border-foreground/30 bg-accent' : ''}`}><input className="mt-1" type="radio" name="telegram-chat" checked={chatId === chat.id} onChange={() => { setChatId(chat.id); setManualChatId(false); }} aria-label={`选择 ${chat.title}`} /><span className="min-w-0"><span className="block truncate font-medium">{chat.title}</span><span className="block break-all text-xs text-muted-foreground">{CHAT_TYPE_LABEL[chat.type]} · {chat.id}{chat.username ? ` · @${chat.username}` : ''}</span></span></label>)}</div> : <p className="rounded-lg bg-muted/55 px-3 py-3 text-sm text-muted-foreground">暂未发现会话。完成上面的 `/start` 操作后点击“重新发现”。</p>}
           </div> : null}
           <div className="space-y-2">
@@ -162,7 +162,7 @@ export function TelegramIntegrationManager() {
       <div><div className="flex items-center gap-2"><Send className="size-4" /><p className="font-semibold">Telegram 通知</p></div><p className="mt-1 text-xs text-muted-foreground">创建 Bot 目标后，在每条告警规则中选择要发送到的目标。</p></div>
       <Button size="sm" onClick={() => setCreating(true)}><Plus />添加目标</Button>
     </div>
-    {notice ? <p role={notice.error ? 'alert' : 'status'} className={`mt-3 rounded-lg border px-3 py-2 text-sm ${notice.error ? 'border-destructive/30 text-destructive' : 'border-positive/30 text-positive dark:text-positive'}`}>{notice.message}</p> : null}
+    {notice ? <p role={notice.error ? 'alert' : 'status'} className={`mt-3 rounded-lg border px-3 py-2 text-sm ${notice.error ? 'border-destructive/30 text-destructive' : 'border-positive/30 text-positive dark:text-positive classic:border-emerald-500/30 classic:text-emerald-700 classic:dark:text-emerald-300'}`}>{notice.message}</p> : null}
     {integrations.error ? <p role="alert" className="mt-3 rounded-lg border border-destructive/30 px-3 py-2 text-sm text-destructive">{integrations.error.message}</p> : null}
     <div className="mt-4 space-y-2">
       {integrations.isLoading ? <div className="h-20 animate-pulse rounded-lg bg-muted" /> : null}

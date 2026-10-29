@@ -69,6 +69,7 @@
 
 /* Classic is the default. The optional palette is independent of light/dark mode. */
 :root {
+  --ledger-curve: #3b82f6;
   --portfolio-positive: #10b981;
   --portfolio-negative: #ef4444;
   --portfolio-neutral: #9ca3af;
@@ -226,6 +227,7 @@
 /* Palm · Lieflat Charts: paper, forest, olive and wheat.
    UI state colors are deliberately separate from categorical chart colors. */
 :root[data-color-scheme="palm"] {
+  --ledger-curve: var(--primary);
   --portfolio-positive: var(--positive);
   --portfolio-negative: var(--negative);
   --portfolio-neutral: var(--muted-foreground);

@@ -87,7 +87,7 @@ export function EvmRpcManager({ catalog, readiness }: Props) {
                     {integration.config.chainIds.map((chainId) => {
                       const network = catalog.networks.find((item) => item.chainId === chainId);
                       const result = lastTest?.networks?.find((item) => item.chainId === chainId);
-                      return <Badge key={chainId} variant="outline" className={cn('gap-1 pl-1', result?.ok ? 'border-positive/40' : result && !result.ok ? 'border-destructive/40' : undefined)}><ChainIcon chainId={chainId} className="size-5" />{network?.name ?? chainId}{result?.ok ? <CheckCircle2 /> : result ? <XCircle /> : null}</Badge>;
+                      return <Badge key={chainId} variant="outline" className={cn('gap-1 pl-1', result?.ok ? 'border-positive/40 classic:border-emerald-500/40' : result && !result.ok ? 'border-destructive/40' : undefined)}><ChainIcon chainId={chainId} className="size-5" />{network?.name ?? chainId}{result?.ok ? <CheckCircle2 /> : result ? <XCircle /> : null}</Badge>;
                     })}
                   </div>
                 </div>

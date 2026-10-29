@@ -50,15 +50,15 @@ export function SystemHealth() {
     healthy: {
       label: '服务正常',
       description: 'API、调度心跳和运行组件均正常',
-      className: 'text-positive dark:text-positive',
-      panelClassName: 'bg-positive/[0.07]',
+      className: 'text-positive dark:text-positive classic:text-emerald-600 classic:dark:text-emerald-400',
+      panelClassName: 'bg-positive/[0.07] classic:bg-emerald-500/[0.07]',
       icon: CheckCircle2,
     },
     degraded: {
       label: '部分异常',
       description: '服务在线，但存在预热、过期或错误的监控',
-      className: 'text-warning dark:text-warning',
-      panelClassName: 'bg-warning/[0.08]',
+      className: 'text-warning dark:text-warning classic:text-amber-600 classic:dark:text-amber-400',
+      panelClassName: 'bg-warning/[0.08] classic:bg-amber-500/[0.08]',
       icon: AlertTriangle,
     },
     unhealthy: {
@@ -101,13 +101,13 @@ export function SystemHealth() {
             <Button className="ml-auto shrink-0" variant="ghost" size="icon-sm" onClick={refresh} disabled={isFetching} aria-label="立即检查后端状态"><RefreshCw className={isFetching ? 'animate-spin' : undefined} /></Button>
           </div>
           {summary ? <>
-            <div className="flex items-center gap-3 border-t px-4 py-3 md:border-l md:border-t-0"><Cpu className={cn('size-4 shrink-0', summary.components.length === 0 ? 'text-muted-foreground' : healthyComponentCount === summary.components.length ? 'text-positive' : 'text-warning')} /><div className="min-w-0 flex-1"><p className="text-[11px] text-muted-foreground">运行组件</p><div className="mt-1 flex items-center gap-2"><p className="whitespace-nowrap text-sm font-semibold tabular-nums">{summary.components.length === 0 ? '未上报' : `${healthyComponentCount} / ${summary.components.length} 正常`}</p>{summary.components.length > 0 ? <span className="flex min-w-8 flex-1 gap-0.5" aria-label={`${healthyComponentCount} 个组件正常，共 ${summary.components.length} 个`}>{summary.components.map((component) => <span key={component.name} title={`${component.name}：${component.status === 'healthy' ? '正常' : component.lastError ?? '异常'}`} className={cn('h-1.5 min-w-1 flex-1 rounded-full', component.status === 'healthy' ? 'bg-positive' : 'bg-destructive')} />)}</span> : null}</div></div></div>
-            <div className="flex items-center gap-3 border-t px-4 py-3 md:border-l md:border-t-0"><Timer className="size-4 shrink-0 text-primary" /><div><p className="text-[11px] text-muted-foreground">持续运行</p><p className="mt-0.5 text-sm font-semibold tabular-nums">{formatUptime(summary.startedAt, summary.serverTime)}</p></div></div>
-            <div className="flex items-center gap-3 border-t px-4 py-3 md:border-l md:border-t-0"><ListChecks className="size-4 shrink-0 text-primary" /><div><p className="text-[11px] text-muted-foreground">健康任务</p><p className="mt-0.5 text-sm font-semibold tabular-nums"><span className="text-base">{summary.monitors.healthy}</span> / {summary.monitors.total}</p></div></div>
-            <div className="flex items-center gap-3 border-t px-4 py-3 md:border-l md:border-t-0"><BellRing className={cn('size-4 shrink-0', summary.alerts.open > 0 ? 'text-warning' : 'text-muted-foreground')} /><div><p className="text-[11px] text-muted-foreground">未处理告警</p><p className="mt-0.5 text-base font-semibold tabular-nums">{summary.alerts.open}</p></div></div>
+            <div className="flex items-center gap-3 border-t px-4 py-3 md:border-l md:border-t-0"><Cpu className={cn('size-4 shrink-0', summary.components.length === 0 ? 'text-muted-foreground' : healthyComponentCount === summary.components.length ? 'text-positive classic:text-emerald-500' : 'text-warning classic:text-amber-500')} /><div className="min-w-0 flex-1"><p className="text-[11px] text-muted-foreground">运行组件</p><div className="mt-1 flex items-center gap-2"><p className="whitespace-nowrap text-sm font-semibold tabular-nums">{summary.components.length === 0 ? '未上报' : `${healthyComponentCount} / ${summary.components.length} 正常`}</p>{summary.components.length > 0 ? <span className="flex min-w-8 flex-1 gap-0.5" aria-label={`${healthyComponentCount} 个组件正常，共 ${summary.components.length} 个`}>{summary.components.map((component) => <span key={component.name} title={`${component.name}：${component.status === 'healthy' ? '正常' : component.lastError ?? '异常'}`} className={cn('h-1.5 min-w-1 flex-1 rounded-full', component.status === 'healthy' ? 'bg-positive classic:bg-emerald-500' : 'bg-destructive')} />)}</span> : null}</div></div></div>
+            <div className="flex items-center gap-3 border-t px-4 py-3 md:border-l md:border-t-0"><Timer className="size-4 shrink-0 text-primary classic:text-blue-500" /><div><p className="text-[11px] text-muted-foreground">持续运行</p><p className="mt-0.5 text-sm font-semibold tabular-nums">{formatUptime(summary.startedAt, summary.serverTime)}</p></div></div>
+            <div className="flex items-center gap-3 border-t px-4 py-3 md:border-l md:border-t-0"><ListChecks className="size-4 shrink-0 text-primary classic:text-violet-500" /><div><p className="text-[11px] text-muted-foreground">健康任务</p><p className="mt-0.5 text-sm font-semibold tabular-nums"><span className="text-base">{summary.monitors.healthy}</span> / {summary.monitors.total}</p></div></div>
+            <div className="flex items-center gap-3 border-t px-4 py-3 md:border-l md:border-t-0"><BellRing className={cn('size-4 shrink-0', summary.alerts.open > 0 ? 'text-warning classic:text-amber-500' : 'text-muted-foreground')} /><div><p className="text-[11px] text-muted-foreground">未处理告警</p><p className="mt-0.5 text-base font-semibold tabular-nums">{summary.alerts.open}</p></div></div>
           </> : <div className="col-span-2 h-[136px] animate-pulse bg-muted/45 md:col-span-4 md:h-[68px]" />}
         </div>
-        {problemMonitors.length > 0 && !offline ? <div className="flex flex-wrap gap-2 border-t px-4 py-2.5">{problemMonitors.slice(0, 4).map((monitor) => <span key={monitor.id} className="rounded-full border border-warning/25 bg-warning/8 px-2.5 py-1 text-xs text-warning dark:text-warning" title={monitor.lastError ?? undefined}>{monitor.name} · {monitor.status}</span>)}</div> : null}
+        {problemMonitors.length > 0 && !offline ? <div className="flex flex-wrap gap-2 border-t px-4 py-2.5">{problemMonitors.slice(0, 4).map((monitor) => <span key={monitor.id} className="rounded-full border border-warning/25 bg-warning/8 px-2.5 py-1 text-xs text-warning dark:text-warning classic:border-amber-500/25 classic:bg-amber-500/8 classic:text-amber-700 classic:dark:text-amber-300" title={monitor.lastError ?? undefined}>{monitor.name} · {monitor.status}</span>)}</div> : null}
       </CardContent>
     </Card>
   );

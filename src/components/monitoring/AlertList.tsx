@@ -67,8 +67,8 @@ function AlertRow({
             alert.status === 'open'
               ? 'text-destructive'
               : alert.status === 'acknowledged'
-                ? 'text-warning dark:text-warning'
-                : 'text-positive dark:text-positive'
+                ? 'text-warning dark:text-warning classic:text-amber-600 classic:dark:text-amber-400'
+                : 'text-positive dark:text-positive classic:text-emerald-600 classic:dark:text-emerald-400'
           )}
         >
           {alert.status === 'open'

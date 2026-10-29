@@ -83,7 +83,7 @@ export function BarkIntegrationManager() {
 
   return <div className="min-w-0 rounded-xl border p-4">
     <div className="flex flex-wrap items-start justify-between gap-3"><div><div className="flex items-center gap-2"><BellRing className="size-4" /><p className="font-semibold">Bark 通知</p></div><p className="mt-1 text-xs text-muted-foreground">将监控告警推送到 iPhone；创建目标后，在告警规则中选择它。</p></div><Button size="sm" aria-label="添加 Bark 目标" onClick={() => setCreating(true)}><Plus />添加目标</Button></div>
-    {notice ? <p role={notice.error ? 'alert' : 'status'} className={`mt-3 rounded-lg border px-3 py-2 text-sm ${notice.error ? 'border-destructive/30 text-destructive' : 'border-positive/30 text-positive dark:text-positive'}`}>{notice.message}</p> : null}
+    {notice ? <p role={notice.error ? 'alert' : 'status'} className={`mt-3 rounded-lg border px-3 py-2 text-sm ${notice.error ? 'border-destructive/30 text-destructive' : 'border-positive/30 text-positive dark:text-positive classic:border-emerald-500/30 classic:text-emerald-700 classic:dark:text-emerald-300'}`}>{notice.message}</p> : null}
     {integrations.error ? <p role="alert" className="mt-3 text-sm text-destructive">{integrations.error.message}</p> : null}
     <div className="mt-4 space-y-2">
       {integrations.isLoading ? <div className="h-20 animate-pulse rounded-lg bg-muted" /> : null}

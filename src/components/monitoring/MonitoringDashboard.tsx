@@ -24,26 +24,26 @@ import type { AlertStatus, CryptoSentryMonitor, IntegrationCatalog, MonitorStatu
 const STATUS: Record<MonitorStatus, { label: string; className: string; surfaceClassName: string; icon: typeof Activity }> = {
   warming_up: {
     label: '预热中',
-    className: 'text-primary dark:text-primary',
-    surfaceClassName: 'bg-primary/[0.06]',
+    className: 'text-primary dark:text-primary classic:text-blue-600 classic:dark:text-blue-400',
+    surfaceClassName: 'bg-primary/[0.06] classic:bg-linear-to-r classic:from-blue-500/[0.11] classic:via-blue-500/[0.04] classic:to-transparent classic:bg-transparent',
     icon: Clock3,
   },
   ok: {
     label: '正常',
-    className: 'text-positive dark:text-positive',
-    surfaceClassName: 'bg-positive/[0.06]',
+    className: 'text-positive dark:text-positive classic:text-emerald-600 classic:dark:text-emerald-400',
+    surfaceClassName: 'bg-positive/[0.06] classic:bg-linear-to-r classic:from-emerald-500/[0.10] classic:via-emerald-500/[0.035] classic:to-transparent classic:bg-transparent',
     icon: CheckCircle2,
   },
   stale: {
     label: '过期',
-    className: 'text-warning dark:text-warning',
-    surfaceClassName: 'bg-warning/[0.06]',
+    className: 'text-warning dark:text-warning classic:text-amber-600 classic:dark:text-amber-400',
+    surfaceClassName: 'bg-warning/[0.06] classic:bg-linear-to-r classic:from-amber-500/[0.14] classic:via-amber-500/[0.05] classic:to-transparent classic:bg-transparent',
     icon: AlertTriangle,
   },
   error: {
     label: '异常',
-    className: 'text-destructive dark:text-negative',
-    surfaceClassName: 'bg-negative/[0.06]',
+    className: 'text-destructive dark:text-negative classic:dark:text-red-400',
+    surfaceClassName: 'bg-negative/[0.06] classic:bg-linear-to-r classic:from-red-500/[0.14] classic:via-red-500/[0.05] classic:to-transparent classic:bg-transparent',
     icon: AlertTriangle,
   },
 };
@@ -78,7 +78,7 @@ function MonitorItem({ monitor, selected, onSelect, catalog }: { monitor: Crypto
   const fullTarget = String(target(monitor, catalog));
   const surfaceClassName = monitor.enabled
     ? status.surfaceClassName
-    : 'bg-muted-foreground/[0.06] grayscale';
+    : 'bg-muted-foreground/[0.06] grayscale classic:bg-linear-to-r classic:from-slate-500/[0.09] classic:via-slate-500/[0.03] classic:to-transparent classic:bg-transparent';
   return <button type="button" onClick={onSelect} aria-pressed={selected} className={cn('relative w-full overflow-hidden rounded-xl border px-3.5 py-3 text-left transition-all hover:saturate-150', surfaceClassName, selected ? 'border-foreground/20 shadow-sm ring-1 ring-foreground/5' : 'border-transparent hover:border-border', selected && 'before:absolute before:inset-y-2 before:left-0 before:w-0.5 before:rounded-full before:bg-foreground')}><div className="min-w-0"><p className="truncate text-sm font-semibold">{monitor.name}</p><p className="mt-1 truncate font-mono text-[11px] text-muted-foreground" title={fullTarget}>{compactTarget(fullTarget)}</p></div><div className="mt-3 flex items-center justify-between"><p className={cn('flex items-center gap-1.5 text-xs font-medium', monitor.enabled ? status.className : 'text-muted-foreground')}><span className="flex size-5 items-center justify-center rounded-full bg-background/80 ring-1 ring-current/15"><Icon className="size-3" /></span>{monitor.enabled ? status.label : '已停用'}</p><span title={`数据源：${TYPE_LABEL[monitor.type]}`} aria-label={`数据源：${TYPE_LABEL[monitor.type]}`} className="flex size-7 items-center justify-center"><MonitorTypeIcon type={monitor.type} decorated={false} className="size-7 rounded-none" /></span></div></button>;
 }
 

@@ -20,7 +20,7 @@ import type { IntegrationCatalog, IntegrationReadiness } from '@/types/cryptoSen
 
 function ReadyBadge({ ready }: { ready: boolean }) {
   return ready ? (
-    <Badge className="bg-positive text-positive-foreground dark:bg-positive">
+    <Badge className="bg-positive text-positive-foreground dark:bg-positive classic:bg-emerald-600 classic:text-white classic:dark:bg-emerald-500">
       <CheckCircle2 /> 已就绪
     </Badge>
   ) : (
@@ -106,7 +106,7 @@ export function DataSourceSetup({
             <div className="flex min-w-0 flex-col rounded-xl border p-4">
               <div className="flex items-start justify-between gap-3">
                 <div className="flex items-center gap-2.5">
-                  <div className="rounded-lg bg-warning/10 p-2 text-warning dark:text-warning">
+                  <div className="rounded-lg bg-warning/10 p-2 text-warning dark:text-warning classic:bg-amber-500/10 classic:text-amber-600 classic:dark:text-amber-400">
                     <Server className="size-5" />
                   </div>
                   <div>
@@ -133,7 +133,7 @@ export function DataSourceSetup({
                   </p>
                 )}
                 {configureBinance.data ? (
-                  <p className="text-xs text-positive dark:text-positive">
+                  <p className="text-xs text-positive dark:text-positive classic:text-emerald-700 classic:dark:text-emerald-300">
                     已同步 {configureBinance.data.markets.total.toLocaleString('en-US')} 个市场
                     （现货 {configureBinance.data.markets.spot.toLocaleString('en-US')}，永续{' '}
                     {configureBinance.data.markets.perpetual.toLocaleString('en-US')}）

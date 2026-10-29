@@ -186,10 +186,10 @@ function PositionTable({ positions }: { positions: HyperliquidPosition[] }) {
             return (
               <tr key={position.coin} className="hover:bg-muted/35">
                 <td className="px-4 py-3 font-semibold">{position.coin}</td>
-                <td className="px-4 py-3"><Badge className={cn('mr-2', direction > 0 ? 'bg-positive/10 text-positive' : 'bg-negative/10 text-negative')}>{direction > 0 ? '多仓' : '空仓'}</Badge><span className="font-mono">{formatDecimal(absoluteDecimal(position.size))}</span></td>
+                <td className="px-4 py-3"><Badge className={cn('mr-2', direction > 0 ? 'bg-positive/10 text-positive classic:bg-emerald-500/10 classic:text-emerald-600' : 'bg-negative/10 text-negative classic:bg-red-500/10 classic:text-red-600')}>{direction > 0 ? '多仓' : '空仓'}</Badge><span className="font-mono">{formatDecimal(absoluteDecimal(position.size))}</span></td>
                 <td className="px-4 py-3 text-right font-mono">{position.entryPrice ? `$${formatDecimal(position.entryPrice, 6)}` : '—'}</td>
                 <td className="px-4 py-3 text-right font-mono">{formatUsd(position.positionValue)}</td>
-                <td className={cn('px-4 py-3 text-right font-mono', signOf(position.unrealizedPnl) > 0 ? 'text-positive' : signOf(position.unrealizedPnl) < 0 ? 'text-negative' : '')}>{formatUsd(position.unrealizedPnl)}</td>
+                <td className={cn('px-4 py-3 text-right font-mono', signOf(position.unrealizedPnl) > 0 ? 'text-positive classic:text-emerald-600' : signOf(position.unrealizedPnl) < 0 ? 'text-negative classic:text-red-600' : '')}>{formatUsd(position.unrealizedPnl)}</td>
                 <td className="px-4 py-3 text-right font-mono">{position.liquidationPrice ? `$${formatDecimal(position.liquidationPrice, 6)}` : '—'}</td>
                 <td className="px-4 py-3 text-right"><span className="font-mono">{position.leverage}×</span><span className="ml-1.5 text-xs text-muted-foreground">{position.marginMode === 'isolated' ? '逐仓' : '全仓'}</span></td>
               </tr>
@@ -213,7 +213,7 @@ function OrderTable({ orders }: { orders: HyperliquidOrder[] }) {
           {orders.map((order) => (
             <tr key={order.oid} className="hover:bg-muted/35">
               <td className="px-4 py-3"><p className="font-semibold">{order.coin}</p><p className="font-mono text-[11px] text-muted-foreground">#{order.oid.slice(-8)}</p></td>
-              <td className={cn('px-4 py-3 font-medium', order.side === 'buy' ? 'text-positive' : 'text-negative')}>{order.side === 'buy' ? '买入' : '卖出'}</td>
+              <td className={cn('px-4 py-3 font-medium', order.side === 'buy' ? 'text-positive classic:text-emerald-600' : 'text-negative classic:text-red-600')}>{order.side === 'buy' ? '买入' : '卖出'}</td>
               <td className="px-4 py-3 text-right font-mono">{order.isTrigger && order.price === '0' ? '触发后市价' : `$${formatDecimal(order.price, 6)}`}{order.triggerPrice ? <p className="text-[11px] text-muted-foreground">触发 ${formatDecimal(order.triggerPrice, 6)}</p> : null}</td>
               <td className="px-4 py-3 text-right font-mono">{formatDecimal(order.remainingSize)} <span className="text-muted-foreground">/ {formatDecimal(order.originalSize)}</span></td>
               <td className="px-4 py-3"><div className="flex flex-wrap justify-end gap-1">{order.reduceOnly ? <Badge variant="outline">只减仓</Badge> : null}{order.isTrigger ? <Badge variant="outline">条件单</Badge> : null}{order.isPositionTpsl ? <Badge variant="outline">止盈止损</Badge> : null}<Badge variant="secondary">{order.tif ?? order.orderType}</Badge></div></td>
@@ -263,7 +263,7 @@ function FollowerAccountData({ address, network }: { address: string; network: H
         </div>
         {snapshot ? <p className="text-xs text-muted-foreground">账户净值 {formatUsd(snapshot.accountValue)} · 更新于 {formatTime(snapshot.fetchedAt)}</p> : null}
         {monitor.error ? <p role="alert" className="text-sm text-destructive">{monitor.error}{snapshot ? '；以下保留上次成功读取的数据' : ''}</p> : null}
-        {monitor.activityError ? <p role="status" className="text-xs text-warning dark:text-warning">{monitor.activityError}</p> : null}
+        {monitor.activityError ? <p role="status" className="text-xs text-warning dark:text-warning classic:text-amber-700 classic:dark:text-amber-400">{monitor.activityError}</p> : null}
       </CardHeader>
       {snapshot ? <Tabs value={tab} onValueChange={(value) => setTab(String(value))}>
         <div className="border-y px-4 pt-2"><TabsList variant="line"><TabsTrigger value="positions">我的仓位 <Badge variant="secondary">{snapshot.positions.length}</Badge></TabsTrigger><TabsTrigger value="orders">我的挂单 <Badge variant="secondary">{snapshot.orders.length}</Badge></TabsTrigger><TabsTrigger value="events">变化 <Badge variant="secondary">{monitor.events.length}</Badge></TabsTrigger></TabsList></div>
@@ -297,7 +297,7 @@ function TradeConnections() {
 }
 
 function ConnectionCard({ name, ready, detail }: { name: string; ready: boolean; detail: string }) {
-  return <div className="flex items-center justify-between gap-3 rounded-xl border px-4 py-3"><div><p className="font-semibold">{name}</p><p className="mt-1 text-xs text-muted-foreground">{detail}</p></div><Badge className={ready ? 'bg-positive/10 text-positive dark:text-positive' : ''} variant={ready ? 'default' : 'secondary'}>{ready ? '已配置' : '未配置'}</Badge></div>;
+  return <div className="flex items-center justify-between gap-3 rounded-xl border px-4 py-3"><div><p className="font-semibold">{name}</p><p className="mt-1 text-xs text-muted-foreground">{detail}</p></div><Badge className={ready ? 'bg-positive/10 text-positive dark:text-positive classic:bg-emerald-500/10 classic:text-emerald-600 classic:dark:text-emerald-400' : ''} variant={ready ? 'default' : 'secondary'}>{ready ? '已配置' : '未配置'}</Badge></div>;
 }
 
 export function HyperliquidCopyTrading() {
@@ -353,9 +353,9 @@ export function HyperliquidCopyTrading() {
   }
 
   const status = monitor.status === 'running'
-    ? { label: '网页监控中', description: `每 ${activePollInterval ?? pollInterval} 秒直接读取 Hyperliquid`, className: 'text-positive bg-positive/8 dark:text-positive', icon: CheckCircle2 }
+    ? { label: '网页监控中', description: `每 ${activePollInterval ?? pollInterval} 秒直接读取 Hyperliquid`, className: 'text-positive bg-positive/8 dark:text-positive classic:text-emerald-600 classic:bg-emerald-500/8 classic:dark:text-emerald-400', icon: CheckCircle2 }
     : monitor.status === 'loading'
-      ? { label: '正在获取数据', description: '直接连接 Hyperliquid 官方接口', className: 'text-primary bg-primary/8 dark:text-primary', icon: LoaderCircle }
+      ? { label: '正在获取数据', description: '直接连接 Hyperliquid 官方接口', className: 'text-primary bg-primary/8 dark:text-primary classic:text-blue-600 classic:bg-blue-500/8 classic:dark:text-blue-400', icon: LoaderCircle }
       : monitor.status === 'error'
         ? { label: '查询失败', description: monitor.error ?? '稍后自动重试', className: 'text-destructive bg-destructive/8', icon: AlertTriangle }
         : snapshot
@@ -365,7 +365,7 @@ export function HyperliquidCopyTrading() {
 
   return (
     <div className="mx-auto max-w-7xl space-y-5">
-      <div><div className="flex flex-wrap items-center gap-2"><h1 className="text-2xl font-bold tracking-tight">量化跟单</h1><Badge variant="outline">Hyperliquid</Badge><Badge className="bg-primary/10 text-primary dark:text-primary">网页监控</Badge></div><p className="mt-1 text-sm text-muted-foreground">浏览器打开时直接跟踪目标地址的永续仓位与挂单；关闭页面后监控停止。</p></div>
+      <div><div className="flex flex-wrap items-center gap-2"><h1 className="text-2xl font-bold tracking-tight">量化跟单</h1><Badge variant="outline">Hyperliquid</Badge><Badge className="bg-primary/10 text-primary dark:text-primary classic:bg-blue-500/10 classic:text-blue-600 classic:dark:text-blue-400">网页监控</Badge></div><p className="mt-1 text-sm text-muted-foreground">浏览器打开时直接跟踪目标地址的永续仓位与挂单；关闭页面后监控停止。</p></div>
 
       <div className="grid items-start gap-4 lg:grid-cols-[340px_minmax(0,1fr)]">
         <Card className="lg:sticky lg:top-20">
@@ -390,7 +390,7 @@ export function HyperliquidCopyTrading() {
                     const selected = snapshot?.address === target.address && snapshot.network === target.network;
                     const editing = editingTargetId === target.id;
                     return (
-                      <div key={target.id} className={cn('rounded-xl border p-2', selected && 'border-positive/35 bg-positive/5')}>
+                      <div key={target.id} className={cn('rounded-xl border p-2', selected && 'border-positive/35 bg-positive/5 classic:border-emerald-500/35 classic:bg-emerald-500/5')}>
                         {editing ? (
                           <div className="flex items-center gap-1.5">
                             <Input
@@ -415,7 +415,7 @@ export function HyperliquidCopyTrading() {
                               onClick={() => void startMonitoring(target.address, target.network, target.pollInterval)}
                               disabled={monitor.status === 'loading'}
                             >
-                              <span className={cn('flex size-7 shrink-0 items-center justify-center rounded-full bg-muted', selected && 'bg-positive/10 text-positive')}>
+                              <span className={cn('flex size-7 shrink-0 items-center justify-center rounded-full bg-muted', selected && 'bg-positive/10 text-positive classic:bg-emerald-500/10 classic:text-emerald-600')}>
                                 {selected ? <RadioTower className="size-3.5" /> : <Play className="size-3.5" />}
                               </span>
                               <span className="min-w-0 flex-1">
@@ -458,7 +458,7 @@ export function HyperliquidCopyTrading() {
 
         <section className="min-w-0 space-y-4">
           <h2 className="text-sm font-semibold">目标账户</h2>
-          {monitor.activityError ? <p role="status" className="text-xs text-warning dark:text-warning">{monitor.activityError}</p> : null}
+          {monitor.activityError ? <p role="status" className="text-xs text-warning dark:text-warning classic:text-amber-700 classic:dark:text-amber-400">{monitor.activityError}</p> : null}
           <div className={cn('rounded-xl border px-4 py-3', status.className)}><div className="flex flex-wrap items-center justify-between gap-3"><div className="flex min-w-0 items-center gap-3"><span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-background/70"><StatusIcon className={cn('size-4', monitor.status === 'loading' && 'animate-spin')} /></span><div className="min-w-0"><p className="font-semibold">{status.label}</p><p className="truncate text-xs opacity-80">{status.description}</p></div></div>{snapshot ? <div className="flex items-center gap-2"><span className="text-xs opacity-75">更新于 {formatTime(snapshot.fetchedAt)}</span><Button size="icon-sm" variant="ghost" aria-label="立即刷新" onClick={() => void monitor.refresh()} disabled={monitor.status === 'loading'}><RefreshCw /></Button></div> : null}</div></div>
 
           {snapshot ? <><div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4"><Metric label="账户净值" value={formatUsd(snapshot.accountValue)} hint={snapshot.network === 'mainnet' ? 'Hyperliquid 主网' : 'Hyperliquid 测试网'} /><Metric label="已用保证金" value={formatUsd(snapshot.totalMarginUsed)} hint="官方 clearinghouseState" /><Metric label="可提取余额" value={formatUsd(snapshot.withdrawable)} hint="不是自动跟单额度" /><Metric label="当前记录" value={`${snapshot.positions.length} 仓位 · ${snapshot.orders.length} 挂单`} hint={`交易所时间 ${formatTime(snapshot.exchangeTimeMs)}`} /></div>

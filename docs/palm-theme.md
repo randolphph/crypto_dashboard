@@ -37,7 +37,8 @@ paint, invalid/missing values use Classic, and storage events synchronize tabs.
 Charts observe palette and mode changes; no financial data or classifications
 are changed when switching themes.
 
-The dashboard retains the original Classic text and icon colors with the
+The dashboard, monitoring, copy trading and ledger retain the original Classic
+text, status and icon colors with the
 `classic:` variant. Palm keeps the semantic palette. Portfolio history lines
 and event markers use dedicated palette tokens so Classic retains its original
 emerald/red series independently from green/red text.
