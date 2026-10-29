@@ -146,7 +146,7 @@ function TradeBubbleShape(props: {
         cx={cx}
         cy={cy + offsetY}
         r={payload.radius}
-        fill={payload.side === 'buy' ? '#10b981' : '#ef4444'}
+        fill={payload.side === 'buy' ? 'var(--positive)' : 'var(--negative)'}
         fillOpacity={0.78}
         stroke="var(--background)"
         strokeWidth={2}
@@ -305,8 +305,8 @@ export function DailyTradeTimeline({
         </div>
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-4 text-xs text-muted-foreground">
-            <span className="flex items-center gap-1.5"><i className="size-2.5 rounded-full bg-emerald-500" />买入</span>
-            <span className="flex items-center gap-1.5"><i className="size-2.5 rounded-full bg-rose-500" />卖出</span>
+            <span className="flex items-center gap-1.5"><i className="size-2.5 rounded-full bg-positive" />买入</span>
+            <span className="flex items-center gap-1.5"><i className="size-2.5 rounded-full bg-negative" />卖出</span>
             <span className="flex items-center gap-1.5"><i className="size-2 rounded-full border border-muted-foreground" /><i className="size-4 rounded-full border border-muted-foreground" />组合占比</span>
           </div>
           <div className="flex rounded-lg bg-muted p-0.5">
@@ -332,8 +332,8 @@ export function DailyTradeTimeline({
           <ComposedChart data={chartData} margin={{ top: 28, right: 12, bottom: 0, left: 4 }}>
             <defs>
               <linearGradient id="ledgerPortfolioGradient" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#3b82f6" stopOpacity={0.2} />
-                <stop offset="100%" stopColor="#3b82f6" stopOpacity={0} />
+                <stop offset="0%" stopColor="var(--primary)" stopOpacity={0.2} />
+                <stop offset="100%" stopColor="var(--primary)" stopOpacity={0} />
               </linearGradient>
             </defs>
             <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" opacity={0.5} />
@@ -360,7 +360,7 @@ export function DailyTradeTimeline({
             <Area
               type="monotone"
               dataKey="value"
-              stroke="#3b82f6"
+              stroke="var(--primary)"
               strokeWidth={2}
               fill="url(#ledgerPortfolioGradient)"
               dot={false}
@@ -392,8 +392,8 @@ export function DailyTradeTimeline({
             <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
               <span className="text-xs text-muted-foreground">{formatDay(hoveredTrade.point.timestamp)} · {hoveredActivities.length} 笔</span>
               <div className="flex items-center gap-3">
-                {hoveredBuyValue > 0 && <strong className="text-emerald-600">买入 {hidden ? '******' : fmtUsd(hoveredBuyValue)}</strong>}
-                {hoveredSellValue > 0 && <strong className="text-rose-600">卖出 {hidden ? '******' : fmtUsd(hoveredSellValue)}</strong>}
+                {hoveredBuyValue > 0 && <strong className="text-positive">买入 {hidden ? '******' : fmtUsd(hoveredBuyValue)}</strong>}
+                {hoveredSellValue > 0 && <strong className="text-negative">卖出 {hidden ? '******' : fmtUsd(hoveredSellValue)}</strong>}
               </div>
             </div>
             {hoveredTrade.point.valuationReferenceAt !== undefined && <p className="mt-1 text-xs text-muted-foreground">估值参考 {formatDay(hoveredTrade.point.valuationReferenceAt)} 的资产快照，不代表成交当天资产估值。</p>}
@@ -404,7 +404,7 @@ export function DailyTradeTimeline({
                 const notional = Math.abs(activity.quantity * activity.price * activity.multiplier);
                 return (
                   <div key={activity.id} className="flex items-baseline justify-between gap-4 text-xs">
-                    <span><strong>{name}</strong> · <span className={activity.side === 'buy' ? 'text-emerald-600' : 'text-rose-600'}>{actionLabel(activity)}</span></span>
+                    <span><strong>{name}</strong> · <span className={activity.side === 'buy' ? 'text-positive' : 'text-negative'}>{actionLabel(activity)}</span></span>
                     <span className="text-muted-foreground">成交 {formatNumber(notional, 8)} {activity.currency}</span>
                   </div>
                 );

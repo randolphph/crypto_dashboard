@@ -356,8 +356,8 @@ export function TradeSettings() {
                   <span
                     className={`text-xs font-medium px-1.5 py-0.5 rounded ${
                       t.direction === 'buy'
-                        ? 'bg-green-500/10 text-green-700 dark:text-green-400'
-                        : 'bg-red-500/10 text-red-700 dark:text-red-400'
+                        ? 'bg-positive/10 text-positive dark:text-positive'
+                        : 'bg-negative/10 text-negative dark:text-negative'
                     }`}
                   >
                     {t.direction === 'buy' ? '买' : '卖'}

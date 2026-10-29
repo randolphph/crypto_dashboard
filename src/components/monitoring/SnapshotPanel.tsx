@@ -14,11 +14,11 @@ import { cn } from '@/lib/utils';
 import type { MonitorSnapshot, SnapshotStatus } from '@/types/cryptoSentry';
 
 const STATUS: Record<SnapshotStatus, { label: string; className: string }> = {
-  warming_up: { label: '首次同步中', className: 'text-blue-600' },
-  ok: { label: '运行正常', className: 'text-emerald-600' },
+  warming_up: { label: '首次同步中', className: 'text-primary' },
+  ok: { label: '运行正常', className: 'text-positive' },
   empty: { label: '暂无数据', className: 'text-muted-foreground' },
-  partial: { label: '部分可用', className: 'text-amber-600' },
-  stale: { label: '数据已过期', className: 'text-orange-600' },
+  partial: { label: '部分可用', className: 'text-warning' },
+  stale: { label: '数据已过期', className: 'text-critical' },
   error: { label: '采集失败', className: 'text-destructive' },
   unsupported: { label: '暂不支持', className: 'text-muted-foreground' },
 };
@@ -162,11 +162,11 @@ function SummaryValues({ value }: { value: Record<string, unknown> }) {
 }
 
 const AAVE_METRIC_TONES = {
-  emerald: { surface: 'bg-emerald-500/[0.08] ring-emerald-500/15', icon: 'bg-emerald-500/12 text-emerald-600', value: 'text-emerald-700 dark:text-emerald-300' },
-  blue: { surface: 'bg-blue-500/[0.07] ring-blue-500/15', icon: 'bg-blue-500/12 text-blue-600', value: 'text-blue-700 dark:text-blue-300' },
-  violet: { surface: 'bg-violet-500/[0.07] ring-violet-500/15', icon: 'bg-violet-500/12 text-violet-600', value: 'text-violet-700 dark:text-violet-300' },
-  rose: { surface: 'bg-rose-500/[0.07] ring-rose-500/15', icon: 'bg-rose-500/12 text-rose-600', value: 'text-rose-700 dark:text-rose-300' },
-  amber: { surface: 'bg-amber-500/[0.08] ring-amber-500/15', icon: 'bg-amber-500/12 text-amber-600', value: 'text-amber-700 dark:text-amber-300' },
+  emerald: { surface: 'bg-positive/[0.08] ring-positive/15', icon: 'bg-positive/12 text-positive', value: 'text-positive dark:text-positive' },
+  blue: { surface: 'bg-primary/[0.07] ring-primary/15', icon: 'bg-primary/12 text-primary', value: 'text-primary dark:text-primary' },
+  violet: { surface: 'bg-primary/[0.07] ring-primary/15', icon: 'bg-primary/12 text-primary', value: 'text-primary dark:text-primary' },
+  rose: { surface: 'bg-negative/[0.07] ring-negative/15', icon: 'bg-negative/12 text-negative', value: 'text-negative dark:text-negative' },
+  amber: { surface: 'bg-warning/[0.08] ring-warning/15', icon: 'bg-warning/12 text-warning', value: 'text-warning dark:text-warning' },
 } as const;
 
 function compactAaveValue(value: unknown, maximumFractionDigits = 4): string {
@@ -341,7 +341,7 @@ function DiscoveryProgress({ discovery }: { discovery: Record<string, unknown> |
   const tip = discovery.chainTipBlock;
   if ((typeof scanned !== 'string' && typeof scanned !== 'number') || (typeof tip !== 'string' && typeof tip !== 'number')) return null;
   const caughtUp = discovery.caughtUp === true;
-  return <Card className={caughtUp ? 'border-emerald-500/20' : 'border-amber-500/30'}><CardContent className="py-4"><div className="flex flex-wrap items-center justify-between gap-3"><div><p className="text-sm font-semibold">{caughtUp ? 'V4 索引已同步' : 'V4 首次同步中'}</p><p className="mt-1 text-xs text-muted-foreground">已同步至区块 <span className="font-mono text-foreground">{display(scanned)}</span></p></div><div className="text-right"><p className="text-xs text-muted-foreground">目标区块</p><p className="mt-1 font-mono text-sm font-semibold">{display(tip)}</p></div></div></CardContent></Card>;
+  return <Card className={caughtUp ? 'border-positive/20' : 'border-warning/30'}><CardContent className="py-4"><div className="flex flex-wrap items-center justify-between gap-3"><div><p className="text-sm font-semibold">{caughtUp ? 'V4 索引已同步' : 'V4 首次同步中'}</p><p className="mt-1 text-xs text-muted-foreground">已同步至区块 <span className="font-mono text-foreground">{display(scanned)}</span></p></div><div className="text-right"><p className="text-xs text-muted-foreground">目标区块</p><p className="mt-1 font-mono text-sm font-semibold">{display(tip)}</p></div></div></CardContent></Card>;
 }
 
 function isStablecoin(symbol: unknown): boolean {
@@ -395,11 +395,11 @@ function UniPositions({ positions }: { positions: Array<Record<string, unknown>>
           <p className="mb-2 text-xs font-medium text-muted-foreground xl:hidden">头寸</p>
           <p className="truncate text-[17px] font-semibold tracking-tight tabular-nums">{formatApproximatePrice(lowerPrice)} <span className="mx-0.5 text-muted-foreground">→</span> {formatApproximatePrice(upperPrice)} <span className="text-sm font-medium text-muted-foreground">{String(quoteToken.symbol ?? '')}</span></p>
           <CurrentLpPrice tick={position.currentTick} token0={token0} token1={token1} />
-          <p className={cn('mt-1.5 flex items-center gap-1.5 text-sm font-medium', closed ? 'text-muted-foreground' : position.inRange === true ? 'text-emerald-600' : 'text-amber-600')}><Circle className="size-2.5 fill-current" />{closed ? '已关闭' : position.inRange === true ? '在范围内' : position.inRange === false ? '范围外' : '范围未知'}</p>
+          <p className={cn('mt-1.5 flex items-center gap-1.5 text-sm font-medium', closed ? 'text-muted-foreground' : position.inRange === true ? 'text-positive' : 'text-warning')}><Circle className="size-2.5 fill-current" />{closed ? '已关闭' : position.inRange === true ? '在范围内' : position.inRange === false ? '范围外' : '范围未知'}</p>
         </div>
         <div className="col-span-2 min-w-0 xl:col-span-1">
           <p className="mb-2 text-xs font-medium text-muted-foreground xl:hidden">分布</p>
-          {rangeProgress === null ? <p className="text-sm text-muted-foreground">暂无价格区间进度</p> : <><div className="mb-1 flex items-center justify-between"><span className="text-[11px] text-muted-foreground">价格区间位置</span><span className="font-mono text-xs font-semibold tabular-nums text-foreground">{rangeProgress.toFixed(1)}%</span></div><div className="flex h-1.5 items-center gap-[3px]" role="progressbar" aria-label={`${pair} 价格区间位置`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(rangeProgress)}>{DISTRIBUTION_SEGMENTS.map((segment) => <span key={segment} className={cn('h-full min-w-0 flex-1 rounded-[1px]', ((segment + 0.5) / DISTRIBUTION_SEGMENTS.length) * 100 <= rangeProgress ? 'bg-lime-700/80' : 'bg-foreground/75')} />)}</div><div className="mt-2 flex justify-between gap-3 text-xs text-muted-foreground"><span className="truncate">{formatDecimalString(typeof baseAmount === 'string' ? baseAmount : null, 4)} {String(baseToken.symbol ?? '')}</span><span className="truncate text-right">{formatDecimalString(typeof quoteAmount === 'string' ? quoteAmount : null, 4)} {String(quoteToken.symbol ?? '')}</span></div></>}
+          {rangeProgress === null ? <p className="text-sm text-muted-foreground">暂无价格区间进度</p> : <><div className="mb-1 flex items-center justify-between"><span className="text-[11px] text-muted-foreground">价格区间位置</span><span className="font-mono text-xs font-semibold tabular-nums text-foreground">{rangeProgress.toFixed(1)}%</span></div><div className="flex h-1.5 items-center gap-[3px]" role="progressbar" aria-label={`${pair} 价格区间位置`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(rangeProgress)}>{DISTRIBUTION_SEGMENTS.map((segment) => <span key={segment} className={cn('h-full min-w-0 flex-1 rounded-[1px]', ((segment + 0.5) / DISTRIBUTION_SEGMENTS.length) * 100 <= rangeProgress ? 'bg-positive/80' : 'bg-foreground/75')} />)}</div><div className="mt-2 flex justify-between gap-3 text-xs text-muted-foreground"><span className="truncate">{formatDecimalString(typeof baseAmount === 'string' ? baseAmount : null, 4)} {String(baseToken.symbol ?? '')}</span><span className="truncate text-right">{formatDecimalString(typeof quoteAmount === 'string' ? quoteAmount : null, 4)} {String(quoteToken.symbol ?? '')}</span></div></>}
         </div>
         {position.version === 'v4' ? <V4PositionDetails position={position} /> : null}
       </article>;
@@ -452,7 +452,7 @@ export function SnapshotPanel({ snapshot, loading, fetching, error, onRefresh }:
     <Card className="gap-0 py-0"><CardContent className="space-y-3 p-4"><div className="flex flex-wrap items-center justify-between gap-3"><div className="flex min-w-0 items-center gap-3"><div className={cn('flex size-10 shrink-0 items-center justify-center rounded-full bg-muted', status.className)}><StatusIcon className={cn('size-5', snapshot.status === 'warming_up' && 'animate-pulse')} /></div><div className="min-w-0"><p className="font-semibold">{status.label}</p><p className="mt-0.5 truncate text-xs text-muted-foreground">{formatDateTime(snapshot.observedAt)} · {dataAgeLabel} {displayedDataAgeSeconds === null ? '—' : `${formatDecimalString(String(displayedDataAgeSeconds), 3)}s`}</p></div></div><Button variant="ghost" size="icon-sm" onClick={onRefresh} disabled={fetching} aria-label="刷新快照"><RefreshCw className={fetching ? 'animate-spin' : undefined} /></Button></div><SummaryValues value={snapshot.summary} />{snapshot.error ? <p className="rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive"><span className="font-mono text-xs">{snapshot.error.code}</span><span className="mt-1 block">{snapshotErrorText(snapshot.error.code, snapshot.error.message)}</span></p> : null}{!snapshot.capability.available ? <p className="rounded-lg bg-muted p-3 text-sm text-muted-foreground">{snapshot.capability.reason ?? '当前能力暂不可用'}</p> : null}</CardContent></Card>
     <DiscoveryProgress discovery={discovery} />
     {pool ? <Card><CardHeader><CardTitle>Pool 快照</CardTitle></CardHeader><CardContent className="space-y-3"><KeyValues value={pool} limit={16} />{volumes.length ? <div><p className="mb-2 text-sm font-medium">滚动成交量</p><div className="grid gap-2 md:grid-cols-2">{volumes.map((volume, index) => <div key={String(volume.windowSeconds ?? index)} className="rounded-lg border p-3"><p className="mb-2 text-xs font-medium text-muted-foreground">窗口 {display(volume.windowSeconds)} 秒</p><KeyValues value={volume} /></div>)}</div></div> : null}</CardContent></Card> : null}
-    {metrics.length ? <Card><CardHeader><div className="flex items-center justify-between"><CardTitle className="flex items-center gap-2"><span className="flex size-7 items-center justify-center rounded-lg bg-violet-500/10 text-violet-600"><Database className="size-4" /></span>核心指标</CardTitle><Badge variant="secondary" className="rounded-full">{metrics.length} 项</Badge></div></CardHeader><CardContent><div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">{metrics.map((metric, index) => { const displayedMetric = displayKeyValue(String(metric.name), metric.value); const unit = metricUnit(metric); const showUnit = unit && displayedMetric !== '暂不可用' && !['lp_fee', 'protocol_fee'].includes(String(metric.name)); return <div key={`${String(metric.name)}-${index}`} className="rounded-xl bg-muted/45 p-3.5 ring-1 ring-foreground/[0.06] transition-colors hover:bg-muted/65"><p className="text-[11px] font-medium text-muted-foreground">{metricLabel(metric)}</p><p className="mt-1.5 truncate font-mono text-base font-semibold tracking-tight tabular-nums" title={displayedMetric}>{displayedMetric}{showUnit ? <span className="ml-1.5 text-xs font-normal text-muted-foreground">{unit}</span> : null}</p></div>; })}</div></CardContent></Card> : null}
+    {metrics.length ? <Card><CardHeader><div className="flex items-center justify-between"><CardTitle className="flex items-center gap-2"><span className="flex size-7 items-center justify-center rounded-lg bg-primary/10 text-primary"><Database className="size-4" /></span>核心指标</CardTitle><Badge variant="secondary" className="rounded-full">{metrics.length} 项</Badge></div></CardHeader><CardContent><div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">{metrics.map((metric, index) => { const displayedMetric = displayKeyValue(String(metric.name), metric.value); const unit = metricUnit(metric); const showUnit = unit && displayedMetric !== '暂不可用' && !['lp_fee', 'protocol_fee'].includes(String(metric.name)); return <div key={`${String(metric.name)}-${index}`} className="rounded-xl bg-muted/45 p-3.5 ring-1 ring-foreground/[0.06] transition-colors hover:bg-muted/65"><p className="text-[11px] font-medium text-muted-foreground">{metricLabel(metric)}</p><p className="mt-1.5 truncate font-mono text-base font-semibold tracking-tight tabular-nums" title={displayedMetric}>{displayedMetric}{showUnit ? <span className="ml-1.5 text-xs font-normal text-muted-foreground">{unit}</span> : null}</p></div>; })}</div></CardContent></Card> : null}
     {positions.length ? isAave ? <AavePositions positions={positions} /> : <UniPositions key={snapshot.monitorId} positions={positions} /> : null}
     <Events events={events} />
   </div>;

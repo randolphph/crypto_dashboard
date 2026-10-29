@@ -459,7 +459,7 @@ export function StockPositionsManager({
                             className={cn(
                               'flex-1 rounded-md px-2 py-1 text-xs font-medium transition-colors',
                               tradeAction === 'buy'
-                                ? 'bg-green-500/15 text-green-600'
+                                ? 'bg-positive/15 text-positive'
                                 : 'text-muted-foreground hover:bg-secondary'
                             )}
                           >
@@ -470,7 +470,7 @@ export function StockPositionsManager({
                             className={cn(
                               'flex-1 rounded-md px-2 py-1 text-xs font-medium transition-colors',
                               tradeAction === 'sell'
-                                ? 'bg-red-500/15 text-red-600'
+                                ? 'bg-negative/15 text-negative'
                                 : 'text-muted-foreground hover:bg-secondary'
                             )}
                           >
@@ -499,7 +499,7 @@ export function StockPositionsManager({
                         </div>
                         {p.broker === 'ths' && p.market === 'A' && <AShareTradeFields value={{ ...tradeFields, accountId: tradeFields.accountId || p.ledgerAccountId || defaultAccountId }} onChange={setTradeFields} accounts={aShareAccounts} />}
                         {tradeError && (
-                          <p className="text-xs text-red-500">{tradeError}</p>
+                          <p className="text-xs text-negative">{tradeError}</p>
                         )}
                         <div className="flex gap-2">
                           <button

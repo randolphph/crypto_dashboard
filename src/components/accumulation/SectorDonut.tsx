@@ -5,17 +5,7 @@ import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
 import type { SectorRollup } from '@/lib/accumulation/derive';
 import { usePrivacyFormat } from '@/hooks/usePrivacyFormat';
 
-const RAINBOW_STOPS = [
-  ['0%', 'var(--accumulation-rainbow-red)'],
-  ['14%', 'var(--accumulation-rainbow-orange)'],
-  ['28%', 'var(--accumulation-rainbow-amber)'],
-  ['43%', 'var(--accumulation-rainbow-green)'],
-  ['57%', 'var(--accumulation-rainbow-cyan)'],
-  ['72%', 'var(--accumulation-rainbow-blue)'],
-  ['86%', 'var(--accumulation-rainbow-violet)'],
-  ['93%', 'var(--accumulation-rainbow-pink)'],
-  ['100%', 'var(--accumulation-rainbow-red)'],
-] as const;
+import { WaterCircle } from './WaterCircle';
 
 const HOLDING_OPACITY = 1;
 // Angular gap between sectors, as a fraction of current holdings. Inserted as a
@@ -40,8 +30,9 @@ interface LabelSlice {
 interface Props {
   rollups: SectorRollup[];
   sectorColors: ReadonlyMap<string, string>;
-  // 总体加仓进度 = AI 现值 / 目标,驱动圆环中心的接水特效。
+  // 总体加仓进度 = AI 现值 / 目标，驱动圆环中心的水位球。
   progress: number;
+  pendingBudget: number;
   // Effective highlight = hover ?? pin, computed by the parent.
   activeSector: string | null;
   onHover: (sector: string | null) => void;
@@ -52,6 +43,7 @@ export function SectorDonut({
   rollups,
   sectorColors,
   progress,
+  pendingBudget,
   activeSector,
   onHover,
   onTogglePin,
@@ -71,7 +63,7 @@ export function SectorDonut({
       const ring: RingSlice[] = [];
       const labels: LabelSlice[] = [];
       withHoldings.forEach((r, idx) => {
-        const color = sectorColors.get(r.sector) ?? '#64748b';
+        const color = sectorColors.get(r.sector) ?? 'var(--chart-1)';
         ring.push({
           sector: r.sector,
           kind: 'holding',
@@ -134,9 +126,9 @@ export function SectorDonut({
         dominantBaseline="central"
         fontSize={compact ? 12 : 19}
         fontWeight={activeSector === sector ? 800 : 700}
-        fill={compact ? '#fff' : sectorColors.get(sector)}
-        stroke={compact ? 'rgba(0, 0, 0, 0.24)' : 'none'}
-        strokeWidth={compact ? 2 : 0}
+        fill="var(--foreground)"
+        stroke={compact ? 'var(--card)' : 'none'}
+        strokeWidth={compact ? 3 : 0}
         paintOrder="stroke"
         opacity={dim ? 0.3 : 1}
         className="cursor-pointer"
@@ -168,10 +160,9 @@ export function SectorDonut({
 
   return (
     <div className="relative w-full max-w-xl">
-      {/* 圆环中央的接水特效:水位 = 总体加仓进度。绝对居中,对齐
-          recharts 的 cx/cy(50%/50%),落在内圈空洞里。 */}
-      <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-        <WaterCircle progress={progress} hidden={hidden} />
+      {/* 水位球保留在板块圆环中心，与现有 cx/cy 对齐。 */}
+      <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center">
+        <WaterCircle progress={progress} pendingBudget={pendingBudget} hidden={hidden} />
       </div>
       <ResponsiveContainer width="100%" height={440}>
         <PieChart>
@@ -233,6 +224,7 @@ export function SectorDonut({
             labelLine={false}
           />
           <Tooltip
+            wrapperStyle={{ zIndex: 20 }}
             content={({ active, payload }) => {
               if (!active || !payload?.length) return null;
               const sector = (payload[0].payload as RingSlice).sector;
@@ -241,9 +233,9 @@ export function SectorDonut({
               if (!r) return null;
               const currentShare =
                 totalCurrent > 0 ? r.currentValue / totalCurrent : 0;
-              const color = sectorColors.get(sector) ?? '#888888';
+              const color = sectorColors.get(sector) ?? 'var(--muted-foreground)';
               return (
-                <div className="min-w-[320px] rounded-lg border bg-popover px-5 py-4 text-base shadow-lg">
+                <div role="tooltip" data-sector-tooltip className="min-w-[320px] rounded-lg border bg-popover px-5 py-4 text-base text-popover-foreground shadow-lg">
                   <p className="flex items-center gap-2.5 text-lg font-semibold tracking-wide">
                     <span
                       className="inline-block h-3.5 w-3.5 rounded-sm"
@@ -253,7 +245,7 @@ export function SectorDonut({
                     <span className="ml-auto flex items-center gap-2 text-sm text-muted-foreground tabular-nums">
                       <span
                         className="h-2 w-16 overflow-hidden rounded-full"
-                        style={{ backgroundColor: `${color}33` }}
+                        style={{ backgroundColor: `color-mix(in srgb, ${color} 20%, transparent)` }}
                       >
                         <span
                           className="block h-full rounded-full"
@@ -315,197 +307,6 @@ export function SectorDonut({
   );
 }
 
-// 圆环中心的「接水」特效:一个圆形容器,水位随加仓进度升降,水面用两层
-// 反向漂移的正弦波营造晃动感(SMIL animate,自包含、无需全局 CSS)。中央叠
-// 印进度百分比。边框与水体使用和图表色板一致的柔和七彩渐变。
-function WaterCircle({
-  progress,
-  hidden,
-}: {
-  progress: number;
-  hidden: boolean;
-}) {
-  const size = 200;
-  const r = size / 2;
-  const pct = Math.max(0, Math.min(1, progress));
-  // 水面 Y:满格在顶部(0),空时在底部(size)。多留一点余量,空/满时水
-  // 面不会贴边露出直角。
-  const level = size * (1 - pct);
-  // 满进度时仍把水面保留在圆顶下方，避免波浪完全移出视口。
-  const visibleLevel = pct > 0 ? Math.max(10, level) : level;
-  const clipId = 'water-clip';
-  const gradId = 'rainbow-progress';
-  const backGradId = 'rainbow-progress-back';
-  const frontGradId = 'rainbow-progress-front';
-  const backDuration = '6s';
-  const frontDuration = '3.8s';
-
-  // 一个周期 = size,路径横跨两个周期(2·size),向左平移一个周期即可
-  // 无缝循环。两层波形振幅/相位/速度不同,叠出层次。
-  const wave = (amp: number) =>
-    `M 0 0
-     Q ${size * 0.25} ${-amp}, ${size * 0.5} 0
-     T ${size} 0
-     T ${size * 1.5} 0
-     T ${size * 2} 0
-     L ${size * 2} ${size}
-     L 0 ${size} Z`;
-
-  return (
-    <svg
-      width={size}
-      height={size}
-      viewBox={`0 0 ${size} ${size}`}
-      className="drop-shadow-sm"
-    >
-      <defs>
-        <clipPath id={clipId}>
-          <circle cx={r} cy={r} r={r - 2} />
-        </clipPath>
-        {/* 首尾用同一红色闭合，紫色到红色之间以粉色平滑衔接。 */}
-        <linearGradient
-          id={gradId}
-          gradientUnits="userSpaceOnUse"
-          x1="0"
-          y1="0"
-          x2={size}
-          y2="0"
-          colorInterpolation="sRGB"
-        >
-          <RainbowStops />
-        </linearGradient>
-        {/* 波形移动时反向补偿渐变坐标，让颜色固定在圆内，仅水面移动。 */}
-        <linearGradient
-          id={backGradId}
-          gradientUnits="userSpaceOnUse"
-          x1="0"
-          y1="0"
-          x2={size}
-          y2="0"
-          colorInterpolation="sRGB"
-        >
-          <RainbowStops />
-          <animateTransform
-            attributeName="gradientTransform"
-            type="translate"
-            from="0 0"
-            to={`${size} 0`}
-            dur={backDuration}
-            repeatCount="indefinite"
-          />
-        </linearGradient>
-        <linearGradient
-          id={frontGradId}
-          gradientUnits="userSpaceOnUse"
-          x1="0"
-          y1="0"
-          x2={size}
-          y2="0"
-          colorInterpolation="sRGB"
-        >
-          <RainbowStops />
-          <animateTransform
-            attributeName="gradientTransform"
-            type="translate"
-            from={`${size} 0`}
-            to="0 0"
-            dur={frontDuration}
-            repeatCount="indefinite"
-          />
-        </linearGradient>
-      </defs>
-
-      <g clipPath={`url(#${clipId})`}>
-        {/* 极淡底色让空水位保持可读，但不干扰水面边界。 */}
-        <rect
-          width={size}
-          height={size}
-          fill={`url(#${gradId})`}
-          fillOpacity="var(--accumulation-water-base-opacity)"
-        />
-        {/* 直接绘制两层水体，避免部分浏览器不刷新动画 clipPath。 */}
-        <g transform={`translate(0 ${visibleLevel})`}>
-          <path
-            d={wave(9)}
-            fill={`url(#${backGradId})`}
-            fillOpacity="var(--accumulation-water-back-opacity)"
-            stroke={`url(#${backGradId})`}
-            strokeOpacity="var(--accumulation-water-back-stroke-opacity)"
-            strokeWidth={1.5}
-          >
-            <animateTransform
-              attributeName="transform"
-              type="translate"
-              from="0 0"
-              to={`${-size} 0`}
-              dur={backDuration}
-              repeatCount="indefinite"
-            />
-          </path>
-          <path
-            d={wave(6)}
-            fill={`url(#${frontGradId})`}
-            fillOpacity="var(--accumulation-water-front-opacity)"
-            stroke={`url(#${frontGradId})`}
-            strokeOpacity="var(--accumulation-water-front-stroke-opacity)"
-            strokeWidth={2}
-          >
-            <animateTransform
-              attributeName="transform"
-              type="translate"
-              from={`${-size} 0`}
-              to="0 0"
-              dur={frontDuration}
-              repeatCount="indefinite"
-            />
-          </path>
-        </g>
-      </g>
-
-      {/* 柔和的七彩描边，压在水面之上。 */}
-      <circle
-        cx={r}
-        cy={r}
-        r={r - 2}
-        fill="none"
-        stroke={`url(#${gradId})`}
-        strokeOpacity="var(--accumulation-water-outline-opacity)"
-        strokeWidth={2}
-      />
-
-      {/* 中央进度数字 */}
-      <text
-        x={r}
-        y={r - 6}
-        textAnchor="middle"
-        dominantBaseline="central"
-        fontSize={34}
-        fontWeight={800}
-        className="fill-foreground"
-      >
-        {hidden ? '****' : `${(pct * 100).toFixed(0)}%`}
-      </text>
-      <text
-        x={r}
-        y={r + 22}
-        textAnchor="middle"
-        dominantBaseline="central"
-        fontSize={13}
-        fontWeight={600}
-        className="fill-muted-foreground"
-      >
-        仓位进度
-      </text>
-    </svg>
-  );
-}
-
-function RainbowStops() {
-  return RAINBOW_STOPS.map(([offset, stopColor]) => (
-    <stop key={offset} offset={offset} stopColor={stopColor} />
-  ));
-}
-
 // Per-stock share donut for the tooltip: the arc is this stock's current-value
 // share inside the sector. It deliberately carries no target amount.
 function MemberRing({
@@ -557,7 +358,7 @@ function MemberRing({
         dominantBaseline="central"
         fontSize={9}
         fontWeight={700}
-        fill={color}
+        fill="var(--foreground)"
       >
         {hidden ? '•' : Math.round(filled * 100)}
       </text>

@@ -193,9 +193,9 @@ export function CashFlowSettings() {
               >
                 <div className="flex items-center gap-3 min-w-0 flex-1">
                   {e.type === 'withdraw' ? (
-                    <ArrowUpFromLine className="h-4 w-4 text-red-500 shrink-0" />
+                    <ArrowUpFromLine className="h-4 w-4 text-negative shrink-0" />
                   ) : (
-                    <ArrowDownToLine className="h-4 w-4 text-green-500 shrink-0" />
+                    <ArrowDownToLine className="h-4 w-4 text-positive shrink-0" />
                   )}
                   <div className="min-w-0 flex-1">
                     <div className="flex items-baseline gap-2">

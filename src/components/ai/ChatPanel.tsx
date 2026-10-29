@@ -194,7 +194,7 @@ export function ChatPanel() {
                   ))}
                 </div>
                 {!apiKey && (
-                  <p className="text-xs text-amber-600 dark:text-amber-400">
+                  <p className="text-xs text-warning dark:text-warning">
                     尚未配置 DeepSeek API Key。先到「设置」页填入。
                   </p>
                 )}
@@ -222,7 +222,7 @@ export function ChatPanel() {
               ))
             )}
             {error && (
-              <div className="rounded-md border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-600 dark:text-red-400">
+              <div className="rounded-md border border-negative/30 bg-negative/10 px-3 py-2 text-xs text-negative dark:text-negative">
                 {error}
               </div>
             )}

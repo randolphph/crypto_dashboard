@@ -65,7 +65,7 @@ const tabGroups = [
     id: 'crypto',
     label: '加密',
     Icon: Bitcoin,
-    iconClass: 'text-amber-500',
+    iconClass: 'text-warning classic:text-amber-500',
     tabs: [
       { id: 'exchanges', label: '交易所' },
       { id: 'deribit', label: '期权 (Deribit)' },
@@ -76,7 +76,7 @@ const tabGroups = [
     id: 'stocks',
     label: '股票',
     Icon: LineChart,
-    iconClass: 'text-blue-500',
+    iconClass: 'text-primary classic:text-blue-500',
     tabs: [
       { id: 'ths', label: 'A股' },
       { id: 'longport', label: '长桥' },
@@ -87,10 +87,10 @@ const tabGroups = [
     id: 'cash',
     label: '现金',
     Icon: Banknote,
-    iconClass: 'text-emerald-500',
+    iconClass: 'text-positive classic:text-emerald-500',
     tabs: [{ id: 'bank', label: '银行' }],
   },
-  { id: 'physical', label: '实物资产', Icon: Coins, iconClass: 'text-yellow-600', tabs: [{ id: 'gold', label: '黄金' }] },
+  { id: 'physical', label: '实物资产', Icon: Coins, iconClass: 'text-warning classic:text-yellow-600', tabs: [{ id: 'gold', label: '黄金' }] },
 ] as const;
 
 type TabId =
@@ -397,7 +397,7 @@ export function Dashboard() {
                   <div className="mb-2 mr-3 hidden h-5 w-px bg-border md:block" />
                 )}
                 <div className="flex flex-col">
-                  <span className="hidden items-center gap-1 px-4 pb-0.5 text-[10px] font-medium uppercase tracking-wider text-muted-foreground/70 md:inline-flex">
+                  <span className="hidden items-center gap-1 px-4 pb-0.5 text-[10px] font-medium uppercase tracking-wider text-muted-foreground md:inline-flex classic:text-muted-foreground/70">
                     {group.label}
                     <group.Icon className={cn('h-5 w-5', group.iconClass)} />
                   </span>

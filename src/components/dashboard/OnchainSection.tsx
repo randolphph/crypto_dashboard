@@ -105,7 +105,7 @@ export function OnchainSection({ wallets, isLoading, error, isRefreshing, onRefr
             </div>
           </div>
           {wallet.dataUpdatedAt && <p
-            className={`mb-3 text-xs ${now - wallet.dataUpdatedAt > ONCHAIN_WARNING_MS ? 'text-amber-700 dark:text-amber-400' : 'text-muted-foreground'}`}
+            className={`mb-3 text-xs ${now - wallet.dataUpdatedAt > ONCHAIN_WARNING_MS ? 'text-warning dark:text-warning classic:text-amber-700 classic:dark:text-amber-400' : 'text-muted-foreground'}`}
             title={new Date(wallet.dataUpdatedAt).toLocaleString()}
           >
             数据更新于 {dataAge(wallet.dataUpdatedAt, now)}
@@ -113,7 +113,7 @@ export function OnchainSection({ wallets, isLoading, error, isRefreshing, onRefr
             {now - wallet.dataUpdatedAt > ONCHAIN_WARNING_MS && ' · 数据已过期'}
             {wallet.cache?.refreshing && ' · 后台更新中'}
           </p>}
-          {wallet.cache?.refreshError && <p className="mb-3 text-xs text-amber-700 dark:text-amber-400">
+          {wallet.cache?.refreshError && <p className="mb-3 text-xs text-warning dark:text-warning classic:text-amber-700 classic:dark:text-amber-400">
             更新失败，显示上次成功数据：{wallet.cache.refreshError}
           </p>}
           {wallet.error ? (
@@ -121,7 +121,7 @@ export function OnchainSection({ wallets, isLoading, error, isRefreshing, onRefr
           ) : (
             <>
               {wallet.dataQuality?.complete === false && wallet.dataQuality.errors.length > 0 && (
-                <p className="mb-3 text-xs text-amber-700 dark:text-amber-400">
+                <p className="mb-3 text-xs text-warning dark:text-warning classic:text-amber-700 classic:dark:text-amber-400">
                   数据不完整：{wallet.dataQuality.errors.join('；')}
                 </p>
               )}

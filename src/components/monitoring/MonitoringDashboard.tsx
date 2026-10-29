@@ -24,26 +24,26 @@ import type { AlertStatus, CryptoSentryMonitor, IntegrationCatalog, MonitorStatu
 const STATUS: Record<MonitorStatus, { label: string; className: string; surfaceClassName: string; icon: typeof Activity }> = {
   warming_up: {
     label: '预热中',
-    className: 'text-blue-600 dark:text-blue-400',
-    surfaceClassName: 'bg-linear-to-r from-blue-500/[0.11] via-blue-500/[0.04] to-transparent',
+    className: 'text-primary dark:text-primary',
+    surfaceClassName: 'bg-primary/[0.06]',
     icon: Clock3,
   },
   ok: {
     label: '正常',
-    className: 'text-emerald-600 dark:text-emerald-400',
-    surfaceClassName: 'bg-linear-to-r from-emerald-500/[0.10] via-emerald-500/[0.035] to-transparent',
+    className: 'text-positive dark:text-positive',
+    surfaceClassName: 'bg-positive/[0.06]',
     icon: CheckCircle2,
   },
   stale: {
     label: '过期',
-    className: 'text-amber-600 dark:text-amber-400',
-    surfaceClassName: 'bg-linear-to-r from-amber-500/[0.14] via-amber-500/[0.05] to-transparent',
+    className: 'text-warning dark:text-warning',
+    surfaceClassName: 'bg-warning/[0.06]',
     icon: AlertTriangle,
   },
   error: {
     label: '异常',
-    className: 'text-destructive dark:text-red-400',
-    surfaceClassName: 'bg-linear-to-r from-red-500/[0.14] via-red-500/[0.05] to-transparent',
+    className: 'text-destructive dark:text-negative',
+    surfaceClassName: 'bg-negative/[0.06]',
     icon: AlertTriangle,
   },
 };
@@ -78,7 +78,7 @@ function MonitorItem({ monitor, selected, onSelect, catalog }: { monitor: Crypto
   const fullTarget = String(target(monitor, catalog));
   const surfaceClassName = monitor.enabled
     ? status.surfaceClassName
-    : 'bg-linear-to-r from-slate-500/[0.09] via-slate-500/[0.03] to-transparent grayscale';
+    : 'bg-muted-foreground/[0.06] grayscale';
   return <button type="button" onClick={onSelect} aria-pressed={selected} className={cn('relative w-full overflow-hidden rounded-xl border px-3.5 py-3 text-left transition-all hover:saturate-150', surfaceClassName, selected ? 'border-foreground/20 shadow-sm ring-1 ring-foreground/5' : 'border-transparent hover:border-border', selected && 'before:absolute before:inset-y-2 before:left-0 before:w-0.5 before:rounded-full before:bg-foreground')}><div className="min-w-0"><p className="truncate text-sm font-semibold">{monitor.name}</p><p className="mt-1 truncate font-mono text-[11px] text-muted-foreground" title={fullTarget}>{compactTarget(fullTarget)}</p></div><div className="mt-3 flex items-center justify-between"><p className={cn('flex items-center gap-1.5 text-xs font-medium', monitor.enabled ? status.className : 'text-muted-foreground')}><span className="flex size-5 items-center justify-center rounded-full bg-background/80 ring-1 ring-current/15"><Icon className="size-3" /></span>{monitor.enabled ? status.label : '已停用'}</p><span title={`数据源：${TYPE_LABEL[monitor.type]}`} aria-label={`数据源：${TYPE_LABEL[monitor.type]}`} className="flex size-7 items-center justify-center"><MonitorTypeIcon type={monitor.type} decorated={false} className="size-7 rounded-none" /></span></div></button>;
 }
 

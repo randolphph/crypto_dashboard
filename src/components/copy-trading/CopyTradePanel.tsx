@@ -230,7 +230,7 @@ export function CopyTradePanel({ snapshot, events }: CopyTradePanelProps) {
           <div>
             <div className="flex flex-wrap items-center gap-2">
               <CardTitle>Hyperliquid 跟单</CardTitle>
-              <Badge className="bg-amber-500/10 text-amber-700 dark:text-amber-400">人工确认</Badge>
+              <Badge className="bg-warning/10 text-warning dark:text-warning">人工确认</Badge>
             </div>
             <p className="mt-1 text-sm text-muted-foreground">
               按比例复刻目标账户当前仓位与挂单；仓位按双方差额调整，挂单结束时撤销对应跟单挂单。
@@ -298,7 +298,7 @@ export function CopyTradePanel({ snapshot, events }: CopyTradePanelProps) {
                 <p className="font-medium">执行预览</p>
                 <p className="text-xs text-muted-foreground">生成于 {formatTime(preview.createdAt)} · 60 秒内有效 · 比例 {preview.ratio} · 仓位滑点 {preview.maxSlippagePercent}%</p>
               </div>
-              {newerEventCount > 0 ? <Badge className="bg-blue-500/10 text-blue-600">另有 {newerEventCount} 条新变化</Badge> : null}
+              {newerEventCount > 0 ? <Badge className="bg-primary/10 text-primary">另有 {newerEventCount} 条新变化</Badge> : null}
             </div>
             <div className="divide-y">
               {preview.items.map((item) => {
@@ -310,9 +310,9 @@ export function CopyTradePanel({ snapshot, events }: CopyTradePanelProps) {
                       variant="outline"
                       className={cn(
                         'w-fit',
-                        item.decision === 'place' && 'border-emerald-500/30 text-emerald-600',
-                        item.decision === 'position' && 'border-blue-500/30 text-blue-600',
-                        item.decision === 'cancel' && 'border-red-500/30 text-red-600',
+                        item.decision === 'place' && 'border-positive/30 text-positive',
+                        item.decision === 'position' && 'border-primary/30 text-primary',
+                        item.decision === 'cancel' && 'border-negative/30 text-negative',
                       )}
                     >
                       {previewLabel(item.decision)}
@@ -328,7 +328,7 @@ export function CopyTradePanel({ snapshot, events }: CopyTradePanelProps) {
                     <div className="text-left md:text-right">
                       {isPositionItem && item.decision === 'position' ? (
                         <>
-                          <p className={cn('font-medium', item.side === 'buy' ? 'text-emerald-600' : 'text-red-600')}>
+                          <p className={cn('font-medium', item.side === 'buy' ? 'text-positive' : 'text-negative')}>
                             {item.side === 'buy' ? '买入' : '卖出'} {item.copiedSize} {item.coin}
                           </p>
                           <p className="font-mono text-xs text-muted-foreground">当前 {item.followerSize} → 目标 {item.targetSize} · IOC 限价 {item.price}</p>
@@ -339,14 +339,14 @@ export function CopyTradePanel({ snapshot, events }: CopyTradePanelProps) {
                       ) : null}
                       {item.decision === 'place' ? (
                         <>
-                          <p className={cn('font-medium', item.side === 'buy' ? 'text-emerald-600' : 'text-red-600')}>
+                          <p className={cn('font-medium', item.side === 'buy' ? 'text-positive' : 'text-negative')}>
                             {item.side === 'buy' ? '买入' : '卖出'} {item.copiedSize} {item.coin}
                           </p>
                           <p className="font-mono text-xs text-muted-foreground">@ {item.price} · {item.tif}{item.reduceOnly ? ' · 只减仓' : ''}</p>
                         </>
                       ) : null}
                       {result ? (
-                        <p className={cn('mt-1 flex items-center gap-1 text-xs md:justify-end', result.status === 'failed' ? 'text-destructive' : 'text-emerald-600')}>
+                        <p className={cn('mt-1 flex items-center gap-1 text-xs md:justify-end', result.status === 'failed' ? 'text-destructive' : 'text-positive')}>
                           {result.status === 'failed' ? <XCircle className="size-3" /> : <CheckCircle2 className="size-3" />}{result.message}
                         </p>
                       ) : null}
@@ -392,8 +392,8 @@ export function CopyTradePanel({ snapshot, events }: CopyTradePanelProps) {
               将在 {preview?.network === 'mainnet' ? 'Hyperliquid 主网' : 'Hyperliquid 测试网'}提交 {executableCount} 项操作。签名只在当前浏览器内完成。
             </DialogDescription>
           </DialogHeader>
-          <div className="rounded-lg border border-amber-500/25 bg-amber-500/8 p-3 text-sm">
-            <p className="font-medium text-amber-800 dark:text-amber-300">限价单也可能立即成交</p>
+          <div className="rounded-lg border border-warning/25 bg-warning/8 p-3 text-sm">
+            <p className="font-medium text-warning dark:text-warning">限价单也可能立即成交</p>
             <p className="mt-1 text-xs text-muted-foreground">从观察到确认之间市场可能变化，GTC 限价单提交时可能成为吃单。请再次核对价格、方向、数量和网络。</p>
           </div>
           <label className="flex cursor-pointer items-start gap-2 rounded-lg border p-3 text-sm">

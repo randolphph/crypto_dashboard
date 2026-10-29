@@ -31,7 +31,7 @@ export function StockLogo({
       width={20}
       height={20}
       loading="lazy"
-      className="h-5 w-5 shrink-0 rounded-full bg-white/90 object-contain p-0.5 ring-1 ring-border/60"
+      className="h-5 w-5 shrink-0 rounded-full bg-card/90 object-contain p-0.5 ring-1 ring-border/60"
       onError={() => setErrored(true)}
     />
   );

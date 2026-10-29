@@ -1,7 +1,7 @@
 import 'server-only';
 import { fetchWithTimeout } from '@/lib/http/fetch';
 
-const SYMBOL_TO_COINGECKO: Record<string, string> = {
+export const SYMBOL_TO_COINGECKO: Record<string, string> = {
   BTC: 'bitcoin',
   ETH: 'ethereum',
   SOL: 'solana',

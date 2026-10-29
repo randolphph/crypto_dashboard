@@ -1,23 +1,25 @@
+import { CHART_SERIES, assetCategoryColor } from '@/lib/theme/colors';
 import type { AssetBalance } from '@/types/common';
-import { BROKER_LABEL, type StocksData, type StockBroker } from '@/types/stocks';
+import { BROKER_LABEL, type StocksData, type StockBroker, type StockMarket } from '@/types/stocks';
 import type { WalletBalance } from '@/types/onchain';
 import { assetMappingKey, defiCategoryKey, type AssetLocation } from './assetStockMapping';
 import type { ValuedGoldHolding } from '@/types/gold';
+import { optionContract } from '@/lib/stocks/optionContract';
 export { defiCategoryKey } from './assetStockMapping';
 
 export interface AssetCategory { id: string; name: string; color: string }
 export const US_STOCK_CATEGORY_ID = 'us-stocks';
-export const US_STOCK_CATEGORY: AssetCategory = { id: US_STOCK_CATEGORY_ID, name: '美股', color: '#6366f1' };
+export const US_STOCK_CATEGORY: AssetCategory = { id: US_STOCK_CATEGORY_ID, name: '美股', color: 'var(--category-us-stocks)' };
 export const GOLD_CATEGORY_ID = 'gold';
-export const GOLD_CATEGORY: AssetCategory = { id: GOLD_CATEGORY_ID, name: '黄金', color: '#d97706' };
+export const GOLD_CATEGORY: AssetCategory = { id: GOLD_CATEGORY_ID, name: '黄金', color: 'var(--category-gold)' };
 export const DEFAULT_ASSET_CATEGORIES: AssetCategory[] = [
-  { id: 'cash', name: '现金及等价物', color: '#10b981' },
-  { id: 'stocks', name: '股票', color: '#3b82f6' },
-  { id: 'crypto', name: '加密资产', color: '#f59e0b' },
+  { id: 'cash', name: '现金及等价物', color: 'var(--category-cash)' },
+  { id: 'stocks', name: '股票', color: 'var(--category-stocks)' },
+  { id: 'crypto', name: '加密资产', color: 'var(--category-crypto)' },
   US_STOCK_CATEGORY,
   GOLD_CATEGORY,
 ];
-export const CATEGORY_PALETTE = ['#8b5cf6', '#06b6d4', '#ec4899', '#ef4444', '#84cc16', '#f97316'];
+export const CATEGORY_PALETTE = CHART_SERIES;
 export interface CategoryConfiguration {
   categories: AssetCategory[];
   assignments: Record<string, string>;
@@ -28,12 +30,16 @@ export interface CategoryConfiguration {
 export interface ClassificationAsset {
   id: string;
   label: string;
+  displayLabel?: string;
+  icon?: AssetIcon;
   source: string;
   value: number;
   defaultCategoryId?: string;
   nativeStockSymbol?: string;
 }
-export interface CategoryBucket { id: string; label: string; color: string; value: number; details: Array<{ label: string; value: number }> }
+export interface AssetIcon { symbol: string; src?: string; market?: StockMarket }
+export interface AssetCategoryDetail { label: string; displayLabel?: string; icon?: AssetIcon; value: number }
+export interface CategoryBucket { id: string; label: string; color: string; value: number; details: AssetCategoryDetail[] }
 export const stockCategoryKey = (broker: StockBroker, id: string) => `stock:${broker}:${id}`;
 export const stockCashCategoryKey = (broker: StockBroker, id: string) => `stock-cash:${broker}:${id}`;
 export const bankCategoryKey = (id: string) => `bank:${id}`;
@@ -60,7 +66,7 @@ export function resolveUsStockSymbol(config: CategoryConfiguration, id: string, 
   return config.usStockSymbols?.[id] ?? knownSymbol;
 }
 export function aggregateAssetCategories(assets: ClassificationAsset[], config: CategoryConfiguration): CategoryBucket[] {
-  const buckets = new Map(config.categories.map((entry) => [entry.id, { id: entry.id, label: entry.name, color: entry.color, value: 0, details: [] } as CategoryBucket]));
+  const buckets = new Map(config.categories.map((entry) => [entry.id, { id: entry.id, label: entry.name, color: assetCategoryColor(entry), value: 0, details: [] } as CategoryBucket]));
   for (const asset of assets) {
     if (!Number.isFinite(asset.value)) continue;
     const bucket = buckets.get(resolveAssetCategory(config, asset.id, asset.defaultCategoryId));
@@ -68,8 +74,12 @@ export function aggregateAssetCategories(assets: ClassificationAsset[], config: 
     bucket.value += asset.value;
     const label = `${asset.label} · ${asset.source}`;
     const existing = bucket.details.find((entry) => entry.label === label);
-    if (existing) existing.value += asset.value;
-    else bucket.details.push({ label, value: asset.value });
+    const stockSymbol = resolveUsStockSymbol(config, asset.id, asset.nativeStockSymbol, asset.defaultCategoryId);
+    const icon = asset.icon ?? (stockSymbol ? { symbol: stockSymbol, market: 'US' as const } : undefined);
+    if (existing) {
+      existing.value += asset.value;
+      existing.icon ??= icon;
+    } else bucket.details.push({ label, ...(asset.displayLabel ? { displayLabel: asset.displayLabel } : {}), ...(icon ? { icon } : {}), value: asset.value });
   }
   return [...buckets.values()].map((bucket) => ({ ...bucket, details: bucket.details.sort((a,b) => b.value - a.value) }));
 }
@@ -101,7 +111,7 @@ export function buildClassificationAssets(input: ClassificationInput): Classific
   const balances = (items: AssetBalance[], location: AssetLocation, source: string, cashEligible = true) => {
     for (const balance of items) {
       if (balance.dedupedToDefi) continue;
-      add({ id: balanceCategoryKey(location, balance), label: balance.stockSymbol ? `${balance.asset} → ${balance.stockSymbol}` : balance.asset, source, value: balance.usdValue, defaultCategoryId: defaultBalanceCategory(balance, cashEligible) });
+      add({ id: balanceCategoryKey(location, balance), label: balance.stockSymbol ? `${balance.asset} → ${balance.stockSymbol}` : balance.asset, icon: { symbol: balance.stockSymbol ?? balance.asset, src: balance.logo, market: balance.stockSymbol && !balance.logo ? 'US' : undefined }, source, value: balance.usdValue, defaultCategoryId: defaultBalanceCategory(balance, cashEligible) });
     }
   };
   if (input.binance && input.binance.configured !== false) {
@@ -118,12 +128,25 @@ export function buildClassificationAssets(input: ClassificationInput): Classific
   for (const wallet of input.onchain ?? []) {
     const start = rows.length;
     balances(wallet.balances, { source: 'onchain', walletId: wallet.walletId }, wallet.walletName);
-    for (const protocol of wallet.defiPositions ?? []) add({ id: defiCategoryKey(wallet.walletId, protocol.platformId, protocol.chainId), label: `${protocol.platformName} · ${protocol.network}`, source: wallet.walletName, value: protocol.totalUsdValue, defaultCategoryId: 'crypto' });
+    for (const protocol of wallet.defiPositions ?? []) add({ id: defiCategoryKey(wallet.walletId, protocol.platformId, protocol.chainId), label: `${protocol.platformName} · ${protocol.network}`, ...(protocol.platformLogo ? { icon: { symbol: protocol.platformName, src: protocol.platformLogo } } : {}), source: wallet.walletName, value: protocol.totalUsdValue, defaultCategoryId: 'crypto' });
     reconcile(start, wallet.totalUsdValue, `wallet:${wallet.walletId}:adjustment`, wallet.walletName, 'crypto');
   }
   for (const broker of input.stocks?.brokers ?? []) {
     const start = rows.length;
-    for (const p of broker.positions) add({ id: stockCategoryKey(broker.broker, p.id), label: `${p.symbol}${p.name || p.quoteName ? ` · ${p.name || p.quoteName}` : ''}`, source: BROKER_LABEL[broker.broker], value: p.marketValueUsd, defaultCategoryId: defaultStockCategory(p.symbol, p.kind, p.market), nativeStockSymbol: p.market === 'US' ? p.symbol : undefined });
+    for (const p of broker.positions) {
+      const contract = p.kind === 'option' ? optionContract(p) : undefined;
+      let displayLabel: string | undefined;
+      if (p.market === 'US') {
+        if (contract) {
+          displayLabel = contract.expiry && contract.strike && contract.optionType
+            ? `${contract.underlying ?? p.symbol} ${contract.expiry} ${contract.strike}${contract.optionType === 'call' ? 'C' : 'P'}`
+            : `${p.symbol} · ${p.name || '期权'}`;
+        } else {
+          displayLabel = p.symbol;
+        }
+      }
+      add({ id: stockCategoryKey(broker.broker, p.id), label: `${p.symbol}${p.name || p.quoteName ? ` · ${p.name || p.quoteName}` : ''}`, displayLabel, icon: p.market ? { symbol: contract?.underlying ?? p.symbol, market: p.market } : undefined, source: BROKER_LABEL[broker.broker], value: p.marketValueUsd, defaultCategoryId: defaultStockCategory(p.symbol, p.kind, p.market), nativeStockSymbol: p.market === 'US' ? p.symbol : undefined });
+    }
     for (const c of broker.cash) add({ id: stockCashCategoryKey(broker.broker, c.id), label: `${c.currency} 现金`, source: BROKER_LABEL[broker.broker], value: c.amountUsd, defaultCategoryId: 'cash' });
     reconcile(start, broker.totalUsdValue, `stock:${broker.broker}:adjustment`, BROKER_LABEL[broker.broker], 'stocks');
   }

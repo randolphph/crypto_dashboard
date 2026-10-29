@@ -65,7 +65,7 @@ export function DeribitSection({ data, isLoading, error }: DeribitSectionProps) 
         </div>
       )}
       {data.dataQuality?.complete === false && (
-        <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-xs text-amber-700 dark:text-amber-400">
+        <div className="rounded-lg border border-warning/30 bg-warning/5 px-3 py-2 text-xs text-warning dark:text-warning classic:border-amber-500/30 classic:bg-amber-500/5 classic:text-amber-700 classic:dark:text-amber-400">
           数据不完整：{data.dataQuality.errors.join('；')}
         </div>
       )}
@@ -138,8 +138,8 @@ export function DeribitSection({ data, isLoading, error }: DeribitSectionProps) 
                         className={cn(
                           'rounded-full px-2 py-0.5 text-xs font-medium',
                           pos.direction === 'buy'
-                            ? 'bg-green-500/10 text-green-600 dark:text-green-400'
-                            : 'bg-red-500/10 text-red-600 dark:text-red-400'
+                            ? 'bg-positive/10 text-positive dark:text-positive classic:bg-green-500/10 classic:text-green-600 classic:dark:text-green-400'
+                            : 'bg-negative/10 text-negative dark:text-negative classic:bg-red-500/10 classic:text-red-600 classic:dark:text-red-400'
                         )}
                       >
                         {pos.direction === 'buy' ? '买' : '卖'}
@@ -158,8 +158,8 @@ export function DeribitSection({ data, isLoading, error }: DeribitSectionProps) 
                       className={cn(
                         'py-2 text-right tabular-nums font-medium',
                         pos.total_profit_loss >= 0
-                          ? 'text-green-600 dark:text-green-400'
-                          : 'text-red-600 dark:text-red-400'
+                          ? 'text-positive dark:text-positive classic:text-green-600 classic:dark:text-green-400'
+                          : 'text-negative dark:text-negative classic:text-red-600 classic:dark:text-red-400'
                       )}
                     >
                       {hidden ? '' : pos.total_profit_loss >= 0 ? '+' : ''}
@@ -178,8 +178,8 @@ export function DeribitSection({ data, isLoading, error }: DeribitSectionProps) 
                     className={cn(
                       'py-2 text-right tabular-nums font-semibold',
                       totalPnlUsd >= 0
-                        ? 'text-green-600 dark:text-green-400'
-                        : 'text-red-600 dark:text-red-400'
+                        ? 'text-positive dark:text-positive classic:text-green-600 classic:dark:text-green-400'
+                        : 'text-negative dark:text-negative classic:text-red-600 classic:dark:text-red-400'
                     )}
                   >
                     {hidden ? '' : totalPnlUsd >= 0 ? '+' : ''}{fmtUsd(totalPnlUsd)}

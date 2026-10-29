@@ -20,18 +20,18 @@ const BRAND_BY_MONITOR: Record<MonitorType, ProtocolBrand> = {
 };
 
 const BRAND_STYLES: Record<ProtocolBrand, string> = {
-  stock: 'bg-blue-500/10 text-blue-600 dark:text-blue-400',
-  binance: 'bg-[#F0B90B]/12 text-[#C99400] dark:bg-[#F0B90B]/16 dark:text-[#F0B90B]',
-  uniswap: 'bg-[#FF007A]/10 text-[#F50DB4] dark:bg-[#FF007A]/15 dark:text-[#FC72FF]',
-  pancake: 'bg-[#1FC7D4]/12 text-[#168F98] dark:bg-[#1FC7D4]/16 dark:text-[#1FC7D4]',
-  aave: 'bg-[#9391F7]/12 text-[#6865D9] dark:bg-[#9391F7]/16 dark:text-[#AAA8FF]',
+  stock: 'bg-primary/10 text-primary',
+  binance: 'bg-primary/10 text-primary',
+  uniswap: 'bg-primary/10 text-primary',
+  pancake: 'bg-primary/10 text-primary',
+  aave: 'bg-primary/10 text-primary',
 };
 const BRAND_COLORS: Record<ProtocolBrand, string> = {
-  stock: 'text-blue-600 dark:text-blue-400',
-  binance: 'text-[#C99400] dark:text-[#F0B90B]',
-  uniswap: 'text-[#F50DB4] dark:text-[#FC72FF]',
-  pancake: 'text-[#168F98] dark:text-[#1FC7D4]',
-  aave: 'text-[#6865D9] dark:text-[#AAA8FF]',
+  stock: 'text-primary',
+  binance: 'text-primary',
+  uniswap: 'text-primary',
+  pancake: 'text-primary',
+  aave: 'text-primary',
 };
 
 function BrandMark({ brand }: { brand: ProtocolBrand }) {

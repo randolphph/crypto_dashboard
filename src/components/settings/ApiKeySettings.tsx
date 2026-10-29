@@ -84,7 +84,7 @@ function Section({ title, children, configured }: SectionProps) {
         <div className="flex items-center gap-2">
           <span
             className={`inline-block h-2 w-2 rounded-full ${
-              configured ? 'bg-green-500' : 'bg-muted-foreground/30'
+              configured ? 'bg-positive' : 'bg-muted-foreground/30'
             }`}
           />
           <span className="text-xs text-muted-foreground">

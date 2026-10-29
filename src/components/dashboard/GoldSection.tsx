@@ -44,9 +44,9 @@ function GoldForm({ initial, onSave, onCancel }: { initial?: GoldHolding; onSave
 function IngotOutline({ x, y, stamped = false }: { x: number; y: number; stamped?: boolean }) {
   return (
     <g transform={`translate(${x} ${y})`} stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M0 0 26 17v12L0 12Z" className="fill-[#f7f2e4] dark:fill-[#252219]" />
-      <path d="m26 17 130-20V9L26 29Z" className="fill-[#f4eedf] dark:fill-[#222017]" />
-      <path d="m0 0 130-20 26 17L26 17Z" className="fill-[#fdfbf5] dark:fill-[#1c1b17]" />
+      <path d="M0 0 26 17v12L0 12Z" className="fill-gold-side" />
+      <path d="m26 17 130-20V9L26 29Z" className="fill-gold-front" />
+      <path d="m0 0 130-20 26 17L26 17Z" className="fill-gold-top" />
       {stamped && <text x="78" y="3" transform="rotate(-8.75 78 0)" textAnchor="middle" fontSize="10" letterSpacing="1" stroke="none" fill="currentColor">Au</text>}
     </g>
   );
@@ -54,7 +54,7 @@ function IngotOutline({ x, y, stamped = false }: { x: number; y: number; stamped
 
 function GoldBar({ weight }: { weight: string }) {
   return (
-    <svg role="img" aria-label={`黄金持有量 ${weight} g`} viewBox="0 0 220 148" className="mt-1 h-auto w-full max-w-[200px] text-stone-500 dark:text-stone-400">
+    <svg role="img" aria-label={`黄金持有量 ${weight} g`} viewBox="0 0 220 148" className="mt-1 h-auto w-full max-w-[200px] text-muted-foreground dark:text-muted-foreground classic:text-stone-500 classic:dark:text-stone-400">
       <IngotOutline x={14} y={57} />
       <IngotOutline x={40} y={74} />
       <IngotOutline x={29} y={37} stamped />
@@ -75,7 +75,7 @@ export function GoldSection({ fx, quote, quoteError, quoteLoading }: { fx?: FxRa
   const displayAmount = (value: number | null) => value === null ? '—' : native(value, 'CNY');
   const priceLocal = valuation.priceCnyPerGram;
   const stale = valuation.priceStatus === 'stale' || !!quoteError;
-  const profitColor = valuation.pnlCny === null ? '' : valuation.pnlCny >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400';
+  const profitColor = valuation.pnlCny === null ? '' : valuation.pnlCny >= 0 ? 'text-positive dark:text-positive classic:text-green-600 classic:dark:text-green-400' : 'text-negative dark:text-negative classic:text-red-600 classic:dark:text-red-400';
   const records = valuation.items.map(h => (
     <div key={h.id} data-gold-id={h.id} className="space-y-3 border-t py-3 first:border-0 last:pb-0">
       <div className="flex items-start justify-between gap-3">

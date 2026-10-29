@@ -190,11 +190,11 @@ export function SnapshotExport() {
 
       <div className="text-xs text-muted-foreground tabular-nums space-y-1">
         {!wallet ? (
-          <span className="text-amber-600 dark:text-amber-400">
+          <span className="text-warning dark:text-warning">
             未解锁钱包，无法识别身份。请先在主页用钱包登录。
           </span>
         ) : error ? (
-          <span className="text-red-600 dark:text-red-400">错误：{error}</span>
+          <span className="text-negative dark:text-negative">错误：{error}</span>
         ) : !stats ? (
           '加载本地快照状态…'
         ) : (
@@ -227,12 +227,12 @@ export function SnapshotExport() {
               </div>
             )}
             {info && (
-              <div className="text-emerald-600 dark:text-emerald-400">
+              <div className="text-positive dark:text-positive">
                 {info}
               </div>
             )}
             {latestPayload && latestPayloadHasWarnings && !info && (
-              <div className="text-amber-600 dark:text-amber-400">
+              <div className="text-warning dark:text-warning">
                 当前包含缓存或部分数据；手动快照将按页面显示内容保存。
               </div>
             )}
@@ -281,7 +281,7 @@ export function SnapshotExport() {
         <button
           onClick={handleClear}
           disabled={!wallet || stats?.count === 0}
-          className="ml-auto inline-flex items-center gap-1.5 rounded-md border border-red-500/30 px-3 py-1.5 text-sm text-red-600 dark:text-red-400 hover:bg-red-500/10 disabled:cursor-not-allowed disabled:opacity-50"
+          className="ml-auto inline-flex items-center gap-1.5 rounded-md border border-negative/30 px-3 py-1.5 text-sm text-negative dark:text-negative hover:bg-negative/10 disabled:cursor-not-allowed disabled:opacity-50"
         >
           <Trash2 className="h-4 w-4" />
           清空当前钱包快照

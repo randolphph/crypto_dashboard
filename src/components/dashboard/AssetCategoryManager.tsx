@@ -1,5 +1,7 @@
 'use client';
 
+import { assetCategoryColor } from '@/lib/theme/colors';
+
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -54,7 +56,7 @@ export function AssetCategoryManager({ assets }: { assets: ClassificationAsset[]
                     <Button type="submit" size="sm">保存名称</Button>
                     <Button type="button" size="sm" variant="ghost" onClick={() => setEditing(null)}>取消</Button>
                   </form> : <>
-                    <span className="flex min-w-0 flex-wrap items-center gap-2 text-sm"><span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: category.color }} /><span className="break-all">{category.name}</span><span className="text-xs text-muted-foreground">{count} 项</span>{category.id === US_STOCK_CATEGORY_ID && <span className="text-xs text-muted-foreground">不可删除</span>}</span>
+                    <span className="flex min-w-0 flex-wrap items-center gap-2 text-sm"><span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: assetCategoryColor(category) }} /><span className="break-all">{category.name}</span><span className="text-xs text-muted-foreground">{count} 项</span>{category.id === US_STOCK_CATEGORY_ID && <span className="text-xs text-muted-foreground">不可删除</span>}</span>
                     <div className="flex gap-1">
                       <Button size="sm" variant="ghost" aria-label={`重命名分类 ${category.name}`} onClick={() => { setEditing(category.id); setDraft(category.name); }}>改名</Button>
                       <Button size="sm" variant="ghost" disabled={category.id === US_STOCK_CATEGORY_ID || config.categories.filter((c) => c.id !== US_STOCK_CATEGORY_ID).length <= 1} aria-label={`删除分类 ${category.name}`} onClick={() => { setDeleting(category.id); setReplacement(config.categories.find((c) => c.id !== category.id && c.id !== US_STOCK_CATEGORY_ID)?.id ?? ''); }}>删除</Button>
@@ -74,7 +76,7 @@ export function AssetCategoryManager({ assets }: { assets: ClassificationAsset[]
           </div>
         </div> : <div className="space-y-3">
           <div className="flex flex-wrap items-center gap-2"><Input className="min-w-0 flex-1" aria-label="搜索分类资产" placeholder="搜索名称或来源" value={search} onChange={(event) => setSearch(event.target.value)} /><CategoryDropdown label="筛选资产分类" value={filter} categories={[{ id: 'all', name: '全部分类' }, ...config.categories]} onValueChange={setFilter} /></div>
-          <p className="text-xs text-muted-foreground">{filtered.length} 项 · 负债单独计入净资产，不计入饼图；合约账户按净值计入，合约名义金额和 DeFi 底层明细不重复计算。</p>
+          <p className="text-xs text-muted-foreground">{filtered.length} 项 · 负债单独计入净资产，不计入资产分布；合约账户按净值计入，合约名义金额和 DeFi 底层明细不重复计算。</p>
           {filtered.map((asset) => <div key={asset.id} className="flex flex-wrap items-center justify-between gap-2 border-b py-2 text-sm">
             <div className="min-w-0 flex-1"><p className="break-words">{asset.label}</p><p className="text-xs text-muted-foreground">{asset.source} · {fmtUsd(asset.value)}</p></div>
             <div className="flex items-center gap-1"><AssetCategorySelect assetId={asset.id} label={`${asset.label} ${asset.source}`} defaultCategoryId={asset.defaultCategoryId} nativeStockSymbol={asset.nativeStockSymbol} />{config.assignments[asset.id] && <button className="text-xs text-muted-foreground underline" aria-label={`恢复 ${asset.label} 的默认分类`} onClick={() => apply(() => config.resetAssignment(asset.id))}>重置</button>}</div>

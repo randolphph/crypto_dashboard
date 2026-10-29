@@ -23,14 +23,14 @@ import { cn } from '@/lib/utils';
 function classify(
   label: string
 ): { Icon: LucideIcon; colorClass: string } {
-  if (label === '黄金') return { Icon: Coins, colorClass: 'text-yellow-600' };
+  if (label === '黄金') return { Icon: Coins, colorClass: 'text-warning classic:text-yellow-600' };
   // Crypto exchanges
   if (label === 'Binance' || label === 'OKX' || label === 'Deribit') {
-    return { Icon: Bitcoin, colorClass: 'text-amber-500' };
+    return { Icon: Bitcoin, colorClass: 'text-warning classic:text-amber-500' };
   }
   // On-chain
   if (label === '链上') {
-    return { Icon: Wallet, colorClass: 'text-purple-500' };
+    return { Icon: Wallet, colorClass: 'text-primary classic:text-purple-500' };
   }
   // Stock brokers — labels come from BROKER_LABEL; prefix-match keeps
   // "IBKR 现金" / "长桥 现金" working too.
@@ -40,18 +40,18 @@ function classify(
     label.startsWith('A股') ||
     label.startsWith('LongPort')
   ) {
-    return { Icon: LineChart, colorClass: 'text-blue-500' };
+    return { Icon: LineChart, colorClass: 'text-primary classic:text-blue-500' };
   }
   // Bank rollup ("银行") and any user-typed bank name. This is also the
   // catch-all so unrecognised cash-like sources still get a reasonable glyph.
   if (label === '银行') {
-    return { Icon: Landmark, colorClass: 'text-emerald-500' };
+    return { Icon: Landmark, colorClass: 'text-positive classic:text-emerald-500' };
   }
   // Custom assets fall through to a generic box. Banks the user typed in
   // (招商银行, 汇丰, 支付宝, …) also land here — Landmark reads as
   // "institution" without being bank-specific, so prefer it as the default
   // for anything we don't otherwise know about.
-  return { Icon: Landmark, colorClass: 'text-emerald-500' };
+  return { Icon: Landmark, colorClass: 'text-positive classic:text-emerald-500' };
 }
 
 // Generic fallback for things that clearly aren't an institution (custom
@@ -60,7 +60,7 @@ export function getCustomAssetIcon(): {
   Icon: LucideIcon;
   colorClass: string;
 } {
-  return { Icon: Box, colorClass: 'text-violet-500' };
+  return { Icon: Box, colorClass: 'text-primary classic:text-violet-500' };
 }
 
 interface Props {

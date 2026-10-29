@@ -26,7 +26,7 @@ function SourceBadge({ source }: { source: DataSource }) {
       className={cn(
         'rounded-full px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide',
         isApi
-          ? 'bg-blue-500/10 text-blue-600 dark:text-blue-400'
+          ? 'bg-primary/10 text-primary dark:text-primary classic:bg-blue-500/10 classic:text-blue-600 classic:dark:text-blue-400'
           : 'bg-secondary text-muted-foreground'
       )}
     >
@@ -63,8 +63,8 @@ function PnlCell({
       className={cn(
         'tabular-nums font-medium',
         positive
-          ? 'text-green-600 dark:text-green-400'
-          : 'text-red-600 dark:text-red-400'
+          ? 'text-positive dark:text-positive classic:text-green-600 classic:dark:text-green-400'
+          : 'text-negative dark:text-negative classic:text-red-600 classic:dark:text-red-400'
       )}
     >
       {hidden ? PRIVACY_MASK : (positive ? '+' : '') + formatCurrency(value, currency)}
@@ -86,8 +86,8 @@ function ChangeCell({ pct }: { pct?: number }) {
       className={cn(
         'tabular-nums text-xs',
         positive
-          ? 'text-green-600 dark:text-green-400'
-          : 'text-red-600 dark:text-red-400'
+          ? 'text-positive dark:text-positive classic:text-green-600 classic:dark:text-green-400'
+          : 'text-negative dark:text-negative classic:text-red-600 classic:dark:text-red-400'
       )}
     >
       {positive ? '+' : ''}
@@ -194,7 +194,7 @@ function PositionsTable({ positions }: { positions: EnrichedPosition[] }) {
                     <SourceBadge source={p.source} />
                     <AssetCategorySelect assetId={stockCategoryKey(p.broker, p.id)} label={`${p.symbol} ${BROKER_LABEL[p.broker]}`} defaultCategoryId={defaultStockCategory(p.symbol, p.kind, p.market)} nativeStockSymbol={p.market === 'US' ? p.symbol : undefined} />
                     {p.kind === 'option' && (
-                      <span className="rounded-full bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-amber-700 dark:text-amber-400">
+                      <span className="rounded-full bg-warning/15 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-warning dark:text-warning classic:bg-amber-500/15 classic:text-amber-700 classic:dark:text-amber-400">
                         期权
                       </span>
                     )}
@@ -316,8 +316,8 @@ export function StockSection({
               className={cn(
                 'font-medium',
                 positive
-                  ? 'text-green-600 dark:text-green-400'
-                  : 'text-red-600 dark:text-red-400'
+                  ? 'text-positive dark:text-positive classic:text-green-600 classic:dark:text-green-400'
+                  : 'text-negative dark:text-negative classic:text-red-600 classic:dark:text-red-400'
               )}
             >
               {hidden ? '' : positive ? '+' : ''}

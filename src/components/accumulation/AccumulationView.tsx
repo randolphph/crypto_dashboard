@@ -251,7 +251,7 @@ export function AccumulationView() {
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2">
-          <Target className="h-6 w-6 text-blue-500" />
+          <Target className="h-6 w-6 text-primary" />
           <h1 className="text-xl font-bold">AI 仓位</h1>
         </div>
         <div className="flex items-center gap-2">
@@ -269,7 +269,7 @@ export function AccumulationView() {
             className={cn(
               'inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors disabled:opacity-50',
               gate.open
-                ? 'bg-emerald-500/15 text-emerald-600 ring-1 ring-emerald-500/40'
+                ? 'bg-positive/15 text-positive ring-1 ring-positive/40'
                 : 'bg-muted text-muted-foreground'
             )}
           >
@@ -292,6 +292,7 @@ export function AccumulationView() {
           <SectorDonut
             rollups={rollups}
             sectorColors={sectorColors}
+            pendingBudget={funding.pendingBudget}
             progress={
               funding.aiTargetTotal > 0
                 ? funding.aiCurrentTotal / funding.aiTargetTotal
@@ -371,7 +372,7 @@ function OrphanStrip({
             <span className="text-muted-foreground">
               {hidden ? '****' : fmtUsd(o.currentValue)}
             </span>
-            <Plus className="h-3 w-3 text-blue-500" />
+            <Plus className="h-3 w-3 text-primary" />
           </button>
         ))}
       </div>
@@ -487,7 +488,7 @@ function ImportDialog({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-scrim/40 p-4"
       onClick={onClose}
     >
       <div
@@ -515,7 +516,7 @@ function ImportDialog({
           spellCheck={false}
           className="h-72 w-full resize-none rounded-md border bg-muted/30 p-3 font-mono text-xs"
         />
-        {error && <p className="mt-2 text-xs text-red-500">{error}</p>}
+        {error && <p className="mt-2 text-xs text-negative">{error}</p>}
         <div className="mt-3 flex justify-end gap-2">
           <button
             onClick={onClose}

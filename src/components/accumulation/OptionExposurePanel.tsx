@@ -33,11 +33,11 @@ export function OptionExposurePanel({ positions, quotes, fx }: {
             </div>
             <p className="mt-2 text-2xl font-semibold tabular-nums">{amount(bucket.notionalUsd)}</p>
             <p className="mt-1 text-[11px] text-muted-foreground">{total.unclassified.length > 0 ? '已分类名义金额 (USD)' : '名义敞口 (USD)'}</p>
-            {bucket.notionalUsd === null && <p className="mt-1 text-xs text-amber-600 dark:text-amber-400">数据待补全 · 已知小计 {amount(bucket.knownNotionalUsd)}</p>}
+            {bucket.notionalUsd === null && <p className="mt-1 text-xs text-warning dark:text-warning">数据待补全 · 已知小计 {amount(bucket.knownNotionalUsd)}</p>}
           </div>;
         })}
       </div>
-      {total.covered < total.count && <p role="status" className="mt-3 text-xs text-amber-600 dark:text-amber-400">
+      {total.covered < total.count && <p role="status" className="mt-3 text-xs text-warning dark:text-warning">
         已完整计算 {total.covered}/{total.count} 项持仓，两类汇总尚不完整。
         {total.unclassified.length > 0 && `另有 ${total.unclassified.length} 项无法分类，未计入上方金额。`}
       </p>}
@@ -54,7 +54,7 @@ export function OptionExposurePanel({ positions, quotes, fx }: {
               <td className="py-3 pr-3">
                 <div className="font-medium">{row.position.symbol} {row.contract.optionType === 'call' ? 'Call' : row.contract.optionType === 'put' ? 'Put' : '期权'}</div>
                 <div className="mt-1 text-[10px] text-muted-foreground">{row.contract.expiry ?? row.position.name ?? '到期日未提供'} · {BROKER_LABEL[row.position.broker]}</div>
-                {row.missing.length > 0 && <div className="mt-1 text-[10px] text-amber-600 dark:text-amber-400">{row.missing.join(' · ')}</div>}
+                {row.missing.length > 0 && <div className="mt-1 text-[10px] text-warning dark:text-warning">{row.missing.join(' · ')}</div>}
               </td>
               <td><span className="rounded bg-secondary px-1.5 py-0.5">{row.moneyness ? MONEYNESSES[row.moneyness] : '待分类'}</span></td>
               <td className="text-right tabular-nums">{hidden ? '****' : `${row.position.shares < 0 ? '卖出' : '买入'} ${Math.abs(row.position.shares)} 张`}<div className="mt-1 text-[10px] text-muted-foreground">乘数 {row.position.multiplier ?? '未提供'}</div></td>

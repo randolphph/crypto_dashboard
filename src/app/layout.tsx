@@ -10,6 +10,7 @@ import { ChatPanel } from '@/components/ai/ChatPanel';
 import { IbkrTradeSync } from '@/components/ledger/IbkrTradeSync';
 import { BinanceTradeSync } from '@/components/ledger/BinanceTradeSync';
 import './globals.css';
+import { COLOR_SCHEME_INIT_SCRIPT } from '@/lib/theme/colorScheme';
 
 const geistSans = Geist({
   variable: '--font-geist-sans',
@@ -34,9 +35,11 @@ export default function RootLayout({
   return (
     <html
       lang="zh"
+      data-color-scheme="classic"
       suppressHydrationWarning
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
+      <head><script dangerouslySetInnerHTML={{ __html: COLOR_SCHEME_INIT_SCRIPT }} /></head>
       <body className="min-h-full flex flex-col">
         <ThemeProvider>
           <QueryProvider>

@@ -5,8 +5,24 @@
 @plugin "@tailwindcss/typography";
 
 @custom-variant dark (&:is(.dark *));
+@custom-variant classic (&:where(:root:not([data-color-scheme="palm"]), :root:not([data-color-scheme="palm"]) *));
 
 @theme inline {
+  --color-positive: var(--positive);
+  --color-positive-foreground: var(--positive-foreground);
+  --color-negative: var(--negative);
+  --color-negative-foreground: var(--negative-foreground);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+  --color-critical: var(--critical);
+  --color-chart-6: var(--chart-6);
+  --color-chart-7: var(--chart-7);
+  --color-chart-8: var(--chart-8);
+  --color-scrim: var(--scrim);
+  --color-gold-top: var(--gold-top);
+  --color-gold-front: var(--gold-front);
+  --color-gold-side: var(--gold-side);
+
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --font-sans: var(--font-sans);
@@ -29,6 +45,7 @@
   --color-input: var(--input);
   --color-border: var(--border);
   --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
   --color-accent-foreground: var(--accent-foreground);
   --color-accent: var(--accent);
   --color-muted-foreground: var(--muted-foreground);
@@ -50,7 +67,26 @@
   --radius-4xl: calc(var(--radius) * 2.6);
 }
 
+/* Classic is the default. The optional palette is independent of light/dark mode. */
 :root {
+  --portfolio-positive: #10b981;
+  --portfolio-negative: #ef4444;
+  --portfolio-neutral: #9ca3af;
+  --accumulation-rainbow-red: #fca5a5;
+  --accumulation-rainbow-orange: #fdba74;
+  --accumulation-rainbow-amber: #fcd34d;
+  --accumulation-rainbow-green: #6ee7b7;
+  --accumulation-rainbow-cyan: #67e8f9;
+  --accumulation-rainbow-blue: #93c5fd;
+  --accumulation-rainbow-violet: #c4b5fd;
+  --accumulation-rainbow-pink: #f9a8d4;
+  --accumulation-water-base-opacity: 0.04;
+  --accumulation-water-back-opacity: 0.28;
+  --accumulation-water-front-opacity: 0.56;
+  --accumulation-water-back-stroke-opacity: 0.34;
+  --accumulation-water-front-stroke-opacity: 0.68;
+  --accumulation-water-outline-opacity: 0.62;
+  color-scheme: light;
   --background: oklch(1 0 0);
   --foreground: oklch(0.145 0 0);
   --card: oklch(1 0 0);
@@ -69,11 +105,6 @@
   --border: oklch(0.922 0 0);
   --input: oklch(0.922 0 0);
   --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
   --radius: 0.625rem;
   --sidebar: oklch(0.985 0 0);
   --sidebar-foreground: oklch(0.145 0 0);
@@ -83,31 +114,54 @@
   --sidebar-accent-foreground: oklch(0.205 0 0);
   --sidebar-border: oklch(0.922 0 0);
   --sidebar-ring: oklch(0.708 0 0);
-  --accumulation-rainbow-red: #fca5a5;
-  --accumulation-rainbow-orange: #fdba74;
-  --accumulation-rainbow-amber: #fcd34d;
-  --accumulation-rainbow-green: #6ee7b7;
-  --accumulation-rainbow-cyan: #67e8f9;
-  --accumulation-rainbow-blue: #93c5fd;
-  --accumulation-rainbow-violet: #c4b5fd;
-  --accumulation-rainbow-pink: #f9a8d4;
-  --accumulation-water-base-opacity: 0.04;
-  --accumulation-water-back-opacity: 0.28;
-  --accumulation-water-front-opacity: 0.56;
-  --accumulation-water-back-stroke-opacity: 0.34;
-  --accumulation-water-front-stroke-opacity: 0.68;
-  --accumulation-water-outline-opacity: 0.62;
-  --accumulation-row-progress-opacity: 16%;
-  --accumulation-row-progress-marker-20: oklch(0.25 0 0 / 18%);
-  --accumulation-row-progress-marker-50: oklch(0.25 0 0 / 26%);
   --accumulation-tier-1: #16a34a;
   --accumulation-tier-2: #ca8a04;
   --accumulation-tier-3: #dc2626;
   --accumulation-tier-fill-opacity: 26%;
   --accumulation-tier-border-opacity: 52%;
+  --destructive-foreground: var(--negative-foreground);
+  --positive-foreground: #ffffff;
+  --negative-foreground: #ffffff;
+  --warning-foreground: #ffffff;
+  --category-cash: #10b981;
+  --category-stocks: #3b82f6;
+  --category-crypto: #f59e0b;
+  --category-us-stocks: #6366f1;
+  --category-gold: #d97706;
+  --scrim: #000000;
+  --chart-1: #3b82f6;
+  --chart-2: #f59e0b;
+  --chart-3: #10b981;
+  --chart-4: #8b5cf6;
+  --chart-5: #ef4444;
+  --chart-6: #06b6d4;
+  --chart-7: #ec4899;
+  --chart-8: #f97316;
+  --positive: #15803d;
+  --negative: #dc2626;
+  --warning: #a16207;
+  --critical: #c2410c;
+  --gold-top: #fdfbf5;
+  --gold-front: #f4eedf;
+  --gold-side: #f7f2e4;
 }
 
 .dark {
+  --accumulation-rainbow-red: #b91c1c;
+  --accumulation-rainbow-orange: #c2410c;
+  --accumulation-rainbow-amber: #b45309;
+  --accumulation-rainbow-green: #047857;
+  --accumulation-rainbow-cyan: #0e7490;
+  --accumulation-rainbow-blue: #1d4ed8;
+  --accumulation-rainbow-violet: #6d28d9;
+  --accumulation-rainbow-pink: #be185d;
+  --accumulation-water-base-opacity: 0.08;
+  --accumulation-water-back-opacity: 0.5;
+  --accumulation-water-front-opacity: 0.82;
+  --accumulation-water-back-stroke-opacity: 0.62;
+  --accumulation-water-front-stroke-opacity: 0.95;
+  --accumulation-water-outline-opacity: 0.9;
+  color-scheme: dark;
   --background: oklch(0.145 0 0);
   --foreground: oklch(0.985 0 0);
   --card: oklch(0.205 0 0);
@@ -126,11 +180,6 @@
   --border: oklch(1 0 0 / 10%);
   --input: oklch(1 0 0 / 15%);
   --ring: oklch(0.556 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
   --sidebar: oklch(0.205 0 0);
   --sidebar-foreground: oklch(0.985 0 0);
   --sidebar-primary: oklch(0.488 0.243 264.376);
@@ -139,33 +188,194 @@
   --sidebar-accent-foreground: oklch(0.985 0 0);
   --sidebar-border: oklch(1 0 0 / 10%);
   --sidebar-ring: oklch(0.556 0 0);
-  --accumulation-rainbow-red: #b91c1c;
-  --accumulation-rainbow-orange: #c2410c;
-  --accumulation-rainbow-amber: #b45309;
-  --accumulation-rainbow-green: #047857;
-  --accumulation-rainbow-cyan: #0e7490;
-  --accumulation-rainbow-blue: #1d4ed8;
-  --accumulation-rainbow-violet: #6d28d9;
-  --accumulation-rainbow-pink: #be185d;
-  --accumulation-water-base-opacity: 0.08;
-  --accumulation-water-back-opacity: 0.5;
-  --accumulation-water-front-opacity: 0.82;
-  --accumulation-water-back-stroke-opacity: 0.62;
-  --accumulation-water-front-stroke-opacity: 0.95;
-  --accumulation-water-outline-opacity: 0.9;
-  --accumulation-row-progress-opacity: 22%;
-  --accumulation-row-progress-marker-20: oklch(0.95 0 0 / 22%);
-  --accumulation-row-progress-marker-50: oklch(0.95 0 0 / 30%);
   --accumulation-tier-1: #4ade80;
   --accumulation-tier-2: #facc15;
   --accumulation-tier-3: #f87171;
   --accumulation-tier-fill-opacity: 34%;
   --accumulation-tier-border-opacity: 62%;
+  --destructive-foreground: var(--negative-foreground);
+  --positive-foreground: #ffffff;
+  --negative-foreground: #ffffff;
+  --warning-foreground: #ffffff;
+  --category-cash: #10b981;
+  --category-stocks: #3b82f6;
+  --category-crypto: #f59e0b;
+  --category-us-stocks: #6366f1;
+  --category-gold: #d97706;
+  --scrim: #000000;
+  --chart-1: #3b82f6;
+  --chart-2: #f59e0b;
+  --chart-3: #10b981;
+  --chart-4: #8b5cf6;
+  --chart-5: #ef4444;
+  --chart-6: #06b6d4;
+  --chart-7: #ec4899;
+  --chart-8: #f97316;
+  --positive: #4ade80;
+  --positive-foreground: #052e16;
+  --negative: #f87171;
+  --negative-foreground: #450a0a;
+  --warning: #facc15;
+  --warning-foreground: #422006;
+  --critical: #fb923c;
+  --gold-top: #1c1b17;
+  --gold-front: #222017;
+  --gold-side: #252219;
+}
+
+/* Palm · Lieflat Charts: paper, forest, olive and wheat.
+   UI state colors are deliberately separate from categorical chart colors. */
+:root[data-color-scheme="palm"] {
+  --portfolio-positive: var(--positive);
+  --portfolio-negative: var(--negative);
+  --portfolio-neutral: var(--muted-foreground);
+  --accumulation-rainbow-red: var(--chart-1);
+  --accumulation-rainbow-orange: var(--chart-2);
+  --accumulation-rainbow-amber: var(--chart-3);
+  --accumulation-rainbow-green: var(--chart-4);
+  --accumulation-rainbow-cyan: var(--chart-3);
+  --accumulation-rainbow-blue: var(--chart-2);
+  --accumulation-rainbow-violet: var(--chart-8);
+  --accumulation-rainbow-pink: var(--chart-1);
+  color-scheme: light;
+  --background: #F0EFEB;
+  --foreground: #58402E;
+  --card: #F8F7F2;
+  --card-foreground: #58402E;
+  --popover: #F8F7F2;
+  --popover-foreground: #58402E;
+  --primary: #43593B;
+  --primary-foreground: #F8F7F2;
+  --secondary: #E6E7DC;
+  --secondary-foreground: #43593B;
+  --muted: #E8E8DF;
+  --muted-foreground: #6F624D;
+  --accent: #DFE3D3;
+  --accent-foreground: #35492F;
+  --destructive: var(--negative);
+  --destructive-foreground: var(--negative-foreground);
+  --border: #D1D3C4;
+  --input: #C7CBBA;
+  --ring: #77835A;
+  --positive: #43593B;
+  --positive-foreground: #F8F7F2;
+  --negative: #973E2E;
+  --negative-foreground: #FFF8F1;
+  --warning: #76570D;
+  --warning-foreground: #FFF8E7;
+  --critical: #894A25;
+  --chart-1: #43593B;
+  --chart-2: #77835A;
+  --chart-3: #ACAD79;
+  --chart-4: #F2D17E;
+  --chart-5: #58402E;
+  --chart-6: #D4A017;
+  --chart-7: #929960;
+  --chart-8: #5A7049;
+  --category-cash: var(--chart-1);
+  --category-stocks: var(--chart-2);
+  --category-crypto: var(--chart-3);
+  --category-us-stocks: var(--chart-5);
+  --category-gold: var(--chart-6);
+  --sidebar: #E8E8DF;
+  --sidebar-foreground: var(--foreground);
+  --sidebar-primary: var(--primary);
+  --sidebar-primary-foreground: var(--primary-foreground);
+  --sidebar-accent: var(--accent);
+  --sidebar-accent-foreground: var(--accent-foreground);
+  --sidebar-border: var(--border);
+  --sidebar-ring: var(--ring);
+  --scrim: #20281B;
+  --gold-top: #F8F1D9;
+  --gold-front: #EBDFBD;
+  --gold-side: #E1D1A2;
+  --accumulation-tier-1: var(--positive);
+  --accumulation-tier-2: var(--warning);
+  --accumulation-tier-3: var(--negative);
+  --accumulation-tier-fill-opacity: 18%;
+  --accumulation-tier-border-opacity: 45%;
+  --radius: 0.625rem;
+}
+
+:root[data-color-scheme="palm"].dark {
+  --accumulation-rainbow-red: color-mix(in srgb, var(--chart-1) 30%, var(--background));
+  --accumulation-rainbow-orange: color-mix(in srgb, var(--chart-2) 30%, var(--background));
+  --accumulation-rainbow-amber: color-mix(in srgb, var(--chart-3) 30%, var(--background));
+  --accumulation-rainbow-green: color-mix(in srgb, var(--chart-4) 30%, var(--background));
+  --accumulation-rainbow-cyan: color-mix(in srgb, var(--chart-3) 30%, var(--background));
+  --accumulation-rainbow-blue: color-mix(in srgb, var(--chart-2) 30%, var(--background));
+  --accumulation-rainbow-violet: color-mix(in srgb, var(--chart-8) 30%, var(--background));
+  --accumulation-rainbow-pink: color-mix(in srgb, var(--chart-1) 30%, var(--background));
+  color-scheme: dark;
+  --background: #1F271D;
+  --foreground: #F0EFE9;
+  --card: #28311F;
+  --card-foreground: #F0EFE9;
+  --popover: #303B27;
+  --popover-foreground: #F0EFE9;
+  --primary: #C8CAA8;
+  --primary-foreground: #28311F;
+  --secondary: #343F2D;
+  --secondary-foreground: #DDDBC9;
+  --muted: #303B27;
+  --muted-foreground: #BCBDA6;
+  --accent: #3D4A32;
+  --accent-foreground: #F0EFE9;
+  --destructive: var(--negative);
+  --destructive-foreground: var(--negative-foreground);
+  --border: #48543C;
+  --input: #59664A;
+  --ring: #ACAD79;
+  --positive: #AFB885;
+  --positive-foreground: #28311F;
+  --negative: #E3A38C;
+  --negative-foreground: #351F18;
+  --warning: #F2D17E;
+  --warning-foreground: #342B16;
+  --critical: #E6B17C;
+  --chart-1: #AFB885;
+  --chart-2: #7EA056;
+  --chart-3: #C8CAA8;
+  --chart-4: #F2D17E;
+  --chart-5: #DDDBC9;
+  --chart-6: #D4A017;
+  --chart-7: #92A763;
+  --chart-8: #658D49;
+  --category-cash: var(--chart-1);
+  --category-stocks: var(--chart-2);
+  --category-crypto: var(--chart-3);
+  --category-us-stocks: var(--chart-5);
+  --category-gold: var(--chart-6);
+  --sidebar: #28311F;
+  --sidebar-foreground: var(--foreground);
+  --sidebar-primary: var(--primary);
+  --sidebar-primary-foreground: var(--primary-foreground);
+  --sidebar-accent: var(--accent);
+  --sidebar-accent-foreground: var(--accent-foreground);
+  --sidebar-border: var(--border);
+  --sidebar-ring: var(--ring);
+  --scrim: #20281B;
+  --gold-top: #4E4E32;
+  --gold-front: #43472D;
+  --gold-side: #383F27;
+  --accumulation-tier-1: var(--positive);
+  --accumulation-tier-2: var(--warning);
+  --accumulation-tier-3: var(--negative);
+  --accumulation-tier-fill-opacity: 24%;
+  --accumulation-tier-border-opacity: 55%;
+  --radius: 0.625rem;
 }
 
 @layer base {
   * {
     @apply border-border outline-ring/50;
+  }
+  ::selection {
+    background: color-mix(in srgb, var(--primary) 22%, transparent);
+    color: var(--foreground);
+  }
+  input[type="checkbox"], input[type="radio"], input[type="range"] {
+    accent-color: var(--primary);
   }
   body {
     @apply bg-background text-foreground;

@@ -97,7 +97,7 @@ function TierCell({ d, onUpdate }: {
           setError('');
         }
       }}
-      className={cn('relative z-10 rounded border bg-background px-1 text-[11px] tabular-nums outline-none focus:ring-1 focus:ring-blue-500', kind === 'price' ? 'w-24' : 'w-12')}
+      className={cn('relative z-10 rounded border bg-background px-1 text-[11px] tabular-nums outline-none focus:ring-1 focus:ring-primary', kind === 'price' ? 'w-24' : 'w-12')}
     />
   );
 
@@ -162,7 +162,7 @@ function TierCell({ d, onUpdate }: {
           );
         })}
       </div>
-      {error && <span role="alert" className="text-[11px] text-red-500">{error}</span>}
+      {error && <span role="alert" className="text-[11px] text-negative">{error}</span>}
     </div>
   );
 }
@@ -263,7 +263,7 @@ export function TargetTable({
         <TableBody>
           {rows.map((d) => {
             const sectorColor =
-              sectorColors.get(d.target.sector || '未分类') ?? '#64748b';
+              sectorColors.get(d.target.sector || '未分类') ?? 'var(--chart-1)';
             const sectorActive =
               !!activeSector && d.target.sector === activeSector;
             const sectorDimmed =
@@ -311,7 +311,7 @@ export function TargetTable({
                   {!d.isHeld && (
                     <span
                       title="计划内但当前未持仓"
-                      className="rounded bg-violet-500/15 px-1 py-0.5 text-[10px] text-violet-600"
+                      className="rounded bg-primary/15 px-1 py-0.5 text-[10px] text-primary"
                     >
                       未持仓
                     </span>
@@ -323,7 +323,7 @@ export function TargetTable({
               </TableCell>
               <TableCell className="text-right tabular-nums">
                 {d.pnlUsd !== null ? (
-                  <span className={d.pnlUsd >= 0 ? 'text-emerald-600' : 'text-red-500'}>
+                  <span className={d.pnlUsd >= 0 ? 'text-positive' : 'text-negative'}>
                     {hidden ? '****' : `${d.pnlUsd >= 0 ? '+' : ''}${fmtUsd(d.pnlUsd)}`}
                     {d.pnlPct !== null && (
                       <span className="text-muted-foreground text-xs">
@@ -339,7 +339,7 @@ export function TargetTable({
               </TableCell>
               <TableCell className="text-right tabular-nums">
                 {d.changePct !== null ? (
-                  <span className={d.changePct >= 0 ? 'text-emerald-600' : 'text-red-500'}>
+                  <span className={d.changePct >= 0 ? 'text-positive' : 'text-negative'}>
                     {d.changePct >= 0 ? '+' : ''}
                     {d.changePct.toFixed(2)}%
                   </span>
@@ -389,7 +389,7 @@ export function TargetTable({
                   }}
                   aria-label={`从加仓计划中删除 ${d.target.symbol}`}
                   title="删除标的"
-                  className="inline-flex h-7 w-7 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-red-500/10 hover:text-red-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500"
+                  className="inline-flex h-7 w-7 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-negative/10 hover:text-negative focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-negative"
                 >
                   <Trash2 className="h-3.5 w-3.5" />
                 </button>

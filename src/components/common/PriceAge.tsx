@@ -36,9 +36,9 @@ export function PriceAge({ updatedAt, source, status, error }: { updatedAt?: str
       className={cn(
         'mt-0.5 inline-flex items-center gap-0.5 whitespace-nowrap text-[10px] leading-none',
         status === 'closed' ? 'text-muted-foreground' : status === 'error' || ageMs >= 60 * 60_000
-          ? 'text-red-600 dark:text-red-400'
+          ? 'text-negative dark:text-negative classic:text-red-600 classic:dark:text-red-400'
           : ageMs >= 2 * 60_000
-            ? 'text-amber-600 dark:text-amber-400'
+            ? 'text-warning dark:text-warning classic:text-amber-600 classic:dark:text-amber-400'
             : 'text-muted-foreground'
       )}
     >

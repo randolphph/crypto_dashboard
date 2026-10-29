@@ -195,7 +195,7 @@ export function PortfolioChart({ recording }: { recording: HistoryRecording }) {
 
   const lastSnapshot = snapshots.at(-1);
   const recordingNotice = (
-    <div role="status" className={`mb-2 rounded-md border px-3 py-2 text-xs ${recording.status === 'estimated' || recording.status === 'blocked' ? 'border-amber-500/30 bg-amber-500/5 text-amber-700 dark:text-amber-400' : 'text-muted-foreground'}`}>
+    <div role="status" className={`mb-2 rounded-md border px-3 py-2 text-xs ${recording.status === 'estimated' || recording.status === 'blocked' ? 'border-warning/30 bg-warning/5 text-warning dark:text-warning classic:border-amber-500/30 classic:bg-amber-500/5 classic:text-amber-700 classic:dark:text-amber-400' : 'text-muted-foreground'}`}>
       <p>{recording.status === 'ready' ? '资产曲线正常记录' : recording.status === 'estimated' ? '资产曲线按当前估值记录（含缓存或部分数据）' : recording.status === 'loading' ? '资产曲线等待数据加载完成' : '资产曲线暂停记录：部分资产尚无可用估值'}{lastSnapshot ? ` · 最近记录 ${new Date(lastSnapshot.timestamp).toLocaleString()}` : ''}</p>
       {recording.warnings.length > 0 || recording.blockers.length > 0 ? <details className="mt-1"><summary className="cursor-pointer">查看数据来源与原因</summary><ul className="mt-1 space-y-1 break-words">{[...recording.blockers, ...recording.warnings].map((reason) => <li key={reason}>{reason}</li>)}</ul></details> : null}
     </div>
@@ -263,11 +263,11 @@ export function PortfolioChart({ recording }: { recording: HistoryRecording }) {
   return (
     <div className="mt-4">
       {recordingNotice}
-      {data.some((point) => point.quality === 'estimated') ? <p className="mb-2 text-xs text-amber-700 dark:text-amber-400">此区间含估算记录，涨跌可能受到缓存或部分数据影响。</p> : null}
+      {data.some((point) => point.quality === 'estimated') ? <p className="mb-2 text-xs text-warning dark:text-warning classic:text-amber-700 classic:dark:text-amber-400">此区间含估算记录，涨跌可能受到缓存或部分数据影响。</p> : null}
       <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
         <div className="flex items-center gap-3 text-sm">
           {data.length >= 2 && (
-            <span className={isPositive ? 'text-green-500' : 'text-red-500'}>
+            <span className={isPositive ? 'text-positive classic:text-green-500' : 'text-negative classic:text-red-500'}>
               {hidden ? (
                 '******'
               ) : (
@@ -281,8 +281,8 @@ export function PortfolioChart({ recording }: { recording: HistoryRecording }) {
             <span
               className={`text-xs px-1.5 py-0.5 rounded border ${
                 isAdjustedPositive
-                  ? 'text-green-600 border-green-500/30'
-                  : 'text-red-600 border-red-500/30'
+                  ? 'text-positive border-positive/30 classic:text-green-600 classic:border-green-500/30'
+                  : 'text-negative border-negative/30 classic:text-red-600 classic:border-red-500/30'
               }`}
               title={`已扣除区间内 ${netFlow >= 0 ? '净流入' : '净流出'} ${fmtUsd(Math.abs(netFlow))}`}
             >
@@ -335,11 +335,11 @@ export function PortfolioChart({ recording }: { recording: HistoryRecording }) {
           <div className="flex items-center gap-3">
             <span className="text-muted-foreground">{new Date(selected.timestamp).toLocaleString()}</span>
             <span className="font-semibold">{fmtUsd(selected.value)}</span>
-            {selected.quality === 'estimated' ? <span className="text-xs text-amber-700 dark:text-amber-400" title={selected.warnings?.join('；')}>估算记录</span> : null}
+            {selected.quality === 'estimated' ? <span className="text-xs text-warning dark:text-warning classic:text-amber-700 classic:dark:text-amber-400" title={selected.warnings?.join('；')}>估算记录</span> : null}
           </div>
           <div className="flex items-center gap-1">
             <button
-              className="flex items-center gap-1 px-2 py-0.5 text-xs text-red-500 hover:bg-red-500/10 rounded transition-colors"
+              className="flex items-center gap-1 px-2 py-0.5 text-xs text-negative hover:bg-negative/10 rounded transition-colors classic:text-red-500 classic:hover:bg-red-500/10"
               onClick={() => {
                 removeSnapshot(selected.timestamp);
                 setSelected(null);
@@ -369,22 +369,22 @@ export function PortfolioChart({ recording }: { recording: HistoryRecording }) {
               <linearGradient id="valueGradient" x1="0" y1="0" x2="0" y2="1">
                 <stop
                   offset="0%"
-                  stopColor={isAdjustedPositive ? '#10b981' : '#ef4444'}
+                  stopColor={isAdjustedPositive ? 'var(--portfolio-positive)' : 'var(--portfolio-negative)'}
                   stopOpacity={0.2}
                 />
                 <stop
                   offset="100%"
-                  stopColor={isAdjustedPositive ? '#10b981' : '#ef4444'}
+                  stopColor={isAdjustedPositive ? 'var(--portfolio-positive)' : 'var(--portfolio-negative)'}
                   stopOpacity={0}
                 />
               </linearGradient>
             </defs>
-            <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border, #e5e7eb)" opacity={0.5} />
+            <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" opacity={0.5} />
             <XAxis
               dataKey="timestamp"
               tickFormatter={(ts: number) => formatTime(ts, range)}
               tick={{ fontSize: 11 }}
-              stroke="var(--color-muted-foreground, #9ca3af)"
+              stroke="var(--muted-foreground)"
               tickLine={false}
               axisLine={false}
             />
@@ -392,7 +392,7 @@ export function PortfolioChart({ recording }: { recording: HistoryRecording }) {
               domain={yDomain}
               tickFormatter={(v: number) => fmtUsd(v)}
               tick={{ fontSize: 11 }}
-              stroke="var(--color-muted-foreground, #9ca3af)"
+              stroke="var(--muted-foreground)"
               tickLine={false}
               axisLine={false}
               width={hidden ? 60 : 90}
@@ -411,7 +411,7 @@ export function PortfolioChart({ recording }: { recording: HistoryRecording }) {
                       </p>
                       <p
                         className="font-semibold"
-                        style={{ color: netPositive ? '#10b981' : '#ef4444' }}
+                        style={{ color: netPositive ? 'var(--portfolio-positive)' : 'var(--portfolio-negative)' }}
                       >
                         净 {netPositive ? '+' : ''}{fmtUsd(b.net)}
                       </p>
@@ -422,7 +422,7 @@ export function PortfolioChart({ recording }: { recording: HistoryRecording }) {
                             <div
                               key={ev.id}
                               className="text-xs"
-                              style={{ color: isWithdraw ? '#ef4444' : '#10b981' }}
+                              style={{ color: isWithdraw ? 'var(--portfolio-negative)' : 'var(--portfolio-positive)' }}
                             >
                               {isWithdraw ? '↓ 提现' : '↑ 充值'} {fmtUsd(ev.amount)}
                               {ev.note && (
@@ -442,10 +442,10 @@ export function PortfolioChart({ recording }: { recording: HistoryRecording }) {
                   const netBuy = tb.netUsd >= 0;
                   const netColor =
                     Math.abs(tb.netUsd) < 1
-                      ? '#9ca3af'
+                      ? 'var(--portfolio-neutral)'
                       : netBuy
-                        ? '#10b981'
-                        : '#ef4444';
+                        ? 'var(--portfolio-positive)'
+                        : 'var(--portfolio-negative)';
                   return (
                     <div className="rounded-md border bg-popover px-3 py-2 text-sm shadow-md max-w-[280px]">
                       <p className="text-muted-foreground text-xs">
@@ -463,7 +463,7 @@ export function PortfolioChart({ recording }: { recording: HistoryRecording }) {
                             <div
                               key={t.id}
                               className="text-xs flex items-baseline gap-1.5"
-                              style={{ color: isBuy ? '#10b981' : '#ef4444' }}
+                              style={{ color: isBuy ? 'var(--portfolio-positive)' : 'var(--portfolio-negative)' }}
                             >
                               <span>{isBuy ? '↑ 买' : '↓ 卖'}</span>
                               <span className="text-foreground font-medium">
@@ -489,7 +489,7 @@ export function PortfolioChart({ recording }: { recording: HistoryRecording }) {
                       {new Date(point.timestamp).toLocaleString()}
                     </p>
                     <p className="font-semibold">{fmtUsd(point.value)}</p>
-                    {point.quality === 'estimated' ? <p className="mt-1 max-w-xs text-xs text-amber-700 dark:text-amber-400">估算记录：{point.warnings?.join('；')}</p> : null}
+                    {point.quality === 'estimated' ? <p className="mt-1 max-w-xs text-xs text-warning dark:text-warning classic:text-amber-700 classic:dark:text-amber-400">估算记录：{point.warnings?.join('；')}</p> : null}
                     <p className="text-xs text-muted-foreground mt-1">点击选中以删除</p>
                   </div>
                 );
@@ -498,7 +498,7 @@ export function PortfolioChart({ recording }: { recording: HistoryRecording }) {
             <Area
               type="monotone"
               dataKey="value"
-              stroke={isAdjustedPositive ? '#10b981' : '#ef4444'}
+              stroke={isAdjustedPositive ? 'var(--portfolio-positive)' : 'var(--portfolio-negative)'}
               strokeWidth={2}
               fill="url(#valueGradient)"
               dot={false}
@@ -514,7 +514,7 @@ export function PortfolioChart({ recording }: { recording: HistoryRecording }) {
             />
             {visibleBuckets.map((b) => {
               const netPositive = b.net >= 0;
-              const color = netPositive ? '#10b981' : '#ef4444';
+              const color = netPositive ? 'var(--portfolio-positive)' : 'var(--portfolio-negative)';
               const sign = netPositive ? '↑' : '↓';
               const abs = Math.abs(b.net);
               const amountLabel =
@@ -541,10 +541,10 @@ export function PortfolioChart({ recording }: { recording: HistoryRecording }) {
               const balanced = Math.abs(tb.netUsd) < 1;
               const netBuy = tb.netUsd >= 0;
               const color = balanced
-                ? '#9ca3af'
+                ? 'var(--portfolio-neutral)'
                 : netBuy
-                  ? '#10b981'
-                  : '#ef4444';
+                  ? 'var(--portfolio-positive)'
+                  : 'var(--portfolio-negative)';
               // Distinguish trade lines from cash-flow lines: dotted instead
               // of dashed, label sits at the BOTTOM of the chart, no $ amount
               // (just direction arrow + count) to keep visual quiet.

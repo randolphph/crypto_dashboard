@@ -112,7 +112,7 @@ export function RefreshControl() {
     <div className="flex items-center gap-2 text-sm text-muted-foreground">
       {staleSince !== null && (
         <span
-          className="inline-flex items-center gap-1 text-amber-600 dark:text-amber-400"
+          className="inline-flex items-center gap-1 text-warning dark:text-warning classic:text-amber-600 classic:dark:text-amber-400"
           title={`最近一次刷新失败，仍显示 ${new Date(staleSince).toLocaleString()} 抓取的数据`}
         >
           <AlertTriangle className="h-3.5 w-3.5" />

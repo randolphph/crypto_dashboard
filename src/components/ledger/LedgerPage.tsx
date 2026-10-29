@@ -153,8 +153,8 @@ function StatusBadge({ activity }: { activity: LedgerActivity }) {
       variant="outline"
       className={cn(
         pending
-          ? 'border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300'
-          : 'border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300'
+          ? 'border-warning/30 bg-warning/10 text-warning dark:text-warning'
+          : 'border-positive/30 bg-positive/10 text-positive dark:text-positive'
       )}
     >
       {pending ? <Clock3 /> : <CheckCircle2 />}
@@ -587,14 +587,14 @@ export function LedgerPage() {
       </div>
 
       {message && (
-        <div className="flex items-center justify-between rounded-lg border border-emerald-500/20 bg-emerald-500/5 px-3 py-2 text-sm text-emerald-700 dark:text-emerald-300">
+        <div className="flex items-center justify-between rounded-lg border border-positive/20 bg-positive/5 px-3 py-2 text-sm text-positive dark:text-positive">
           <span className="flex items-center gap-2"><CheckCircle2 className="size-4" />{message}</span>
           <button className="text-xs opacity-70 hover:opacity-100" onClick={() => setMessage('')}>关闭</button>
         </div>
       )}
 
       {legacyTrades.length > 0 && !hasMigratedLegacy && (
-        <div className="flex flex-col justify-between gap-3 rounded-lg border border-blue-500/20 bg-blue-500/5 px-3 py-2.5 text-sm sm:flex-row sm:items-center">
+        <div className="flex flex-col justify-between gap-3 rounded-lg border border-primary/20 bg-primary/5 px-3 py-2.5 text-sm sm:flex-row sm:items-center">
           <div>
             <p className="font-medium">发现 {legacyTrades.length} 笔旧版交易记录</p>
             <p className="text-xs text-muted-foreground">可将股票和期权记录复制进新账本；原记录不会被删除。</p>
@@ -606,7 +606,7 @@ export function LedgerPage() {
       <div className="flex flex-wrap items-center gap-x-5 gap-y-1 border-y py-2 text-xs text-muted-foreground">
         <span><strong className="mr-1 font-medium text-foreground">{formatNumber(activities.length, 0)}</strong>笔流水</span>
         <span><strong className="mr-1 font-medium text-foreground">{formatNumber(confirmedCount, 0)}</strong>已确认</span>
-        <span className={pendingCount > 0 ? 'text-amber-600 dark:text-amber-400' : ''}>
+        <span className={pendingCount > 0 ? 'text-warning dark:text-warning' : ''}>
           <strong className="mr-1 font-medium">{formatNumber(pendingCount, 0)}</strong>待确认
         </span>
         <span><strong className="mr-1 font-medium text-foreground">{formatNumber(importBatches.length, 0)}</strong>次导入</span>
@@ -713,7 +713,7 @@ export function LedgerPage() {
                             </div>
                           </TableCell>
                           <TableCell>
-                            <div className={cn('flex items-center gap-1.5 font-medium', activity.side === 'buy' ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400')}>
+                            <div className={cn('flex items-center gap-1.5 font-medium', activity.side === 'buy' ? 'text-positive dark:text-positive' : 'text-negative dark:text-negative')}>
                               {activity.side === 'buy' ? <ArrowUpRight className="size-4" /> : <ArrowDownRight className="size-4" />}
                               {activityActionLabel(activity)}
                             </div>
@@ -792,7 +792,7 @@ export function LedgerPage() {
         </TabsContent>
       </Tabs>
 
-      <div className="flex items-start gap-2 rounded-lg border border-amber-500/20 bg-amber-500/5 px-3 py-2.5 text-xs text-amber-800 dark:text-amber-200">
+      <div className="flex items-start gap-2 rounded-lg border border-warning/20 bg-warning/5 px-3 py-2.5 text-xs text-warning dark:text-warning">
         <AlertCircle className="mt-0.5 size-4 shrink-0" />
         当前为账本基础版，交易与每日复盘暂存在本机浏览器。服务端账本接入前请定期导出；本机记录不会直接改变资产看板持仓。
       </div>
@@ -856,8 +856,8 @@ export function LedgerPage() {
               <Field label="名称（可选）"><Input value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} placeholder="贵州茅台" /></Field>
               <Field label="方向">
                 <div className="grid grid-cols-2 gap-2">
-                  <button type="button" onClick={() => setForm({ ...form, side: 'buy' })} className={cn('h-8 rounded-lg border text-sm font-medium', form.side === 'buy' ? 'border-emerald-500 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300' : 'text-muted-foreground')}>买入</button>
-                  <button type="button" onClick={() => setForm({ ...form, side: 'sell' })} className={cn('h-8 rounded-lg border text-sm font-medium', form.side === 'sell' ? 'border-rose-500 bg-rose-500/10 text-rose-700 dark:text-rose-300' : 'text-muted-foreground')}>卖出</button>
+                  <button type="button" onClick={() => setForm({ ...form, side: 'buy' })} className={cn('h-8 rounded-lg border text-sm font-medium', form.side === 'buy' ? 'border-positive bg-positive/10 text-positive dark:text-positive' : 'text-muted-foreground')}>买入</button>
+                  <button type="button" onClick={() => setForm({ ...form, side: 'sell' })} className={cn('h-8 rounded-lg border text-sm font-medium', form.side === 'sell' ? 'border-negative bg-negative/10 text-negative dark:text-negative' : 'text-muted-foreground')}>卖出</button>
                 </div>
               </Field>
               <Field label="数量"><Input type="number" min="0" step="any" value={form.quantity} onChange={(event) => setForm({ ...form, quantity: event.target.value })} /></Field>
@@ -876,7 +876,7 @@ export function LedgerPage() {
             <div className="mt-4 rounded-lg bg-muted/60 p-3 text-sm">
               <div className="flex items-center justify-between"><span className="text-muted-foreground">记录标签</span><Badge variant="outline">{operationLabel}</Badge></div>
               <div className="mt-2 flex items-center justify-between"><span className="text-muted-foreground">成交金额</span><span className="font-medium tabular-nums">{form.currency} {formatNumber((Number.isFinite(quantityNumber) ? quantityNumber : 0) * (Number.isFinite(priceNumber) ? priceNumber : 0) * (Number(form.multiplier) || 1), 2)}</span></div>
-              {selectedAccount.syncMode === 'api' && <p className="mt-2 text-xs text-amber-700 dark:text-amber-300">这是 API 平台的手工暂记，后续成交同步会用平台成交 ID 匹配确认。</p>}
+              {selectedAccount.syncMode === 'api' && <p className="mt-2 text-xs text-warning dark:text-warning">这是 API 平台的手工暂记，后续成交同步会用平台成交 ID 匹配确认。</p>}
             </div>
             {message && recordOpen && <p className="mt-3 text-sm text-destructive">{message}</p>}
             <DialogFooter className="mt-4">

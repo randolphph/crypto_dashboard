@@ -90,8 +90,8 @@ function FuturesPositionsTable({ positions }: { positions: FuturesPosition[] }) 
                       className={cn(
                         'rounded-full px-2 py-0.5 text-xs font-medium',
                         isLong
-                          ? 'bg-green-500/10 text-green-600 dark:text-green-400'
-                          : 'bg-red-500/10 text-red-600 dark:text-red-400'
+                          ? 'bg-positive/10 text-positive dark:text-positive classic:bg-green-500/10 classic:text-green-600 classic:dark:text-green-400'
+                          : 'bg-negative/10 text-negative dark:text-negative classic:bg-red-500/10 classic:text-red-600 classic:dark:text-red-400'
                       )}
                     >
                       {isLong ? '多' : '空'}
@@ -110,8 +110,8 @@ function FuturesPositionsTable({ positions }: { positions: FuturesPosition[] }) 
                     className={cn(
                       'py-2 text-right tabular-nums font-medium',
                       pnl >= 0
-                        ? 'text-green-600 dark:text-green-400'
-                        : 'text-red-600 dark:text-red-400'
+                        ? 'text-positive dark:text-positive classic:text-green-600 classic:dark:text-green-400'
+                        : 'text-negative dark:text-negative classic:text-red-600 classic:dark:text-red-400'
                     )}
                   >
                     {hidden ? '' : pnl >= 0 ? '+' : ''}
@@ -162,8 +162,8 @@ function GridBotsTable({ bots }: { bots: GridBotSummary[] }) {
                       className={cn(
                         'rounded-full px-2 py-0.5 text-xs font-medium',
                         isShort
-                          ? 'bg-red-500/10 text-red-600 dark:text-red-400'
-                          : 'bg-green-500/10 text-green-600 dark:text-green-400'
+                          ? 'bg-negative/10 text-negative dark:text-negative classic:bg-red-500/10 classic:text-red-600 classic:dark:text-red-400'
+                          : 'bg-positive/10 text-positive dark:text-positive classic:bg-green-500/10 classic:text-green-600 classic:dark:text-green-400'
                       )}
                     >
                       {isShort ? '做空网格' : '做多网格'}
@@ -176,8 +176,8 @@ function GridBotsTable({ bots }: { bots: GridBotSummary[] }) {
                     className={cn(
                       'py-2 text-right tabular-nums font-medium',
                       bot.totalPnl >= 0
-                        ? 'text-green-600 dark:text-green-400'
-                        : 'text-red-600 dark:text-red-400'
+                        ? 'text-positive dark:text-positive classic:text-green-600 classic:dark:text-green-400'
+                        : 'text-negative dark:text-negative classic:text-red-600 classic:dark:text-red-400'
                     )}
                   >
                     {hidden ? '' : bot.totalPnl >= 0 ? '+' : ''}
@@ -232,7 +232,7 @@ function ExchangeCard({
         </div>
       )}
       {data?.dataQuality?.complete === false && (
-        <div className="mb-4 rounded-lg border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-xs text-amber-700 dark:text-amber-400">
+        <div className="mb-4 rounded-lg border border-warning/30 bg-warning/5 px-3 py-2 text-xs text-warning dark:text-warning classic:border-amber-500/30 classic:bg-amber-500/5 classic:text-amber-700 classic:dark:text-amber-400">
           数据不完整：{data.dataQuality.errors.join('；')}
         </div>
       )}

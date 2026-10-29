@@ -24,7 +24,7 @@ function ToastItem({ toast }: { toast: CashToast }) {
       className={cn(
         'pointer-events-auto animate-in slide-in-from-right-4 fade-in duration-300',
         'rounded-lg border bg-popover px-3 py-2 shadow-md backdrop-blur',
-        positive ? 'border-green-500/40' : 'border-red-500/40'
+        positive ? 'border-positive/40' : 'border-negative/40'
       )}
     >
       <p className="text-xs text-muted-foreground">
@@ -33,7 +33,7 @@ function ToastItem({ toast }: { toast: CashToast }) {
       <p
         className={cn(
           'font-semibold tabular-nums',
-          positive ? 'text-green-600' : 'text-red-600'
+          positive ? 'text-positive' : 'text-negative'
         )}
       >
         {positive ? '+' : '-'}

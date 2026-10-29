@@ -82,11 +82,11 @@ export function FundingOverview({
         }}
       >
         <Popover.Trigger
-          className="group w-full rounded-lg border px-3 py-2 text-left transition-colors hover:border-blue-500/40 hover:bg-blue-500/[0.025] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/35"
+          className="group w-full rounded-lg border px-3 py-2 text-left transition-colors hover:border-primary/40 hover:bg-primary/[0.025] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/35"
         >
           <span className="flex items-center justify-between gap-2">
             <span className="text-[11px] text-muted-foreground">AI 仓位目标</span>
-            <Pencil className="h-3 w-3 text-muted-foreground transition-colors group-hover:text-blue-500" />
+            <Pencil className="h-3 w-3 text-muted-foreground transition-colors group-hover:text-primary" />
           </span>
           <span className="mt-0.5 block text-lg font-semibold tabular-nums">
             {Number(targetSharePct.toFixed(1))}%
@@ -122,9 +122,9 @@ export function FundingOverview({
                     key={preset}
                     type="button"
                     onClick={() => changeDraft(preset)}
-                    className={`rounded-full px-2 py-1.5 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/35 ${
+                    className={`rounded-full px-2 py-1.5 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/35 ${
                       draftPct === preset
-                        ? 'bg-blue-500/15 text-blue-600 dark:text-blue-400'
+                        ? 'bg-primary/15 text-primary dark:text-primary'
                         : 'bg-secondary text-muted-foreground hover:text-foreground'
                     }`}
                   >
@@ -144,15 +144,15 @@ export function FundingOverview({
                 >
                   <Slider.Control className="flex h-5 w-full touch-none items-center select-none">
                     <Slider.Track className="relative h-1 w-full rounded-full bg-secondary">
-                      <Slider.Indicator className="rounded-full bg-blue-500" />
+                      <Slider.Indicator className="rounded-full bg-primary" />
                       <Slider.Thumb
                         aria-label="AI 仓位目标百分比"
-                        className="h-4 w-4 rounded-full border-2 border-blue-500 bg-background shadow-sm outline-none transition-transform hover:scale-110 focus-visible:ring-2 focus-visible:ring-blue-500/35"
+                        className="h-4 w-4 rounded-full border-2 border-primary bg-background shadow-sm outline-none transition-transform hover:scale-110 focus-visible:ring-2 focus-visible:ring-primary/35"
                       />
                     </Slider.Track>
                   </Slider.Control>
                 </Slider.Root>
-                <label className="flex h-8 items-center overflow-hidden rounded-md border bg-background focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500/25">
+                <label className="flex h-8 items-center overflow-hidden rounded-md border bg-background focus-within:border-primary focus-within:ring-1 focus-within:ring-primary/25">
                   <span className="sr-only">自定义仓位百分比</span>
                   <input
                     type="number"
@@ -192,7 +192,7 @@ export function FundingOverview({
                   type="button"
                   disabled={!draftIsValid}
                   onClick={applyTargetShare}
-                  className="rounded-md bg-blue-500 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-blue-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground transition-colors hover:bg-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   应用
                 </button>
@@ -205,11 +205,6 @@ export function FundingOverview({
         label="已有 AI 仓位"
         value={hidden ? '****' : fmtUsd(funding.aiCurrentTotal)}
         sub={`占总资产 ${hidden ? '****' : `${sharePct}%`}`}
-      />
-      <Stat
-        label="待加额度"
-        value={hidden ? '****' : fmtUsd(funding.pendingBudget)}
-        sub="目标仓位 − 当前真实仓位"
       />
     </div>
   );
