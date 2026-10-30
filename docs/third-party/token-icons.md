@@ -1,12 +1,21 @@
 # Bundled token icons
 
-57 high-resolution token logos are served from `public/token-icons` so displaying known assets does not require CoinGecko API or RPC calls at runtime. These brand marks identify the corresponding assets; ownership remains with each project.
+59 high-resolution token logos are served from `public/token-icons` so displaying known assets does not require CoinGecko API or RPC calls at runtime. These brand marks identify the corresponding assets; ownership remains with each project.
 
 `next.config.ts` sets `Cache-Control: public, max-age=31536000, immutable` for `/token-icons/*`. Browsers can reuse downloaded images for one year without revalidation on ordinary visits. Files use content hashes, so an updated image receives a new URL. Clearing browser caches, forced reloads or cache eviction can cause another download from this website.
 
 The files were downloaded on 2026-10-29 from CoinGecko image URLs returned for exact coin IDs by the [coins/markets endpoint](https://docs.coingecko.com/reference/coins-markets). File names include a SHA-256 prefix so refreshing an image changes its browser cache key. Images are fetched only when their assets are displayed; the full set is not loaded upfront.
 
 To refresh, query the existing exact IDs in one batch, verify the returned identities and image content, replace the affected asset file and update `src/lib/portfolio/tokenIcons.ts`. Do not resolve ambiguous ticker searches automatically.
+
+USDG and PONS were added unchanged on 2026-10-30 from the same provider's
+exact-ID market responses; both are 250 × 250 pixels. USDG is Global Dollar
+(`global-dollar`). PONS (`pons`) is the Robinhood Chain token whose contract
+`0x39dBED3a2bd333467115dE45665cC57F813C4571` matches the provider metadata and
+the [project's reference token](https://docs.ponsfamily.com/#reference-token).
+These symbols previously returned 404 because neither icon mapping contained
+them. New static URLs bypass old proxy failures; allocation hover images also
+fall back to the shared icon lookup if a source-supplied image cannot load.
 
 | Symbol | Coin ID | Original image |
 | --- | --- | --- |
@@ -67,3 +76,5 @@ To refresh, query the existing exact IDs in one batch, verify the returned ident
 | BUSD | binance-usd | [Source](https://coin-images.coingecko.com/coins/images/9576/large/busd.png?1785507511) |
 | USD1 | usd1-wlfi | [Source](https://coin-images.coingecko.com/coins/images/54977/large/USD1_1000x1000_transparent.png?1749297002) |
 | USD0 | usual-usd | [Source](https://coin-images.coingecko.com/coins/images/38272/large/USD0LOGO.png?1716962811) |
+| USDG | global-dollar | [Source](https://coin-images.coingecko.com/coins/images/51281/large/GDN_USDG_Token_200x200.png?1730484111) |
+| PONS | pons | [Source](https://coin-images.coingecko.com/coins/images/102174571/large/jhitvkisdq8fhxvimdkpcw7y3dx5.?1784093932) |

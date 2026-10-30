@@ -26,6 +26,9 @@ test('all bundled logos remain available when the metadata API is rate limited',
   }
   assert.equal(bundledTokenIconUrl('ldtrx'), bundledTokenIconUrl('TRX'));
   assert.equal(bundledTokenIconUrl('PENDLE(Ethereum)'), bundledTokenIconUrl('PENDLE'));
+  assert.equal(bundledTokenIconUrl('ldusdg'), bundledTokenIconUrl('USDG'));
+  assert.equal(bundledTokenIconUrl('USDG(Ethereum)'), bundledTokenIconUrl('USDG'));
+  assert.equal(bundledTokenIconUrl('pons(Robinhood)'), bundledTokenIconUrl('PONS'));
   for (const symbol of ['UNKNOWN', '__proto__', 'constructor']) assert.equal(bundledTokenIconUrl(symbol), null);
   assert.deepEqual(calls, []);
 });
@@ -61,7 +64,7 @@ test('unrecognized tokens do not trigger searches and untrusted image hosts are 
 });
 
 test('common exchange assets and earn receipts resolve to exact coin IDs with high-resolution images', async () => {
-  for (const [symbol, id] of [['BNB', 'binancecoin'], ['ENA', 'ethena'], ['LDENA', 'ethena'], ['SUI', 'sui'], ['USDE', 'ethena-usde']]) {
+  for (const [symbol, id] of [['BNB', 'binancecoin'], ['ENA', 'ethena'], ['LDENA', 'ethena'], ['SUI', 'sui'], ['USDE', 'ethena-usde'], ['USDG', 'global-dollar'], ['LDUSDG', 'global-dollar'], ['PONS', 'pons']]) {
     const calls = [];
     const { GET } = route(async url => {
       calls.push(String(url));

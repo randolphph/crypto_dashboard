@@ -20,6 +20,17 @@ reduced-motion users get the final frame without animation.
 The reference supplies presentation only. Portfolio values, category assignments,
 valuation rules and data sources remain supplied by crypto-dashboard.
 
+Allocation hover details combine the same instrument across exchanges, wallets
+and brokers within its assigned category, before sorting by absolute value and
+selecting the largest eight. Tokenized US stocks use the existing explicit
+ticker association; options retain contract identity. Known crypto symbols
+combine across chains/venues while wrapped/staked tokens remain distinct and
+unknown onchain namesakes retain chain/contract identity. Category totals and
+per-account holdings stay unchanged; source amounts remain in the aggregated
+detail model. Merged rows show a muted second line of deduplicated venue labels
+(for example Binance · OKX · 链上 · IBKR); wallet names and exchange subaccounts
+do not repeat the same venue in this compact line.
+
 Apache ECharts and ZRender are distributed under their own Apache-2.0 / BSD-3-Clause licenses in the installed npm packages.
 
 `src/components/dashboard/ExchangeTreemap.tsx` adapts **F13 · Nested Treemap**,

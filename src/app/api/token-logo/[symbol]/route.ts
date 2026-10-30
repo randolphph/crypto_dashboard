@@ -19,6 +19,7 @@ const ICON_IDS: Record<string, string> = {
   FIL: 'filecoin', ICP: 'internet-computer', JUP: 'jupiter-exchange-solana',
   JTO: 'jito-governance-token', CAKE: 'pancakeswap-token',
   BUSD: 'binance-usd', USD1: 'usd1-wlfi', USD0: 'usual-usd',
+  USDG: 'global-dollar', PONS: 'pons',
 };
 const notFound = () => new Response(null, {
   status: 404,

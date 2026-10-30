@@ -154,16 +154,21 @@ export function AssetAllocationPie({ breakdown, assets }: { breakdown: Allocatio
         {pinned === active.label && <button type="button" aria-label="关闭分类明细" onClick={close} className="-mr-1 -mt-1 rounded p-1.5 text-muted-foreground hover:bg-secondary hover:text-foreground"><X className="size-3.5" /></button>}
       </div>
       <ul className="space-y-1.5">
-        {details.map(detail => <li key={detail.label} data-allocation-detail={detail.label} className="flex items-start justify-between gap-3 text-xs">
-          <span className="flex min-w-0 items-start gap-1.5 text-muted-foreground">
-            <span className="min-w-0 break-words leading-relaxed">{detail.displayLabel ?? detail.label}</span>
-            {detail.icon && <span className="mt-0.5 shrink-0" data-allocation-icon>
-              <TokenIcon key={`${detail.icon.src ?? ''}:${detail.icon.market ?? ''}:${detail.icon.symbol}`}
-                symbol={detail.icon.symbol} size={16}
-                src={detail.icon.src ?? (detail.icon.market
-                  ? stockIconUrl(detail.icon.market, detail.icon.symbol)
-                  : tokenIconUrl(detail.icon.symbol))} />
-            </span>}
+        {details.map(detail => <li key={detail.id ?? detail.label} data-allocation-detail={detail.label} className="flex items-start justify-between gap-3 text-xs">
+          <span className="min-w-0 text-muted-foreground">
+            <span className="flex min-w-0 items-start gap-1.5">
+              <span className="min-w-0 break-words leading-relaxed">{detail.displayLabel ?? detail.label}</span>
+              {detail.icon && <span className="mt-0.5 shrink-0" data-allocation-icon>
+                <TokenIcon key={`${detail.icon.src ?? ''}:${detail.icon.market ?? ''}:${detail.icon.symbol}`}
+                  symbol={detail.icon.symbol} size={16}
+                  src={detail.icon.src ?? (detail.icon.market
+                    ? stockIconUrl(detail.icon.market, detail.icon.symbol)
+                    : tokenIconUrl(detail.icon.symbol))}
+                  fallbackSrc={detail.icon.market ? stockIconUrl(detail.icon.market, detail.icon.symbol) : tokenIconUrl(detail.icon.symbol)} />
+              </span>}
+            </span>
+            {detail.merged && detail.locations && detail.locations.length > 0 &&
+              <span data-allocation-locations className="mt-0.5 block break-words text-[10px] leading-4 text-muted-foreground/70">{detail.locations.join(' · ')}</span>}
           </span>
           <span className="shrink-0 text-right tabular-nums"><span className="font-medium">{fmtUsd(detail.value)}</span>{active.value > 0 && <span className="mt-0.5 block text-[11px] text-muted-foreground">{hidden ? '**%' : shareLabel(detail.value / active.value * 100)}</span>}</span>
         </li>)}
