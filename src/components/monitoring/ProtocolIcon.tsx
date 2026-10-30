@@ -1,10 +1,12 @@
 import { useId } from 'react';
+import Image from 'next/image';
 import type { MonitorType } from '@/types/cryptoSentry';
 import { cn } from '@/lib/utils';
 
-export type ProtocolBrand = 'binance' | 'uniswap' | 'pancake' | 'aave' | 'stock';
+export type ProtocolBrand = 'binance' | 'uniswap' | 'pancake' | 'aave' | 'stock' | 'hyperliquid';
 
 const BRAND_BY_MONITOR: Record<MonitorType, ProtocolBrand> = {
+  hyperliquid_account: 'hyperliquid',
   market: 'binance',
   stock_price: 'stock',
   aave_account: 'aave',
@@ -20,6 +22,7 @@ const BRAND_BY_MONITOR: Record<MonitorType, ProtocolBrand> = {
 };
 
 const BRAND_STYLES: Record<ProtocolBrand, string> = {
+  hyperliquid: 'bg-primary/10 text-primary classic:bg-emerald-500/10 classic:text-emerald-700 classic:dark:text-emerald-300',
   stock: 'bg-primary/10 text-primary classic:bg-blue-500/10 classic:text-blue-600 classic:dark:text-blue-400',
   binance: 'bg-primary/10 text-primary classic:bg-[#F0B90B]/12 classic:text-[#C99400] classic:dark:bg-[#F0B90B]/16 classic:dark:text-[#F0B90B]',
   uniswap: 'bg-primary/10 text-primary classic:bg-[#FF007A]/10 classic:text-[#F50DB4] classic:dark:bg-[#FF007A]/15 classic:dark:text-[#FC72FF]',
@@ -27,6 +30,7 @@ const BRAND_STYLES: Record<ProtocolBrand, string> = {
   aave: 'bg-primary/10 text-primary classic:bg-[#9391F7]/12 classic:text-[#6865D9] classic:dark:bg-[#9391F7]/16 classic:dark:text-[#AAA8FF]',
 };
 const BRAND_COLORS: Record<ProtocolBrand, string> = {
+  hyperliquid: 'text-primary classic:text-emerald-700 classic:dark:text-emerald-300',
   stock: 'text-primary classic:text-blue-600 classic:dark:text-blue-400',
   binance: 'text-primary classic:text-[#C99400] classic:dark:text-[#F0B90B]',
   uniswap: 'text-primary classic:text-[#F50DB4] classic:dark:text-[#FC72FF]',
@@ -36,6 +40,8 @@ const BRAND_COLORS: Record<ProtocolBrand, string> = {
 
 function BrandMark({ brand }: { brand: ProtocolBrand }) {
   const pancakeGradientId = useId();
+
+  if (brand === 'hyperliquid') return <Image src="/token-icons/hyperliquid-83dc5d3080.jpg" alt="" width={28} height={28} className="size-[75%] rounded-full object-contain" />;
 
   if (brand === 'stock') return <svg aria-hidden="true" viewBox="0 0 24 24" className="size-[70%] fill-none stroke-current" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M4 4v16h16M7 15l4-5 4 3 5-7M16 6h4v4" /></svg>;
 

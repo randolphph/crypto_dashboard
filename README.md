@@ -23,6 +23,7 @@
 - **现金流标注** — 在曲线上标记入金 / 出金事件，避免误读为收益
 
 ### 行情与 DeFi 监控
+- **Hyperliquid 地址活动** — 官方实时订阅成交、挂单和撤单，支持后台告警、断线补查及去重；无需额外 API Key / EVM RPC，需同步更新 CryptoSentry 后端，详见 [接入说明](docs/hyperliquid-monitoring.md)。
 - **美股价格监控** — 添加股票代码、检查频率、目标价格规则和通知目标；CryptoSentry 后台执行，支持新浪 / Yahoo / 币安自动切换，也可指定单一来源，详见 [美股监控](docs/us-stock-monitoring.md)。需同步部署新版后端。
 - **云端监控** — 通过 CryptoSentry 创建 Aave 与 Uniswap 钱包监控，网页端只经由 Next.js 服务端代理访问
 - **数据源初始化** — 根据后端目录一键配置 Binance 公共行情，或添加 Alchemy / Infura / QuickNode / 自定义 EVM RPC

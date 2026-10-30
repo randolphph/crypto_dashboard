@@ -70,6 +70,7 @@ function metricHelp(metric?: RuleMetricDefinition): string {
     position_closed: '监控 LP 仓位是否已经关闭。',
   };
   if (help[metric.id]) return help[metric.id];
+  if (metric.id === 'hyperliquid_activity') return '实时监控成交、挂单、撤单等新活动。可选择活动类型，或在高级选项中按币种、买卖方向筛选。';
   if (metric.kind === 'event') return `监控是否出现“${metric.name}”。`;
   if (metric.valueType === 'boolean') return `监控“${metric.name}”是否为指定状态。`;
   return `监控“${metric.name}”是否达到设定值。`;
@@ -152,7 +153,7 @@ function RuleDialog({ open, onOpenChange, monitor, catalog, rule, onSave }: Rule
     labelsText: Object.entries(condition.labels).map(([key, value]) => `${key}=${value}`).join(', '),
   })) ?? [emptyCondition(metrics[0])]);
   const [duration, setDuration] = useState(String(rule?.durationSeconds ?? 0));
-  const [cooldown, setCooldown] = useState(String(rule?.cooldownSeconds ?? 1800));
+  const [cooldown, setCooldown] = useState(String(rule?.cooldownSeconds ?? (monitor.type === 'hyperliquid_account' ? 0 : 1800)));
   const [severity, setSeverity] = useState<RuleCreateInput['severity']>(rule?.severity ?? 'warning');
   const [notificationIds, setNotificationIds] = useState<string[]>(rule?.notificationIntegrationIds ?? []);
   const [error, setError] = useState<string | null>(null);
@@ -196,7 +197,7 @@ function RuleDialog({ open, onOpenChange, monitor, catalog, rule, onSave }: Rule
           <DialogHeader><DialogTitle>{rule ? '编辑告警规则' : '添加告警规则'}</DialogTitle><DialogDescription>选择要监控的指标和触发条件。满足条件后会生成告警，并通知你选择的 Telegram 或 Bark 目标。</DialogDescription></DialogHeader>
           <div className="space-y-5 py-1">
             <div className="grid gap-4 sm:grid-cols-[1fr_150px_150px]">
-              <div className="space-y-2"><Label htmlFor="rule-name">规则名称</Label><Input id="rule-name" value={name} onChange={(event) => setName(event.target.value)} placeholder={monitor.type === 'stock_price' ? '例如：NVDA 低于目标价格' : '例如：BTC 5 分钟上涨 3%'} /></div>
+              <div className="space-y-2"><Label htmlFor="rule-name">规则名称</Label><Input id="rule-name" value={name} onChange={(event) => setName(event.target.value)} placeholder={monitor.type === 'hyperliquid_account' ? '例如：地址交易活动提醒' : monitor.type === 'stock_price' ? '例如：NVDA 低于目标价格' : '例如：BTC 5 分钟上涨 3%'} /></div>
               <div className="space-y-2"><Label htmlFor="rule-combinator">多个条件</Label><select id="rule-combinator" value={combinator} onChange={(event) => setCombinator(event.target.value as 'and' | 'or')} className="h-8 w-full rounded-lg border bg-background px-2 text-sm"><option value="and">必须全部满足</option><option value="or">满足任意一个</option></select></div>
               <div className="space-y-2">
                 <Label htmlFor="rule-severity">告警级别</Label>
@@ -229,6 +230,10 @@ function RuleDialog({ open, onOpenChange, monitor, catalog, rule, onSave }: Rule
                   <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                     <div className="space-y-2 sm:col-span-2"><Label htmlFor={metricId}>监控指标</Label><select id={metricId} value={condition.metric} onChange={(event) => { const next = selectableMetrics.find((metric) => metric.id === event.target.value); updateCondition(index, emptyCondition(next)); }} className="h-8 w-full rounded-lg border bg-background px-2 text-sm">{selectableMetrics.map((metric) => <option key={metric.id} value={metric.id}>{metric.name}{HIDDEN_LP_METRICS.has(metric.id) ? '（已有规则）' : metric.kind === 'event' ? '（事件）' : unitLabel(metric, monitor) ? `（${unitLabel(metric, monitor)}）` : ''}</option>)}</select><p className="text-xs text-muted-foreground">{metricHelp(definition)}</p></div>
                     {condition.metric === 'price_change_percent' ? <div className="space-y-2"><Label>触发方式</Label><div className="flex h-8 items-center rounded-lg border bg-muted/40 px-2.5 text-sm">双向波动达到</div></div> : <div className="space-y-2"><Label htmlFor={operatorId}>触发条件</Label><select id={operatorId} value={condition.operator} onChange={(event) => updateCondition(index, { operator: event.target.value as RuleOperator })} className="h-8 w-full rounded-lg border bg-background px-2 text-sm">{definition?.operators.map((operator) => <option key={operator} value={operator}>{OPERATOR_LABEL[operator]}</option>)}</select></div>}
+                    {condition.metric === 'hyperliquid_activity' && <div className="space-y-2 sm:col-span-2"><Label htmlFor={`hl-event-${index}`}>活动类型</Label><select id={`hl-event-${index}`} value={condition.labelsText.split(',').map(row => row.trim()).find(row => row.startsWith('eventType='))?.slice(10) ?? ''} onChange={event => {
+                      const filters = condition.labelsText.split(',').map(row => row.trim()).filter(row => row && !row.startsWith('eventType='));
+                      if (event.target.value) filters.push(`eventType=${event.target.value}`);updateCondition(index, { labelsText: filters.join(', ') });
+                    }} className="h-8 w-full rounded-lg border bg-background px-2 text-sm"><option value="">全部活动</option><option value="fill">成交</option><option value="order_opened">挂单</option><option value="order_canceled">撤单</option><option value="order_rejected">订单拒绝</option><option value="order_triggered">条件单触发</option></select></div>}
                     <div className="space-y-2"><Label htmlFor={thresholdId}>{definition?.valueType === 'boolean' ? '目标状态' : condition.metric === 'price_change_percent' ? '波动阈值' : monitor.type === 'stock_price' && condition.metric === 'price' ? '目标价格' : '目标值'}</Label>{definition?.valueType === 'boolean' ? <select id={thresholdId} value={condition.threshold} onChange={(event) => updateCondition(index, { threshold: event.target.value })} className="h-8 w-full rounded-lg border bg-background px-2 text-sm"><option value="true">是</option><option value="false">否</option></select> : <div className="relative"><Input id={thresholdId} type={condition.metric === 'price_change_percent' ? 'number' : undefined} min={condition.metric === 'price_change_percent' ? 0 : undefined} step={condition.metric === 'price_change_percent' ? 'any' : undefined} inputMode="decimal" value={condition.threshold} onChange={(event) => updateCondition(index, { threshold: event.target.value })} placeholder="输入数值" className={unitLabel(definition, monitor) ? 'pr-20' : undefined} />{unitLabel(definition, monitor) ? <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-xs text-muted-foreground">{unitLabel(definition, monitor)}</span> : null}</div>}</div>
                   </div>
                   {definition?.requiresWindow ? <div className="mt-3 max-w-xs space-y-2"><Label htmlFor={windowId}>统计周期（秒）</Label><Input id={windowId} type="number" min={definition.windowSecondsMin} max={definition.windowSecondsMax} value={condition.windowSeconds ?? definition.windowSecondsMin} onChange={(event) => updateCondition(index, { windowSeconds: Number(event.target.value) })} /><p className="text-xs text-muted-foreground">当前统计 {formatSeconds(condition.windowSeconds ?? definition.windowSecondsMin ?? 0)}，可填写 {definition.windowSecondsMin}–{definition.windowSecondsMax} 秒。</p></div> : null}

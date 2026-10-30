@@ -1,6 +1,7 @@
 export type MonitorStatus = 'warming_up' | 'ok' | 'stale' | 'error';
 export type SnapshotStatus = MonitorStatus | 'empty' | 'partial' | 'unsupported';
 export type MonitorType =
+  | 'hyperliquid_account'
   | 'market'
   | 'stock_price'
   | 'aave_account'
@@ -127,6 +128,7 @@ export interface RuleMetricDefinition {
 }
 
 export interface IntegrationCatalog {
+  hyperliquid?: { requiresCredentials: false; transport: 'websocket'; networks: Array<'mainnet' | 'testnet'> };
   samplingPresets: Array<{ id: string; intervalSeconds: number }>;
   ruleMetrics: Partial<Record<MonitorType, RuleMetricDefinition[]>>;
   marketData: {
@@ -165,6 +167,7 @@ export interface IntegrationCatalog {
 }
 
 export interface IntegrationReadiness {
+  hyperliquid?: { ready: boolean; requiresCredentials: false; transport: 'websocket' };
   aave: {
     ready: boolean; configuredNetworkCount: number;
     networks: Array<{
@@ -238,6 +241,7 @@ export type MonitorConfig = Record<string, unknown> & {
   version?: UniswapVersion;
   versions?: UniswapVersion[];
   walletAddress?: string;
+  network?: 'mainnet' | 'testnet';
   tokenId?: string;
   poolAddress?: string;
   poolId?: string;

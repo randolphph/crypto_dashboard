@@ -58,7 +58,9 @@ export function DataSourceSetup({
     configuredNetworkCount: 0,
     networks: [],
   };
+  const hasHyperliquid = catalog?.monitorTypes.some(type => type.id === 'hyperliquid_account' && type.status === 'available') === true;
   const readyCount =
+    Number(hasHyperliquid && readiness?.hyperliquid?.ready === true) +
     Number(readiness?.aave.ready === true) +
     Number(readiness?.binance.ready === true) +
     Number(uniswapReadiness.ready) +
@@ -79,7 +81,7 @@ export function DataSourceSetup({
           </div>
           <div className="flex items-center gap-2">
             {readiness ? (
-              <Badge variant="outline">{readyCount}/4 已就绪</Badge>
+              <Badge variant="outline">{readyCount}/{hasHyperliquid ? 5 : 4} 已就绪</Badge>
             ) : null}
             <Button variant="ghost" size="sm" onClick={onRefresh} disabled={isFetching}>
               <RefreshCw className={isFetching ? 'animate-spin' : undefined} />
@@ -90,6 +92,8 @@ export function DataSourceSetup({
       </CardHeader>
 
       <CardContent>
+        {catalog?.monitorTypes.some(type => type.id === 'hyperliquid_account' && type.status === 'available') && <div className="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-xl border p-4"><div><p className="text-sm font-semibold">Hyperliquid 官方公开接口</p><p className="mt-1 text-xs text-muted-foreground">地址成交、挂单和撤单由后台实时订阅，无需 API Key 或 EVM RPC。</p></div><Badge variant="secondary">无需配置</Badge></div>}
+
         {error ? (
           <div className="mb-4 rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
             无法读取数据源状态：{error.message}

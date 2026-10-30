@@ -348,7 +348,7 @@ export function useMonitorSnapshot(monitor: CryptoSentryMonitor | null) {
       : readMonitorSnapshot(monitor),
     enabled: monitor !== null,
     staleTime: 0,
-    refetchInterval: 10_000,
+    refetchInterval: monitor?.type === 'hyperliquid_account' ? 3_000 : 10_000,
     refetchIntervalInBackground: true,
   });
 }

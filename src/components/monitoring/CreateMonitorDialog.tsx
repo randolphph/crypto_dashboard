@@ -25,6 +25,7 @@ type AvailableType = Exclude<MonitorType, 'aave_position' | 'lp_position'>;
 type DexType = Extract<AvailableType, `uniswap_${string}` | `pancake_${string}`>;
 
 const TYPES: Array<{ id: AvailableType; title: string; description: string; brand: ProtocolBrand }> = [
+  { id: 'hyperliquid_account', title: 'Hyperliquid 地址', description: '实时监控成交、挂单和撤单', brand: 'hyperliquid' },
   { id: 'stock_price', title: '美股价格', description: '股票价格、到价提醒与后台定时检查', brand: 'stock' },
   { id: 'market', title: 'Binance 行情', description: '价格、成交量、资金费率和 OI', brand: 'binance' },
   { id: 'aave_account', title: 'Aave 地址', description: '账户仓位、健康因子与资金变化', brand: 'aave' },
@@ -63,6 +64,7 @@ export function CreateMonitorDialog({ open, onOpenChange, catalog, readiness, on
   const [chainId, setChainId] = useState(monitor?.config.chainId ?? 1);
   const [version, setVersion] = useState<UniswapVersion>(monitor?.config.version ?? 'v3');
   const [wallet, setWallet] = useState(monitor?.config.walletAddress ?? '');
+  const [hyperliquidNetwork, setHyperliquidNetwork] = useState<'mainnet' | 'testnet'>(monitor?.config.network ?? 'mainnet');
   const [tokenId, setTokenId] = useState(monitor?.config.tokenId ?? '');
   const [marketType, setMarketType] = useState<'spot' | 'perpetual'>(monitor?.config.marketType ?? 'spot');
   const [marketSymbol, setMarketSymbol] = useState(monitor?.config.providerSymbol ?? monitor?.config.poolAddress ?? monitor?.config.poolId ?? '');
@@ -180,10 +182,14 @@ export function CreateMonitorDialog({ open, onOpenChange, catalog, readiness, on
     setType('market'); setName(''); setIntervalMode('standard'); setIntervalValue('20'); setMaxStale('90'); setRpcId(''); setChainId(1); setVersion('v3');
     setWallet(''); setTokenId(''); setMarketType('spot'); setMarketSymbol(''); setSearch(''); setSelectedReserves([]);
     setSelectedChains([1]); setSelectedVersions(['v3']); setError(null);
-    setStockSymbol('');
+    setStockSymbol(''); setHyperliquidNetwork('mainnet');
   };
 
   const buildConfig = (): MonitorCreateInput['config'] => {
+    if (type === 'hyperliquid_account') {
+      if (!ADDRESS.test(wallet.trim())) throw new Error('请输入有效的 Hyperliquid 账户地址（0x 开头，共 40 位十六进制）');
+      return { walletAddress: wallet.trim().toLowerCase(), network: hyperliquidNetwork };
+    }
     if (type === 'stock_price') {
       const symbol = stockSymbol.trim().toUpperCase();
       if (!/^[A-Z][A-Z0-9]*(?:[.-][A-Z0-9]+)*$/.test(symbol) || symbol.length > 20) throw new Error('请输入有效美股代码，例如 NVDA、AAPL、BRK.B');
@@ -251,8 +257,8 @@ export function CreateMonitorDialog({ open, onOpenChange, catalog, readiness, on
   const submit = async (event: FormEvent) => {
     event.preventDefault();
     if (!name.trim()) return setError('请输入监控名称');
-    const intervalSeconds = Number(interval);
-    const maxStaleSeconds = Number(maxStale);
+    const intervalSeconds = type === 'hyperliquid_account' ? 20 : Number(interval);
+    const maxStaleSeconds = type === 'hyperliquid_account' ? 90 : Number(maxStale);
     if (!Number.isInteger(intervalSeconds) || intervalSeconds < 5 || intervalSeconds > 86_400) return setError('采样间隔必须为 5–86400 秒');
     if (!Number.isInteger(maxStaleSeconds) || maxStaleSeconds < 5 || maxStaleSeconds > 86_400) return setError('过期阈值必须为 5–86400 秒');
     setSubmitting(true); setError(null);
@@ -272,7 +278,7 @@ export function CreateMonitorDialog({ open, onOpenChange, catalog, readiness, on
 
   const typeReady = (candidate: AvailableType) => {
     if (!catalogSupportsType(candidate)) return false;
-    if (candidate === 'stock_price') return true;
+    if (candidate === 'stock_price' || candidate === 'hyperliquid_account') return true;
     if (candidate === 'market') return readiness.binance.ready;
     if (candidate.startsWith('aave')) return aaveNetworksFor(candidate).some((network) => (
       readiness.aave.networks.some((readyNetwork) => (
@@ -292,7 +298,7 @@ export function CreateMonitorDialog({ open, onOpenChange, catalog, readiness, on
     <Dialog open={open} onOpenChange={(next) => { if (!next && !submitting && !editing) reset(); onOpenChange(next); }}>
       <DialogContent className="max-h-[calc(100vh-2rem)] overflow-y-auto sm:max-w-3xl">
         <form onSubmit={submit} className="contents">
-          <DialogHeader><DialogTitle>{editing ? '编辑监控任务' : '添加监控任务'}</DialogTitle><DialogDescription>{editing ? '可修改监控对象、采样频率和过期阈值；监控类型保持不变。' : '选择监控类型，配置标的与检查频率。'}</DialogDescription></DialogHeader>
+          <DialogHeader><DialogTitle>{editing ? '编辑监控任务' : '添加监控任务'}</DialogTitle><DialogDescription>{type === 'hyperliquid_account' ? '填写账户地址，使用官方实时活动订阅。' : editing ? '可修改监控对象、采样频率和过期阈值；监控类型保持不变。' : '选择监控类型，配置标的与检查频率。'}</DialogDescription></DialogHeader>
           <div className="space-y-5 py-1">
             {editing ? <div className="flex items-center gap-3 rounded-lg border bg-muted/35 px-3 py-2 text-sm"><ProtocolIcon brand={selectedTypeOption.brand} className="size-8 rounded-lg" /><span><span className="block text-xs text-muted-foreground">监控类型</span><span className="font-medium">{selectedTypeOption.title}</span></span></div> : <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
               {TYPES.map((item) => <button key={item.id} type="button" disabled={!typeReady(item.id)} onClick={() => {
@@ -330,16 +336,27 @@ export function CreateMonitorDialog({ open, onOpenChange, catalog, readiness, on
                   setVersion(rpcNetworks[0]?.versions.v3 ? 'v3' : 'v4');
                   setSelectedVersions([rpcNetworks[0]?.versions.v3 ? 'v3' : 'v4']);
                 }
-              }} className={cn('flex items-start gap-3 rounded-lg border p-3 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-45', type === item.id && 'border-primary bg-primary/5 ring-1 ring-primary/20')}><ProtocolIcon brand={item.brand} className="size-9 rounded-lg" /><span className="min-w-0"><span className="block text-sm font-semibold">{item.title}</span><span className="mt-1 block text-xs leading-relaxed text-muted-foreground">{typeReady(item.id) ? item.description : item.id === 'stock_price' ? '当前监控服务尚未支持美股' : '请先配置并测试数据源'}</span></span></button>)}
+              }} className={cn('flex items-start gap-3 rounded-lg border p-3 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-45', type === item.id && 'border-primary bg-primary/5 ring-1 ring-primary/20')}><ProtocolIcon brand={item.brand} className="size-9 rounded-lg" /><span className="min-w-0"><span className="block text-sm font-semibold">{item.title}</span><span className="mt-1 block text-xs leading-relaxed text-muted-foreground">{typeReady(item.id) ? item.description : item.id === 'hyperliquid_account' ? '需更新监控后端以支持 Hyperliquid' : item.id === 'stock_price' ? '当前监控服务尚未支持美股' : '请先配置并测试数据源'}</span></span></button>)}
             </div>}
 
-            <div className="grid gap-4 sm:grid-cols-[1fr_180px_180px]">
+            <div className={type === 'hyperliquid_account' ? 'grid gap-4' : 'grid gap-4 sm:grid-cols-[1fr_180px_180px]'}>
               <div className="space-y-2"><Label htmlFor="monitor-name">监控名称</Label><Input id="monitor-name" value={name} onChange={(event) => setName(event.target.value)} placeholder="例如：BTC 永续异动" /></div>
+              {type !== 'hyperliquid_account' && <>
               <div className="space-y-2"><Label htmlFor="monitor-interval">采样频率</Label><select id="monitor-interval" value={intervalMode} onChange={(event) => { const mode = event.target.value; setIntervalMode(mode); const preset = catalog.samplingPresets.find((item) => item.id === mode); if (preset) setIntervalValue(String(preset.intervalSeconds)); }} className="h-8 w-full rounded-lg border bg-background px-2.5 text-sm">{catalog.samplingPresets.map((preset) => <option key={preset.id} value={preset.id}>{preset.id} · {preset.intervalSeconds}s</option>)}<option value="custom">自定义</option></select>{intervalMode === 'custom' ? <Input aria-label="自定义采样间隔（秒）" type="number" min={5} max={86400} value={interval} onChange={(event) => setIntervalValue(event.target.value)} placeholder="秒" /> : null}</div>
               <div className="space-y-2"><Label htmlFor="monitor-stale">数据过期（秒）</Label><Input id="monitor-stale" type="number" min={5} max={86400} value={maxStale} onChange={(event) => setMaxStale(event.target.value)} /></div>
+              </>}
             </div>
 
             {type === 'market' ? <div className="space-y-3 rounded-xl border p-4"><div className="flex gap-2"><select value={marketType} onChange={(event) => { setMarketType(event.target.value as 'spot' | 'perpetual'); setMarketSymbol(''); }} className="h-8 rounded-lg border bg-background px-2.5 text-sm"><option value="spot">现货</option><option value="perpetual">永续</option></select><Input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="搜索 BTCUSDT 或 BTC/USD" /></div><div className="max-h-48 overflow-y-auto rounded-lg border">{markets.map((market) => <button key={`${market.marketType}-${market.providerSymbol}`} type="button" onClick={() => setMarketSymbol(market.providerSymbol)} className={cn('flex w-full items-center justify-between border-b px-3 py-2 text-left text-sm last:border-0', marketSymbol === market.providerSymbol && 'bg-accent')}><span className="font-medium">{market.canonicalSymbol}</span><span className="font-mono text-xs text-muted-foreground">{market.providerSymbol}</span></button>)}</div></div> : null}
+
+            {type === 'hyperliquid_account' ? <div className="space-y-4 rounded-xl border p-4">
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-2"><Label htmlFor="hyperliquid-address">账户地址</Label><Input id="hyperliquid-address" value={wallet} onChange={event => setWallet(event.target.value)} placeholder="0x…" spellCheck={false} className="font-mono text-xs" /></div>
+                <div className="space-y-2"><Label htmlFor="hyperliquid-network">网络</Label><select id="hyperliquid-network" value={hyperliquidNetwork} onChange={event => setHyperliquidNetwork(event.target.value as 'mainnet' | 'testnet')} className="h-8 w-full rounded-lg border bg-background px-2 text-sm"><option value="mainnet">主网</option><option value="testnet">测试网</option></select></div>
+              </div>
+              <p className="text-xs leading-relaxed text-muted-foreground">使用 Hyperliquid 官方公开接口，无需 API Key 或 RPC。请填写实际账户或子账户地址。</p>
+              <p className="text-xs leading-relaxed text-muted-foreground">后台实时订阅成交、挂单和撤单，网页关闭后继续运行。创建后可在告警规则中选择活动类型及通知目标。</p>
+            </div> : null}
 
             {type === 'stock_price' ? <div className="space-y-4 rounded-xl border p-4">
               <div className="grid gap-4 sm:grid-cols-2">

@@ -5,6 +5,7 @@ import {
   AlertTriangle, ArrowLeftRight, Banknote, CheckCircle2, Circle, Clock3, Coins,
   Database, HandCoins, RefreshCw, ServerCrash, ShieldCheck, type LucideIcon,
 } from 'lucide-react';
+import { HyperliquidActivityPanel } from './HyperliquidActivityPanel';
 import { ChainIcon } from '@/components/monitoring/ChainIcon';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -431,6 +432,7 @@ function Events({ events }: { events: Array<Record<string, unknown>> }) {
 export function SnapshotPanel({ snapshot, loading, fetching, error, onRefresh }: { snapshot?: MonitorSnapshot; loading: boolean; fetching: boolean; error: Error | null; onRefresh: () => void }) {
   if (loading && !snapshot) return <div className="space-y-3"><div className="h-28 animate-pulse rounded-xl bg-muted" /><div className="h-64 animate-pulse rounded-xl bg-muted" /></div>;
   if (!snapshot) return <Card><CardContent className="flex min-h-56 flex-col items-center justify-center text-center"><ServerCrash className="size-8 text-muted-foreground" /><p className="mt-3 font-medium">无法读取快照</p><p className="mt-1 text-sm text-muted-foreground">{error?.message ?? '后端尚未返回数据'}</p><Button className="mt-4" variant="outline" onClick={onRefresh}><RefreshCw />重试</Button></CardContent></Card>;
+  if (snapshot.monitorType === 'hyperliquid_account') return <HyperliquidActivityPanel snapshot={snapshot} fetching={fetching} error={error} onRefresh={onRefresh} />;
   const status = STATUS[snapshot.status];
   const positions = list(snapshot.data.positions);
   const events = list(snapshot.data.recentEvents);
