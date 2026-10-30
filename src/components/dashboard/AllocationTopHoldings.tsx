@@ -91,7 +91,6 @@ export function AllocationTopHoldings({ model, hidden, percentHidden, replayKey,
                 onFocus={event => inspect(index, event.currentTarget)} onBlur={() => setActiveIndex(null)}
                 className="block w-full min-w-0 rounded text-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
                 <span className="flex h-[16px] min-w-0 items-center justify-center gap-1">
-                  <span className="shrink-0 text-[9px] text-muted-foreground">{String(index + 1).padStart(2, '0')}</span>
                   {row.icon && <TokenIcon src={row.icon.src ?? lookup} fallbackSrc={lookup} symbol={row.icon.symbol} size={14} />}
                   <span data-top-holding-name className="truncate text-[11px] font-medium">{row.label}</span>
                 </span>
