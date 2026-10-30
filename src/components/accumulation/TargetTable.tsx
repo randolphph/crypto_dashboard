@@ -214,7 +214,7 @@ export function TargetTable({
   onUpdate?: (id: string, updates: AnchorUpdates) => void;
   onDelete: (id: string) => void;
 }) {
-  const { fmtUsd, hidden } = usePrivacyFormat();
+  const { fmtUsd, hidden, percentHidden } = usePrivacyFormat();
   const [sortKey, setSortKey] = useState<SortKey>('tier');
   const [asc, setAsc] = useState(false);
 
@@ -325,7 +325,7 @@ export function TargetTable({
                 {d.pnlUsd !== null ? (
                   <span className={d.pnlUsd >= 0 ? 'text-positive' : 'text-negative'}>
                     {hidden ? '****' : `${d.pnlUsd >= 0 ? '+' : ''}${fmtUsd(d.pnlUsd)}`}
-                    {d.pnlPct !== null && (
+                    {d.pnlPct !== null && !percentHidden && (
                       <span className="text-muted-foreground text-xs">
                         {' '}
                         ({d.pnlPct >= 0 ? '+' : ''}
@@ -340,8 +340,7 @@ export function TargetTable({
               <TableCell className="text-right tabular-nums">
                 {d.changePct !== null ? (
                   <span className={d.changePct >= 0 ? 'text-positive' : 'text-negative'}>
-                    {d.changePct >= 0 ? '+' : ''}
-                    {d.changePct.toFixed(2)}%
+                    {percentHidden ? '**%' : `${d.changePct >= 0 ? '+' : ''}${d.changePct.toFixed(2)}%`}
                   </span>
                 ) : (
                   <span className="text-muted-foreground">—</span>
@@ -364,7 +363,7 @@ export function TargetTable({
               <TableCell className="text-right tabular-nums">
                 {d.livePrice !== null ? (
                   <span className="inline-flex flex-col items-end">
-                    <span>{formatCurrency(d.livePrice, MARKET_CURRENCY[d.target.market])}</span>
+                    <span>{hidden ? '****' : formatCurrency(d.livePrice, MARKET_CURRENCY[d.target.market])}</span>
                     <PriceAge updatedAt={d.priceUpdatedAt} source={d.priceSource} status={d.priceStatus} />
                   </span>
                 ) : (

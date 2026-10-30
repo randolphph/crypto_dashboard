@@ -93,7 +93,7 @@ export function PortfolioChart({ recording }: { recording: HistoryRecording }) {
   const importSnapshots = usePortfolioHistoryStore((s) => s.importSnapshots);
   const cashFlowEvents = useCashFlowStore((s) => s.events);
   const trades = useTradeStore((s) => s.trades);
-  const { fmtUsd, hidden } = usePrivacyFormat();
+  const { fmtUsd, hidden, percentHidden } = usePrivacyFormat();
   const [range, setRange] = useState<RangeId>('month');
   const [selected, setSelected] = useState<PortfolioSnapshot | null>(null);
   const [mounted, setMounted] = useState(false);
@@ -268,16 +268,10 @@ export function PortfolioChart({ recording }: { recording: HistoryRecording }) {
         <div className="flex items-center gap-3 text-sm">
           {data.length >= 2 && (
             <span className={isPositive ? 'text-positive classic:text-green-500' : 'text-negative classic:text-red-500'}>
-              {hidden ? (
-                '******'
-              ) : (
-                <>
-                  {isPositive ? '+' : ''}{fmtUsd(change)} ({isPositive ? '+' : ''}{changePercent.toFixed(2)}%)
-                </>
-              )}
+              {hidden ? '******' : `${isPositive ? '+' : ''}${fmtUsd(change)}`} ({percentHidden ? '**%' : `${isPositive ? '+' : ''}${changePercent.toFixed(2)}%`})
             </span>
           )}
-          {data.length >= 2 && hasFlow && !hidden && (
+          {data.length >= 2 && hasFlow && !percentHidden && (
             <span
               className={`text-xs px-1.5 py-0.5 rounded border ${
                 isAdjustedPositive
@@ -286,7 +280,7 @@ export function PortfolioChart({ recording }: { recording: HistoryRecording }) {
               }`}
               title={`已扣除区间内 ${netFlow >= 0 ? '净流入' : '净流出'} ${fmtUsd(Math.abs(netFlow))}`}
             >
-              调整后 {isAdjustedPositive ? '+' : ''}{fmtUsd(adjustedChange)} ({isAdjustedPositive ? '+' : ''}{adjustedChangePercent.toFixed(2)}%)
+              调整后 {hidden ? '******' : `${isAdjustedPositive ? '+' : ''}${fmtUsd(adjustedChange)}`} ({isAdjustedPositive ? '+' : ''}{adjustedChangePercent.toFixed(2)}%)
             </span>
           )}
         </div>

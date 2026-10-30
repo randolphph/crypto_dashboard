@@ -130,3 +130,80 @@ including empty space. Chart clicks no longer pin instrument details. Separate
 replay buttons are removed. Hover/focus still exposes details, and existing
 category management, view tabs and IBKR axis-mode controls keep their own actions.
 Replays use existing in-memory data and do not refetch financial APIs.
+
+`src/components/dashboard/AllocationTopHoldings.tsx` adapts **L2 · Dot Cascade**,
+"What breaks, stacked and ranked", from `templates/lupi-gallery.html`. Six
+ranked columns spread across the available width, mirrored so the largest is
+first. The dotted diagonal baseline, stacks of unit dots, distinct top markers
+and 50 ms-per-column / 30 ms-per-dot pop stagger follow the template. Horizontal
+HTML captions retain shared asset icons, whole-dollar values, shares and venues;
+long names remain available through hover/focus. Classic/Palm and light/dark use
+the selected site tokens rather than forcing the reference's dark background.
+
+Candidate audit: L4 Arc Matrix would add a second categorical dimension to a
+single ranking. F1 Rung Bars retains a bar-like silhouette; F5 Tick Rows already
+serves A-shares and uses the tall row layout the user wants to avoid. L2 provides
+an unused shape and arranges all six holdings horizontally. The chart and its
+loading placeholder stay 140 px high; narrow screens scroll the columns
+sideways instead of stacking rows. On desktop, the summary has three adjacent
+columns: net assets, the category pie, and a permanently visible data view.
+The data view defaults to the six largest non-cash holdings and can switch to
+the allocation stream without hiding the pie. There are no expand/collapse
+buttons. Tablet uses a two-column summary with the data view beneath; phones
+stack the three sections. Pie legend amounts respond to the column's actual
+width, rather than the viewport, so labels remain readable in the compact
+desktop column. Pie and data-view replay state are independent.
+
+Dots share a real monetary unit with at most ten units in the largest column.
+A partial final dot uses sqrt(fraction) for its radius, so its area preserves the
+fraction; the outer top ring is an identity marker, not an extra money unit.
+Amounts and unit arithmetic are never rounded for geometry. Ranking consolidates
+instrument IDs across eligible categories and sorts absolute net market values.
+The cash category (stable ID `cash`, including renamed categories) is excluded
+from ranked candidates before consolidation. Individual shares and the top-six
+combined share use the dashboard's full asset valuation, including cash and
+account-level residuals, before liabilities. Filtering the ranking never reduces
+this denominator. Options
+remain separate contracts; account-level residuals and undetailed equity remain
+in pie totals without masquerading as individual holdings. Privacy masks money
+and shares, reduced motion disables reveals, and clicking any chart area
+replays with no additional finance/RPC requests.
+
+`src/components/dashboard/AllocationStreamgraph.tsx` adapts **F16 · Stream
+Ribbon (STREAMGRAPH)**, "Three products trade the same river", from the upstream
+`templates/basics-gallery.html` inspected on 2026-10-30. The permanent data-view
+selector offers this stream alongside the default top-six Dot Cascade; the
+compact pie stays visible in either view. The chart keeps silhouette stacking, quadratic ribbon boundaries,
+paper seams, labels in wide interiors, an observation barcode floor and 900 ms
+fades staggered by 160 ms. Shared boundaries use reversible midpoint smoothing
+so adjacent ribbons meet exactly. The SVG and controls stay within the existing
+140 px chart height and use the selected Classic/Palm and light/dark tokens.
+
+F16 was explicitly selected by the user for composition over time. F13 Treemap
+and L2 Dot Cascade represent a single current distribution or ranking, so they
+cannot express this history. X encodes actual observation timestamps, color
+identifies asset categories and vertical ribbon thickness encodes positive USD
+category value, or share of the positive category total in percentage mode.
+More than five categories fold into the four largest plus Other without losing
+value; negative categories remain signed in stored observations and appear
+separately in the time-point tooltip. Hover/keyboard inspection snaps to real
+observations. Paused records split ribbons, and fewer than two continuous
+observations show an honest empty state. Range/metric controls do not replay;
+clicking the chart replays without fetching financial data. Reduced motion
+disables fades and privacy masks tooltip values.
+
+`useAllocationHistory` observes existing dashboard valuations, including
+composition changes with unchanged totals. It stores wallet-scoped records in
+the browser's IndexedDB `crypto-dashboard-allocation-history` / `observations`,
+with one atomic read/compact/write transaction to preserve concurrent writes.
+Existing detailed snapshots backfill only their actual `assetAllocation` data;
+total-only history never generates invented category history. Estimated
+valuations retain provenance, unavailable valuations record pause boundaries,
+and unchanged valuations can record hourly while the dashboard runs. Recent
+30-day retention keeps first/last valid observations and pause boundaries per
+hour; older data retains one observation nearest local noon plus pause markers
+per day, up to three years. Recording makes no new market-data or RPC requests.
+It runs only while this dashboard is open in this browser: there is no server
+background scheduler or cross-device synchronization. Clearing site storage
+removes these local records. Existing net-worth history and its CSV format
+remain separate.

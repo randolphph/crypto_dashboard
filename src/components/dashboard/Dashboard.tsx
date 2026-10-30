@@ -38,6 +38,7 @@ import { useWalletStore } from '@/stores/walletStore';
 import { useFx } from '@/hooks/useFx';
 import { usePortfolioHistoryStore } from '@/stores/portfolioHistoryStore';
 import { useDashboardStore } from '@/stores/dashboardStore';
+import { useRecordAllocationHistory } from '@/hooks/useAllocationHistory';
 import { BROKER_LABEL, type StockBroker } from '@/types/stocks';
 import {
   classifyBinance,
@@ -331,6 +332,7 @@ export function Dashboard() {
   // dashboard run from prod vs local dev (different wallets) won't collide.
   // No wallet → no push (e.g., still on the unlock screen).
   const walletAddress = useVaultStore((s) => s.address);
+  useRecordAllocationHistory({ wallet: walletAddress, categories: categoryBreakdown, status: historyStatus, sourceVersion: valuationUpdatedAt });
   const snapshotPayloadReady =
     !isLoading &&
     Number.isFinite(totalValue) &&

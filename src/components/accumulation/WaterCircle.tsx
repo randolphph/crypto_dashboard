@@ -34,10 +34,12 @@ export function WaterCircle({
   progress,
   pendingBudget,
   hidden,
+  percentHidden,
 }: {
   progress: number;
   pendingBudget: number;
   hidden: boolean;
+  percentHidden: boolean;
 }) {
   const id = useId();
   const reducedMotion = useSyncExternalStore(subscribeMotion, getReducedMotion, () => true);
@@ -83,14 +85,14 @@ export function WaterCircle({
         aria-label="AI 目标完成度"
         aria-valuemin={0}
         aria-valuemax={100}
-        aria-valuenow={hidden || !Number.isFinite(progress) ? undefined : Math.round(pct * 100)}
-        aria-valuetext={hidden ? '已隐藏' : `${Math.round(pct * 100)}%，待加额度 ${pendingAmount}`}
+        aria-valuenow={percentHidden || !Number.isFinite(progress) ? undefined : Math.round(pct * 100)}
+        aria-valuetext={percentHidden ? '已隐藏' : `${Math.round(pct * 100)}%，待加额度 ${pendingAmount}`}
         width={size}
         height={size}
         viewBox={`0 0 ${size} ${size}`}
         className="block h-auto w-full drop-shadow-sm"
       >
-        <title>{hidden ? 'AI 仓位已隐藏' : `${Math.round(pct * 100)}% · 待加额度 ${pendingAmount}`}</title>
+        <title>{percentHidden ? 'AI 仓位已隐藏' : `${Math.round(pct * 100)}% · 待加额度 ${pendingAmount}`}</title>
         <defs>
           <clipPath id={clipId}>
             <circle cx={r} cy={r} r={r - 2} />
@@ -216,7 +218,7 @@ export function WaterCircle({
           fontWeight={800}
           className="fill-foreground"
         >
-          {hidden ? '****' : Number.isFinite(progress) ? `${(pct * 100).toFixed(0)}%` : '—'}
+          {percentHidden ? '**%' : Number.isFinite(progress) ? `${(pct * 100).toFixed(0)}%` : '—'}
         </text>
         <text
           x={r}

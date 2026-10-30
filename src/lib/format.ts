@@ -1,11 +1,4 @@
-export function formatUsd(value: number): string {
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD',
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(value);
-}
+export const formatUsd = (value: number): string => formatCurrency(value, 'USD');
 
 const CURRENCY_LOCALE: Record<string, string> = {
   USD: 'en-US',
@@ -13,13 +6,16 @@ const CURRENCY_LOCALE: Record<string, string> = {
   HKD: 'zh-HK',
 };
 
+const currencyFormats = new Map<string, Intl.NumberFormat>();
 export function formatCurrency(value: number, currency: string): string {
-  return new Intl.NumberFormat(CURRENCY_LOCALE[currency] ?? 'en-US', {
+  let formatter = currencyFormats.get(currency);
+  if (!formatter) { formatter = new Intl.NumberFormat(CURRENCY_LOCALE[currency] ?? 'en-US', {
     style: 'currency',
     currency,
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(value);
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  });currencyFormats.set(currency, formatter); }
+  return formatter.format(Math.abs(value) < .5 ? 0 : value);
 }
 
 export function formatCrypto(value: number, decimals = 8): string {

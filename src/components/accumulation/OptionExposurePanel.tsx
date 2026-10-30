@@ -60,7 +60,7 @@ export function OptionExposurePanel({ positions, quotes, fx }: {
               <td className="text-right tabular-nums">{hidden ? '****' : `${row.position.shares < 0 ? '卖出' : '买入'} ${Math.abs(row.position.shares)} 张`}<div className="mt-1 text-[10px] text-muted-foreground">乘数 {row.position.multiplier ?? '未提供'}</div></td>
               <td className="py-3 text-right tabular-nums">
                 <div className="flex flex-col items-end gap-0.5">
-                  <span>{row.underlying ? formatCurrency(row.underlying.price, row.underlying.currency) : '—'} / {row.contract.strike !== undefined ? formatCurrency(row.contract.strike, row.underlying?.currency ?? row.position.currency) : '—'}</span>
+                  <span>{hidden ? '****' : row.underlying ? formatCurrency(row.underlying.price, row.underlying.currency) : '—'} / {hidden ? '****' : row.contract.strike !== undefined ? formatCurrency(row.contract.strike, row.underlying?.currency ?? row.position.currency) : '—'}</span>
                   {row.underlying && <PriceAge updatedAt={row.underlying.priceUpdatedAt} source={row.underlying.priceSource} status={row.underlying.priceStatus} />}
                 </div>
               </td>

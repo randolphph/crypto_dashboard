@@ -39,10 +39,11 @@ export interface ClassificationAsset {
   defaultCategoryId?: string;
   nativeStockSymbol?: string;
   identity?: AssetIdentity;
+  aggregateOnly?: boolean;
 }
 interface AssetIdentity { type: 'crypto' | 'stock' | 'option'; key: string; label: string; icon?: AssetIcon }
 export interface AssetIcon { symbol: string; src?: string; market?: StockMarket }
-export interface AssetCategoryDetail { id?: string; label: string; displayLabel?: string; icon?: AssetIcon; value: number; sources?: Array<{ label: string; value: number }>; locations?: string[]; merged?: boolean }
+export interface AssetCategoryDetail { id?: string; label: string; displayLabel?: string; assetLabel?: string; icon?: AssetIcon; value: number; sources?: Array<{ label: string; value: number }>; locations?: string[]; merged?: boolean; aggregateOnly?: boolean }
 export interface CategoryBucket { id: string; label: string; color: string; value: number; details: AssetCategoryDetail[] }
 export const stockCategoryKey = (broker: StockBroker, id: string) => `stock:${broker}:${id}`;
 export const stockCashCategoryKey = (broker: StockBroker, id: string) => `stock-cash:${broker}:${id}`;
@@ -115,7 +116,7 @@ export function aggregateAssetCategories(assets: ClassificationAsset[], config: 
       else existing.sources!.push({ label: asset.source, value: asset.value });
       if (!existing.locations!.includes(location)) existing.locations!.push(location);
     } else {
-      const detail: AssetCategoryDetail = { id: key, label, ...(asset.displayLabel ? { displayLabel: asset.displayLabel } : {}), ...(icon ? { icon } : {}), value: asset.value, sources: [{ label: asset.source, value: asset.value }], locations: [location] };
+      const detail: AssetCategoryDetail = { id: key, label, assetLabel: identity?.label ?? asset.displayLabel ?? asset.label, ...(asset.aggregateOnly ? { aggregateOnly: true } : {}), ...(asset.displayLabel ? { displayLabel: asset.displayLabel } : {}), ...(icon ? { icon } : {}), value: asset.value, sources: [{ label: asset.source, value: asset.value }], locations: [location] };
       bucket.details.push(detail); byIdentity.set(key, detail);
     }
   }
@@ -144,7 +145,7 @@ export function buildClassificationAssets(input: ClassificationInput): Classific
   const reconcile = (start: number, total: number | undefined, id: string, source: string, defaultCategoryId: string) => {
     if (total === undefined || !Number.isFinite(total)) return;
     const remainder = total - rows.slice(start).reduce((sum,row) => sum + row.value, 0);
-    if (Math.abs(remainder) > 0.000001) add({ id, label: '账户余额调整', source, value: remainder, defaultCategoryId });
+    if (Math.abs(remainder) > 0.000001) add({ id, label: '账户余额调整', source, value: remainder, defaultCategoryId, aggregateOnly: true });
   };
   const balances = (items: AssetBalance[], location: AssetLocation, source: string, cashEligible = true) => {
     for (const balance of items) {
@@ -162,7 +163,7 @@ export function buildClassificationAssets(input: ClassificationInput): Classific
     balances(input.okx.balances ?? [], { source: 'okx' }, 'OKX');
     reconcile(start, input.okx.totalUsdValue, 'source:okx:adjustment', 'OKX', 'crypto');
   }
-  if (input.deribit && input.deribit.configured !== false) add({ id: 'deribit:equity', label: '账户净值', source: 'Deribit', value: input.deribit.totalUsdValue ?? 0, defaultCategoryId: 'crypto' });
+  if (input.deribit && input.deribit.configured !== false) add({ id: 'deribit:equity', label: '账户净值', source: 'Deribit', value: input.deribit.totalUsdValue ?? 0, defaultCategoryId: 'crypto', aggregateOnly: true });
   for (const wallet of input.onchain ?? []) {
     const start = rows.length;
     balances(wallet.balances, { source: 'onchain', walletId: wallet.walletId }, wallet.walletName);

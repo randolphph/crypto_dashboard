@@ -82,7 +82,7 @@ function useTodayDelta(totalValue: number): TodayDelta | null {
 }
 
 function TodayDeltaLine({ delta }: { delta: TodayDelta }) {
-  const { fmtUsd, hidden } = usePrivacyFormat();
+  const { fmtUsd, hidden, percentHidden } = usePrivacyFormat();
   const positive = delta.delta >= 0;
   const label = delta.short
     ? delta.hours < 1
@@ -95,15 +95,7 @@ function TodayDeltaLine({ delta }: { delta: TodayDelta }) {
         positive ? 'text-positive dark:text-positive classic:text-green-600 classic:dark:text-green-400' : 'text-negative dark:text-negative classic:text-red-600 classic:dark:text-red-400'
       }`}
     >
-      {hidden ? (
-        '******'
-      ) : (
-        <>
-          {positive ? '+' : ''}
-          {fmtUsd(delta.delta)} ({positive ? '+' : ''}
-          {delta.pct.toFixed(2)}%)
-        </>
-      )}
+      {hidden ? '******' : `${positive ? '+' : ''}${fmtUsd(delta.delta)}`} ({percentHidden ? '**%' : `${positive ? '+' : ''}${delta.pct.toFixed(2)}%`})
       <span className="ml-1.5 text-xs font-normal text-muted-foreground">
         {label}
       </span>
@@ -209,8 +201,8 @@ export function PortfolioSummary({
 
   return (
     <div className="rounded-xl border bg-card p-6 shadow-sm">
-      <div className="flex flex-col gap-6 md:flex-row md:items-start md:justify-between">
-        <div className="min-w-0 flex-1">
+      <div data-portfolio-overview className="grid grid-cols-1 items-start gap-6 md:grid-cols-[220px_minmax(0,1fr)] lg:grid-cols-[200px_340px_minmax(0,1fr)] xl:grid-cols-[220px_360px_minmax(0,1fr)]">
+        <div data-net-assets className="min-w-0">
           <div className="flex flex-col gap-1">
             <p className="text-sm text-muted-foreground">净资产</p>
             {isLoading ? (
@@ -220,14 +212,17 @@ export function PortfolioSummary({
                 {Number.isFinite(totalValue) ? fmtUsd(totalValue) : '—'}
               </p>
             )}
-            <p className="text-xs text-muted-foreground">资产合计 {Number.isFinite(assetsValue) ? fmtUsd(assetsValue) : '—'} · 负债合计 {liabilitiesValue === undefined ? '—（汇率不可用）' : fmtUsd(liabilitiesValue)}</p>
+            <p className="flex flex-wrap gap-x-2 gap-y-0.5 text-xs text-muted-foreground">
+              <span className="whitespace-nowrap">资产合计 {Number.isFinite(assetsValue) ? fmtUsd(assetsValue) : '—'}</span>
+              <span className="whitespace-nowrap">负债合计 {liabilitiesValue === undefined ? '—（汇率不可用）' : fmtUsd(liabilitiesValue)}</span>
+            </p>
             {!isLoading && todayDelta && (
               <TodayDeltaLine delta={todayDelta} />
             )}
           </div>
         </div>
 
-        <AssetAllocationPie breakdown={categoryBreakdown} assets={classificationAssets} />
+        <AssetAllocationPie breakdown={categoryBreakdown} assets={classificationAssets} totalAssetsValue={assetsValue} />
       </div>
 
       {/* Per-source breakdown row beneath the overview. */}

@@ -11,13 +11,21 @@ import { tokenIconUrl } from '@/lib/portfolio/assetIconSource';
 import { stockIconUrl } from '@/lib/portfolio/stockIcons';
 import { AssetCategoryManager } from './AssetCategoryManager';
 import { TokenIcon } from './TokenIcon';
+import { buildTopHoldings, formatAllocationUsd } from '@/lib/portfolio/topHoldings';
 
 const CustomAllocationPie = dynamic(() => import('./CustomAllocationPie').then(module => module.CustomAllocationPie), {
   ssr: false,
   loading: () => <div className="aspect-square w-full rounded-full bg-muted/30" />,
 });
+const AllocationTopHoldings = dynamic(() => import('./AllocationTopHoldings').then(module => module.AllocationTopHoldings), {
+  ssr: false, loading: () => <div className="h-[140px] animate-pulse rounded-lg bg-muted/30" />,
+});
+const AllocationStreamgraph = dynamic(() => import('./AllocationStreamgraph').then(module => module.AllocationStreamgraph), {
+  ssr: false, loading: () => <div className="h-[140px] animate-pulse rounded-lg bg-muted/30" />,
+});
 
 export interface AllocationItem {
+  id?: string;
   label: string;
   value: number;
   color?: string;
@@ -80,14 +88,18 @@ function AllocationHoverCard({ anchor, interactive, children, ...props }: {
  * Angle encodes the exact asset share; radius encodes relative category value.
  * Template attribution and license: docs/third-party/lieflat-charts.md.
  */
-export function AssetAllocationPie({ breakdown, assets }: { breakdown: AllocationItem[]; assets: ClassificationAsset[] }) {
-  const { fmtUsd, hidden } = usePrivacyFormat();
+export function AssetAllocationPie({ breakdown, assets, totalAssetsValue }: { breakdown: AllocationItem[]; assets: ClassificationAsset[]; totalAssetsValue: number }) {
+  const { hidden, percentHidden } = usePrivacyFormat();
+  const fmtUsd = (value: number) => hidden ? '******' : formatAllocationUsd(value);
   const detailId = useId();
   const sectionRef = useRef<HTMLElement>(null);
   const [replayKey, setReplayKey] = useState(0);
+  const [detailReplayKey, setDetailReplayKey] = useState(0);
   const [hovered, setHovered] = useState<string | null>(null);
   const [focused, setFocused] = useState<string | null>(null);
   const [pinned, setPinned] = useState<string | null>(null);
+  const [detailView, setDetailView] = useState<'trend' | 'holdings'>('holdings');
+  const topHoldings = useMemo(() => buildTopHoldings(breakdown, totalAssetsValue), [breakdown, totalAssetsValue]);
   const positive = useMemo(() => breakdown.filter(item => Number.isFinite(item.value) && item.value > 0)
     .sort((a, b) => b.value - a.value).map((item, index) => ({ ...item, color: colorFor(item, index) })), [breakdown]);
   const negative = breakdown.filter(item => Number.isFinite(item.value) && item.value < 0).sort((a, b) => a.value - b.value);
@@ -111,8 +123,8 @@ export function AssetAllocationPie({ breakdown, assets }: { breakdown: Allocatio
           <span className="min-w-0 break-words text-left text-xs font-medium">{item.label}</span>
         </span>
         <span className="flex shrink-0 items-center gap-1.5 tabular-nums">
-          <span className={`text-xs font-semibold tracking-tight ${isNegative ? '' : 'hidden sm:inline'}`}>{fmtUsd(item.value)}</span>
-          {!isNegative && <span className="w-12 text-right text-xs text-muted-foreground">{hidden ? '**%' : shareLabel(percentage)}</span>}
+          <span className={`text-xs font-semibold tracking-tight ${isNegative ? '' : 'hidden @min-[420px]:inline'}`}>{fmtUsd(item.value)}</span>
+          {!isNegative && <span className="w-12 text-right text-xs text-muted-foreground">{percentHidden ? '**%' : shareLabel(percentage)}</span>}
           {canExpand && <ChevronDown aria-hidden="true" className={`size-3 text-muted-foreground transition-transform motion-reduce:transition-none ${expanded ? 'rotate-180' : ''}`} />}
         </span>
       </span>
@@ -125,27 +137,31 @@ export function AssetAllocationPie({ breakdown, assets }: { breakdown: Allocatio
         onFocus={event => { if (event.currentTarget.matches(':focus-visible')) setFocused(item.label); }}
         onBlur={() => setFocused(null)}
         onClick={() => toggle(item.label)}
-        className={`block w-full rounded-lg px-2.5 py-1 text-left outline-none transition-colors hover:bg-muted/40 focus-visible:ring-2 focus-visible:ring-ring/50 motion-reduce:transition-none ${expanded ? 'bg-muted/40' : ''}`}>{content}</button>
-        : <div className="px-2.5 py-1">{content}</div>}
+        className={`block w-full rounded-lg px-0 py-1 text-left outline-none transition-colors hover:bg-muted/40 focus-visible:ring-2 focus-visible:ring-ring/50 motion-reduce:transition-none @min-[320px]:px-2.5 ${expanded ? 'bg-muted/40' : ''}`}>{content}</button>
+        : <div className="px-0 py-1 @min-[320px]:px-2.5">{content}</div>}
     </li>;
   };
 
-  return <section ref={sectionRef} aria-label="资产分布" className="min-w-0 border-t pt-4 md:w-[460px] md:shrink-0 md:border-l md:border-t-0 md:pl-6 md:pt-0"
+  return <><section ref={sectionRef} aria-label="资产分布" className="@container w-full min-w-0"
     onPointerLeave={() => setHovered(null)} onKeyDown={event => { if (event.key === 'Escape') close(); }}>
     <div className="mb-2 flex flex-wrap items-start justify-between gap-2">
-      <div><h2 className="text-sm font-semibold tracking-tight">资产分布</h2><p className="mt-1 text-xs text-muted-foreground">按分类汇总 · USD</p></div>
+      <div><h2 className="text-sm font-semibold tracking-tight">资产分布</h2>
+        <div className="mt-1 flex items-center gap-1 text-xs text-muted-foreground">
+          <span>按分类汇总</span><span>· USD</span>
+        </div>
+      </div>
       <AssetCategoryManager assets={assets} />
     </div>
-    {positive.length > 0 ? <div className="grid grid-cols-[120px_minmax(0,1fr)] items-center gap-2 sm:grid-cols-[140px_minmax(0,1fr)] sm:gap-3">
-      <div className="w-[120px] shrink-0 sm:w-[140px]">
+    {positive.length > 0 ? <div className="grid grid-cols-[96px_minmax(0,1fr)] items-center gap-2 @min-[320px]:grid-cols-[120px_minmax(0,1fr)] @min-[420px]:grid-cols-[140px_minmax(0,1fr)] @min-[420px]:gap-3">
+      <div className="w-[96px] shrink-0 @min-[320px]:w-[120px] @min-[420px]:w-[140px]">
         <CustomAllocationPie items={positive} activeLabel={active?.label ?? null} replayKey={replayKey} onHover={setHovered}
           onReplay={() => { close(); setReplayKey(key => key + 1); }} />
       </div>
-      <ol className="-mx-2.5 space-y-px" aria-label="正值资产分类">{positive.map((item, index) => row(item, index))}</ol>
+      <ol className="space-y-px" aria-label="正值资产分类">{positive.map((item, index) => row(item, index))}</ol>
     </div> : <p className="rounded-lg border border-dashed px-4 py-5 text-center text-xs text-muted-foreground">暂无正值资产数据</p>}
     {negative.length > 0 && <div className="mt-2 border-t pt-2">
       <p className="mb-1 text-[11px] text-muted-foreground">负值分类 · 占比按正值分类合计计算</p>
-      <ul className="-mx-2.5" aria-label="负值资产分类">{negative.map((item, index) => row(item, index, true))}</ul>
+      <ul aria-label="负值资产分类">{negative.map((item, index) => row(item, index, true))}</ul>
     </div>}
     {active && <AllocationHoverCard anchor={sectionRef} id={detailId} aria-label={`${active.label} 分类明细`} interactive={pinned === active.label}
       onKeyDown={event => { if (event.key === 'Escape') close(); }}>
@@ -170,10 +186,23 @@ export function AssetAllocationPie({ breakdown, assets }: { breakdown: Allocatio
             {detail.merged && detail.locations && detail.locations.length > 0 &&
               <span data-allocation-locations className="mt-0.5 block break-words text-[10px] leading-4 text-muted-foreground/70">{detail.locations.join(' · ')}</span>}
           </span>
-          <span className="shrink-0 text-right tabular-nums"><span className="font-medium">{fmtUsd(detail.value)}</span>{active.value > 0 && <span className="mt-0.5 block text-[11px] text-muted-foreground">{hidden ? '**%' : shareLabel(detail.value / active.value * 100)}</span>}</span>
+          <span className="shrink-0 text-right tabular-nums"><span className="font-medium">{fmtUsd(detail.value)}</span>{active.value > 0 && <span className="mt-0.5 block text-[11px] text-muted-foreground">{percentHidden ? '**%' : shareLabel(detail.value / active.value * 100)}</span>}</span>
         </li>)}
       </ul>
       {rankedDetails.length > 8 && <p className="mt-3 border-t pt-2 text-[11px] text-muted-foreground">仅显示金额绝对值最大的 8 项</p>}
     </AllocationHoverCard>}
-  </section>;
+  </section>
+    <section data-allocation-data-view aria-label="资产分布数据视图" className="min-w-0 md:col-span-2 lg:col-span-1">
+      <div className="mb-2">
+        <select aria-label="资产分布视图" value={detailView} onChange={event => { close();setDetailView(event.target.value as 'trend' | 'holdings'); }}
+          className="max-w-full rounded border-0 bg-transparent p-0 text-sm font-semibold tracking-tight outline-none focus-visible:ring-2 focus-visible:ring-ring">
+          <option value="holdings">前 6 大持仓</option><option value="trend">分布趋势</option>
+        </select>
+        <p className="mt-1 text-xs text-muted-foreground">{detailView === 'holdings' ? '占总资产' : '历史分类分布'} · USD</p>
+      </div>
+      {detailView === 'trend'
+        ? <AllocationStreamgraph hidden={hidden} percentHidden={percentHidden} replayKey={detailReplayKey} onReplay={() => setDetailReplayKey(key => key + 1)} />
+        : <AllocationTopHoldings model={topHoldings} hidden={hidden} percentHidden={percentHidden} replayKey={detailReplayKey} onReplay={() => setDetailReplayKey(key => key + 1)} />}
+    </section>
+  </>;
 }

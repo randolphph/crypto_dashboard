@@ -1,8 +1,11 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { nextPrivacyMode, privacyFlags, restorePrivacy, type PrivacyMode } from '@/lib/privacy';
 
 interface PrivacyState {
+  mode: PrivacyMode;
   hidden: boolean;
+  percentHidden: boolean;
   toggle: () => void;
   setHidden: (hidden: boolean) => void;
 }
@@ -10,16 +13,16 @@ interface PrivacyState {
 export const usePrivacyStore = create<PrivacyState>()(
   persist(
     (set) => ({
-      hidden: false,
-      toggle: () => set((s) => ({ hidden: !s.hidden })),
-      setHidden: (hidden) => set({ hidden }),
+      ...privacyFlags('visible'),
+      toggle: () => set((s) => privacyFlags(nextPrivacyMode(s.mode))),
+      setHidden: (hidden) => set(privacyFlags(hidden ? 'hidden' : 'visible')),
     }),
     {
       name: 'crypto-dashboard-privacy',
-      version: 1,
-      // v1 == previously-unversioned schema; identity migrate keeps pre-v1
-      // localStorage data instead of wiping it.
-      migrate: (state) => state as PrivacyState,
+      version: 2,
+      partialize: (state) => ({ mode: state.mode }),
+      migrate: (state) => restorePrivacy(state),
+      merge: (saved, current) => ({ ...current, ...restorePrivacy(saved) }),
     }
   )
 );

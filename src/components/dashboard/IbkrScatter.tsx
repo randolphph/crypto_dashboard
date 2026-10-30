@@ -20,7 +20,7 @@ const percent = (value: number) => {
 // Keep hairline plumbs, barcode floor, best/worst labels and dot reveals.
 // Both axes may use explicitly labelled nonlinear density scales.
 // Both modes retain all holdings, with no jitter or invented return values.
-export function IbkrScatter({ model, hidden, replayKey, onReplay }: { model: Model; hidden: boolean; replayKey: number; onReplay: () => void }) {
+export function IbkrScatter({ model, hidden, percentHidden, replayKey, onReplay }: { model: Model; hidden: boolean; percentHidden: boolean; replayKey: number; onReplay: () => void }) {
   const rootRef = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(640);
   const [revealed, setRevealed] = useState(false);
@@ -65,7 +65,7 @@ export function IbkrScatter({ model, hidden, replayKey, onReplay }: { model: Mod
   const close = () => { setHovered(null); setFocused(null); };
   const replay = () => { close(); onReplay(); };
   const money = (value: number | undefined) => hidden ? '******' : value !== undefined && Number.isFinite(value) ? formatUsd(value) : '—';
-  const pct = (value: number) => hidden ? '**%' : percent(value);
+  const pct = (value: number) => percentHidden ? '**%' : percent(value);
 
   return <div ref={rootRef} data-ibkr-scatter data-replay-key={replayKey} data-scatter-view="all" data-axis-mode={axisMode}
     data-visible-count={visible.length} data-total-count={model.points.length} role="group" aria-label="IBKR 持仓散点图，点击重播动画" tabIndex={0}
@@ -110,7 +110,7 @@ export function IbkrScatter({ model, hidden, replayKey, onReplay }: { model: Mod
         const underlying = position.kind === 'option' ? optionContract(position).underlying ?? position.symbol : position.symbol;
         const shifted = Math.abs(logo.x + SCATTER_LOGO_SIZE / 2 - x) > 1 || y - logo.y - SCATTER_LOGO_SIZE > 12;
         const hero = point === best || point === worst, selected = nearby.includes(point), color = hero || selected ? 'var(--primary)' : 'var(--foreground)';
-        const text = `${label.length > 24 ? `${label.slice(0, 22)}…` : label}${hidden ? '' : ` · ${percent(point.pnlPct)}`}`;
+        const text = `${label.length > 24 ? `${label.slice(0, 22)}…` : label}${percentHidden ? '' : ` · ${percent(point.pnlPct)}`}`;
         const toLeft = x > (left + right) / 2, labelX = x + (toLeft ? -8 : 8);
         const labelY = point === worst && point !== best ? Math.min(base - 6, y + 19) : Math.max(20, logo.y - 6);
         const textWidth = text.length * 6.5, textLeft = toLeft ? labelX - textWidth : labelX;

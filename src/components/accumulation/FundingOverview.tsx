@@ -39,7 +39,7 @@ export function FundingOverview({
     pendingBudget: number;
   };
 }) {
-  const { fmtUsd: formatUsd, hidden } = usePrivacyFormat();
+  const { fmtUsd: formatUsd, hidden, percentHidden } = usePrivacyFormat();
   const fmtUsd = (value: number) => Number.isFinite(value) ? formatUsd(value) : '—';
   const sharePct = Number.isFinite(funding.aiShareOfPortfolio) ? (funding.aiShareOfPortfolio * 100).toFixed(1) : '—';
   const targetSharePct = targetPortfolioShare * 100;
@@ -89,10 +89,10 @@ export function FundingOverview({
             <Pencil className="h-3 w-3 text-muted-foreground transition-colors group-hover:text-primary" />
           </span>
           <span className="mt-0.5 block text-lg font-semibold tabular-nums">
-            {Number(targetSharePct.toFixed(1))}%
+            {percentHidden ? '**%' : `${Number(targetSharePct.toFixed(1))}%`}
           </span>
           <span className="block text-[11px] text-muted-foreground">
-            当前 {hidden ? '****' : `${sharePct}%`} · 目标{' '}
+            当前 {percentHidden ? '**%' : `${sharePct}%`} · 目标{' '}
             {hidden ? '****' : fmtUsd(funding.aiTargetTotal)}
           </span>
         </Popover.Trigger>
@@ -204,7 +204,7 @@ export function FundingOverview({
       <Stat
         label="已有 AI 仓位"
         value={hidden ? '****' : fmtUsd(funding.aiCurrentTotal)}
-        sub={`占总资产 ${hidden ? '****' : `${sharePct}%`}`}
+        sub={`占总资产 ${percentHidden ? '**%' : `${sharePct}%`}`}
       />
     </div>
   );

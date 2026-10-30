@@ -13,7 +13,7 @@ const rnd = (i: number, k: number) => Math.abs(((i * 73856093) ^ (k * 19349663))
 // F5 · Tick Rows, C1 in basics-gallery.html · "Six teams, shipped and counted".
 // Keep one queue per holding, a shared unit, a hairline guide, every-fifth
 // markers and staggered ticks. A fractional last tick preserves exact values.
-export function AShareRanking({ model, hidden, replayKey, onReplay }: { model: Model; hidden: boolean; replayKey: number; onReplay: () => void }) {
+export function AShareRanking({ model, hidden, percentHidden, replayKey, onReplay }: { model: Model; hidden: boolean; percentHidden: boolean; replayKey: number; onReplay: () => void }) {
   const rootRef = useRef<HTMLDivElement>(null);
   const dismissedHover = useRef<string | null>(null);
   const [revealed, setRevealed] = useState(false);
@@ -39,7 +39,7 @@ export function AShareRanking({ model, hidden, replayKey, onReplay }: { model: M
   const close = () => { dismissedHover.current = active?.position.id ?? null; setHovered(null); setFocused(null); };
   const replay = () => { close(); onReplay(); };
   const money = (value: number | undefined) => hidden ? '******' : value !== undefined && Number.isFinite(value) ? formatCurrency(value, 'CNY') : '—';
-  const share = (value: number) => hidden ? '**%' : value > 0 && value < .01 ? '<0.01%' : `${value.toFixed(value > 0 && value < .1 ? 2 : 1)}%`;
+  const share = (value: number) => percentHidden ? '**%' : value > 0 && value < .01 ? '<0.01%' : `${value.toFixed(value > 0 && value < .1 ? 2 : 1)}%`;
   const p = active?.position;
   return <div ref={rootRef} data-a-share-ranking data-replay-key={replayKey} role="group" aria-label="A股持仓排名图，点击重播动画" tabIndex={0}
     className="relative w-full min-w-0 max-w-[900px] cursor-pointer rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
@@ -100,7 +100,7 @@ export function AShareRanking({ model, hidden, replayKey, onReplay }: { model: M
         <dt className="text-muted-foreground">数量</dt><dd className="text-right">{hidden ? '******' : `${p.shares.toLocaleString()} 股`}</dd>
         <dt className="text-muted-foreground">成本价 / 现价</dt><dd className="text-right">{money(p.costBasis)} / {money(p.price)}</dd>
         <dt className="text-muted-foreground">持仓盈亏</dt><dd className="text-right">{money(p.pnl)}</dd>
-        <dt className="text-muted-foreground">持仓盈亏率</dt><dd className="text-right">{p.pnlPct === undefined || !Number.isFinite(p.pnlPct) ? '—' : hidden ? '**%' : `${p.pnlPct.toFixed(2)}%`}</dd>
+        <dt className="text-muted-foreground">持仓盈亏率</dt><dd className="text-right">{p.pnlPct === undefined || !Number.isFinite(p.pnlPct) ? '—' : percentHidden ? '**%' : `${p.pnlPct.toFixed(2)}%`}</dd>
       </dl>
       <div className="mt-2"><PriceAge updatedAt={p.priceUpdatedAt} source={p.priceSource} status={p.priceStatus} error={p.quoteError} /></div>
     </div>}

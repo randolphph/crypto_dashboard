@@ -65,7 +65,7 @@ function GoldBar({ weight }: { weight: string }) {
 
 export function GoldSection({ fx, quote, quoteError, quoteLoading }: { fx?: FxRates; quote?: GoldQuote; quoteError?: string; quoteLoading?: boolean }) {
   const { holdings, addHolding, updateHolding, removeHolding } = useGoldStore();
-  const { fmtUsd, hidden } = usePrivacyFormat();
+  const { fmtUsd, hidden, percentHidden } = usePrivacyFormat();
   const valuation = valueGoldHoldings(holdings, fx, quote);
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<GoldHolding | undefined>();
@@ -126,7 +126,7 @@ export function GoldSection({ fx, quote, quoteError, quoteLoading }: { fx?: FxRa
         <div className="min-w-0">
           <dt className="text-xs text-muted-foreground">浮动盈亏 · {displayCurrency}</dt>
           <dd data-gold-field="pnl" className={`mt-2 break-all text-xl font-semibold tracking-tight tabular-nums sm:text-2xl ${profitColor}`}>{!hidden && valuation.pnlCny !== null && valuation.pnlCny > 0 ? '+' : ''}{displayAmount(valuation.pnlCny)}</dd>
-          <dd className={`mt-1 text-xs tabular-nums ${profitColor}`}>{hidden ? '******' : valuation.pnlPct === null ? '—' : `${valuation.pnlPct > 0 ? '+' : ''}${valuation.pnlPct.toFixed(2)}%`}</dd>
+          <dd className={`mt-1 text-xs tabular-nums ${profitColor}`}>{percentHidden ? '**%' : valuation.pnlPct === null ? '—' : `${valuation.pnlPct > 0 ? '+' : ''}${valuation.pnlPct.toFixed(2)}%`}</dd>
         </div>
       </dl>
       {holdings.length === 0 ? (

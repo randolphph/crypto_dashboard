@@ -57,11 +57,13 @@ function PnlCell({
   value,
   pct,
   hidden,
+  percentHidden,
   currency,
 }: {
   value?: number;
   pct?: number;
   hidden: boolean;
+  percentHidden: boolean;
   currency: string;
 }) {
   if (value === undefined) {
@@ -78,7 +80,7 @@ function PnlCell({
       )}
     >
       {hidden ? PRIVACY_MASK : (positive ? '+' : '') + formatCurrency(value, currency)}
-      {pct !== undefined && !hidden && (
+      {pct !== undefined && !percentHidden && (
         <span className="ml-1 text-xs">
           ({pct >= 0 ? '+' : ''}
           {pct.toFixed(2)}%)
@@ -89,6 +91,8 @@ function PnlCell({
 }
 
 function ChangeCell({ pct }: { pct?: number }) {
+  const { percentHidden } = usePrivacyFormat();
+  if (percentHidden) return <span className="text-muted-foreground">**%</span>;
   if (pct === undefined) return <span className="text-muted-foreground">—</span>;
   const positive = pct >= 0;
   return (
@@ -110,7 +114,7 @@ type SortKey = 'changePct' | 'marketValueUsd' | 'pnlUsd';
 type SortDir = 'desc' | 'asc';
 
 function PositionsTable({ positions }: { positions: EnrichedPosition[] }) {
-  const { fmtUsd, hidden } = usePrivacyFormat();
+  const { fmtUsd, hidden, percentHidden } = usePrivacyFormat();
   const [sortKey, setSortKey] = useState<SortKey | null>(null);
   const [sortDir, setSortDir] = useState<SortDir>('desc');
 
@@ -236,7 +240,7 @@ function PositionsTable({ positions }: { positions: EnrichedPosition[] }) {
                 <td className="py-2 text-right tabular-nums">
                   {p.price > 0 ? (
                     <span className="inline-flex flex-col items-end">
-                      <span>{formatCurrency(p.price, p.currency)}</span>
+                      <span>{hidden ? PRIVACY_MASK : formatCurrency(p.price, p.currency)}</span>
                       <PriceAge updatedAt={p.priceUpdatedAt} source={p.priceSource} status={p.priceStatus} error={p.quoteError} />
                     </span>
                   ) : (
@@ -254,6 +258,7 @@ function PositionsTable({ positions }: { positions: EnrichedPosition[] }) {
                     value={p.pnl}
                     pct={p.pnlPct}
                     hidden={hidden}
+                    percentHidden={percentHidden}
                     currency={p.currency}
                   />
                 </td>
@@ -273,7 +278,7 @@ export function StockSection({
   error,
   aShareBalance,
 }: StockSectionProps) {
-  const { fmtUsd, hidden } = usePrivacyFormat();
+  const { fmtUsd, hidden, percentHidden } = usePrivacyFormat();
   const label = BROKER_LABEL[broker];
   const [views, setViews] = useState<Partial<Record<StockBroker, 'chart' | 'details'>>>({});
   const view = views[broker] ?? 'chart';
@@ -366,12 +371,12 @@ export function StockSection({
           </div>
         </div>
         {view === 'chart' && broker === 'ibkr' && <>
-          {scatter.points.length > 0 ? <IbkrScatter model={scatter} hidden={hidden} replayKey={replayKey} onReplay={() => setReplayKey(key => key + 1)} />
+          {scatter.points.length > 0 ? <IbkrScatter model={scatter} hidden={hidden} percentHidden={percentHidden} replayKey={replayKey} onReplay={() => setReplayKey(key => key + 1)} />
             : <p className="rounded-lg border border-dashed px-4 py-8 text-center text-sm text-muted-foreground">暂无可绘制的持仓，请在明细中查看市值与成本数据。</p>}
           {scatter.omitted.length > 0 && <p className="mt-3 text-xs text-muted-foreground">{scatter.omitted.length} 笔持仓缺少有效市值或盈亏率，保留在明细中。</p>}
         </>}
         {view === 'chart' && broker === 'ths' && <>
-          {ranking.rows.length > 0 ? <AShareRanking model={ranking} hidden={hidden} replayKey={replayKey} onReplay={() => setReplayKey(key => key + 1)} />
+          {ranking.rows.length > 0 ? <AShareRanking model={ranking} hidden={hidden} percentHidden={percentHidden} replayKey={replayKey} onReplay={() => setReplayKey(key => key + 1)} />
             : <p className="rounded-lg border border-dashed px-4 py-8 text-center text-sm text-muted-foreground">暂无可排名的持仓，请在明细中查看估值数据。</p>}
           {ranking.omitted.length > 0 && <p className="mt-3 text-xs text-muted-foreground">{ranking.omitted.length} 笔持仓未参与排名，可在明细中查看。</p>}
         </>}

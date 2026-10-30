@@ -15,7 +15,7 @@ import type { AssetBalance } from '@/types/common';
 registerECharts([TreemapChart, TooltipComponent, AriaComponent, SVGRenderer, LabelLayout]);
 type Model = ReturnType<typeof buildExchangeTreemap>;
 type ChartNode = NonNullable<TreemapSeriesOption['data']>[number];
-interface Props { exchange: string; model: Model; hidden: boolean; replayKey: number; onReplay: () => void }
+interface Props { exchange: string; model: Model; hidden: boolean; percentHidden: boolean; replayKey: number; onReplay: () => void }
 interface TileOverlay {
   node: ExchangeTreeNode;
   x: number; y: number; width: number; height: number;
@@ -32,15 +32,15 @@ const escape = (value: string) => value.replace(/[&<>"']/g, char => ({ '&': '&am
 // Retain two levels, parent bands, direct area encoding, squareRatio 1.2,
 // SVG layout; HTML tiles assemble in a staggered reveal. No drill-down or zoom.
 export function ExchangeTreemap(props: Props) {
-  const { exchange, model, hidden, replayKey, onReplay } = props;
+  const { exchange, model, hidden, percentHidden, replayKey, onReplay } = props;
   const rootRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<HTMLDivElement>(null);
   const [tiles, setTiles] = useState<TileOverlay[]>([]);
-  const currentRef = useRef({ exchange, model, hidden });
+  const currentRef = useRef({ exchange, model, hidden, percentHidden });
   const paintRef = useRef<(() => void) | null>(null);
   const settleRef = useRef<(() => void) | null>(null);
   const showTipRef = useRef<((dataIndex: number) => void) | null>(null);
-  useEffect(() => { currentRef.current = { exchange, model, hidden }; paintRef.current?.(); }, [exchange, model, hidden]);
+  useEffect(() => { currentRef.current = { exchange, model, hidden, percentHidden }; paintRef.current?.(); }, [exchange, model, hidden, percentHidden]);
   useLayoutEffect(() => { if (tiles.length) settleRef.current?.(); }, [tiles, replayKey]);
 
   useEffect(() => {
@@ -99,12 +99,12 @@ export function ExchangeTreemap(props: Props) {
     const paint = (fresh = false, iconsOnly = false) => {
       if (!visible) return;
       if (fresh) chart.clear();
-      const { exchange, model, hidden } = currentRef.current;
+      const { exchange, model, hidden, percentHidden } = currentRef.current;
       const css = getComputedStyle(root);
       const paper = css.getPropertyValue('--card').trim();
       const ink = css.getPropertyValue('--foreground').trim();
       const money = (value: number) => hidden ? '******' : formatUsd(value);
-      const share = (value: number) => hidden ? '**%' : `${(value / model.total * 100).toFixed(1)}%`;
+      const share = (value: number) => percentHidden ? '**%' : `${(value / model.total * 100).toFixed(1)}%`;
       // White lettering needs deeper fills in light mode; dark mode uses
       // pastel fills and black lettering. Derive both from the selected palette.
       const canvas = document.createElement('canvas'); canvas.width = canvas.height = 1;
@@ -244,7 +244,7 @@ export function ExchangeTreemap(props: Props) {
           </button>
           {tile.height >= 80 && tile.width >= 60 && <span data-treemap-label className="absolute left-2 top-2 max-w-[calc(100%-16px)] truncate text-xs font-semibold">{tile.node.name}</span>}
           {tile.height >= 160 && tile.width >= 120 && <span className="absolute left-2 top-7 max-w-[calc(100%-16px)] truncate text-xs font-medium">
-            {hidden ? '****** · **%' : `${formatUsd(tile.node.value)} · ${(tile.node.value / model.total * 100).toFixed(1)}%`}
+            {hidden ? '******' : formatUsd(tile.node.value)} · {percentHidden ? '**%' : `${(tile.node.value / model.total * 100).toFixed(1)}%`}
           </span>}
         </div>;
       })}

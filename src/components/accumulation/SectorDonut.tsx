@@ -48,7 +48,7 @@ export function SectorDonut({
   onHover,
   onTogglePin,
 }: Props) {
-  const { fmtUsd, hidden } = usePrivacyFormat();
+  const { fmtUsd, hidden, percentHidden } = usePrivacyFormat();
 
   const { ring, labels, rollupBySector, totalCurrent, hasData } =
     useMemo(() => {
@@ -143,7 +143,7 @@ export function SectorDonut({
           fontWeight={600}
           opacity={compact ? 1 : 0.8}
         >
-          {pct}%
+          {percentHidden ? '**%' : `${pct}%`}
         </tspan>
       </text>
     );
@@ -162,7 +162,7 @@ export function SectorDonut({
     <div className="relative w-full max-w-xl">
       {/* 水位球保留在板块圆环中心，与现有 cx/cy 对齐。 */}
       <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center">
-        <WaterCircle progress={progress} pendingBudget={pendingBudget} hidden={hidden} />
+        <WaterCircle progress={progress} pendingBudget={pendingBudget} hidden={hidden} percentHidden={percentHidden} />
       </div>
       <ResponsiveContainer width="100%" height={440}>
         <PieChart>
@@ -255,7 +255,7 @@ export function SectorDonut({
                           }}
                         />
                       </span>
-                      当前构成 {(currentShare * 100).toFixed(1)}%
+                      当前构成 {percentHidden ? '**%' : `${(currentShare * 100).toFixed(1)}%`}
                     </span>
                   </p>
                   <p className="mt-1.5 text-sm text-muted-foreground tabular-nums tracking-wide">
@@ -277,7 +277,7 @@ export function SectorDonut({
                           <MemberRing
                             progress={holdingShare}
                             color={color}
-                            hidden={hidden}
+                            hidden={percentHidden}
                           />
                           <span className="min-w-0 flex-1 truncate font-medium text-foreground">
                             {m.label}
@@ -288,8 +288,8 @@ export function SectorDonut({
                             </span>
                             <span className="block text-xs text-muted-foreground">
                               板块内占比{' '}
-                              {hidden
-                                ? '****'
+                              {percentHidden
+                                ? '**%'
                                 : `${(holdingShare * 100).toFixed(1)}%`}
                             </span>
                           </span>

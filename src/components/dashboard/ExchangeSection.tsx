@@ -108,10 +108,10 @@ function FuturesPositionsTable({ positions }: { positions: FuturesPosition[] }) 
                     {fmtCrypto(Math.abs(amt), 4)}
                   </td>
                   <td className="py-2 text-right tabular-nums">
-                    {fmtCrypto(parseFloat(pos.entryPrice), 2)}
+                    {fmtUsd(parseFloat(pos.entryPrice))}
                   </td>
                   <td className="py-2 text-right tabular-nums">
-                    {fmtCrypto(parseFloat(pos.markPrice), 2)}
+                    {fmtUsd(parseFloat(pos.markPrice))}
                   </td>
                   <td
                     className={cn(
@@ -211,7 +211,7 @@ function ExchangeCard({
   error?: Error | null;
   name: string;
 }) {
-  const { fmtUsd, hidden } = usePrivacyFormat();
+  const { fmtUsd, hidden, percentHidden } = usePrivacyFormat();
   const [view, setView] = useState<'map' | 'details'>('map');
   const [replayKey, setReplayKey] = useState(0);
   const hasSubAccounts = data?.accounts && data.accounts.length > 0;
@@ -267,7 +267,7 @@ function ExchangeCard({
       ) : (
         <div className="space-y-4">
           {view === 'map' && <>
-            {model.total > 0 ? <ExchangeTreemap exchange={name} model={model} hidden={hidden} replayKey={replayKey} onReplay={() => setReplayKey(key => key + 1)} />
+            {model.total > 0 ? <ExchangeTreemap exchange={name} model={model} hidden={hidden} percentHidden={percentHidden} replayKey={replayKey} onReplay={() => setReplayKey(key => key + 1)} />
               : <p className="rounded-lg border border-dashed px-4 py-8 text-center text-sm text-muted-foreground">暂无可绘制的资产</p>}
             {model.excludedCount > 0 && <p className="text-xs text-muted-foreground">负值或缺少估值的资产保留在明细中，图中仅展示正值资产。</p>}
             {data?.accounts?.filter(account => account.error).map(account => <p key={account.label} className="text-xs text-destructive">{account.label}：{account.error}</p>)}

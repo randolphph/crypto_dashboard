@@ -8,9 +8,11 @@ export const PRIVACY_MASK_SHORT = '****';
 
 export function usePrivacyFormat() {
   const hidden = usePrivacyStore((s) => s.hidden);
+  const percentHidden = usePrivacyStore((s) => s.percentHidden);
 
   return {
     hidden,
+    percentHidden,
     fmtUsd: (value: number) => (hidden ? PRIVACY_MASK : formatUsd(value)),
     fmtCrypto: (value: number, decimals?: number) =>
       hidden ? PRIVACY_MASK_SHORT : formatCrypto(value, decimals),
