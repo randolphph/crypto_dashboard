@@ -6,15 +6,16 @@ import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectVa
 
 interface CategoryOption { id: string; name: string; color?: string }
 
-export function CategoryDropdown({ label, value, categories, onValueChange }: {
+export function CategoryDropdown({ label, value, categories, onValueChange, compact = false }: {
   label: string;
   value: string;
   categories: CategoryOption[];
   onValueChange: (value: string) => void;
+  compact?: boolean;
 }) {
   const selected = categories.find((category) => category.id === value);
   return <Select value={value} onValueChange={(next) => { if (next) onValueChange(next); }}>
-    <SelectTrigger size="sm" aria-label={label} title={selected?.name} className="max-w-40 gap-1.5 border-transparent bg-muted/50 px-2 text-xs font-normal text-muted-foreground hover:bg-muted hover:text-foreground data-popup-open:bg-muted data-[size=sm]:rounded-md dark:bg-muted/40 dark:hover:bg-muted [&_svg]:size-3">
+    <SelectTrigger size="sm" aria-label={label} title={selected?.name} className={`gap-1.5 border-transparent bg-muted/50 text-xs font-normal text-muted-foreground hover:bg-muted hover:text-foreground data-popup-open:bg-muted data-[size=sm]:rounded-md dark:bg-muted/40 dark:hover:bg-muted [&_svg]:size-3 ${compact ? 'max-w-28 px-1.5 py-0 text-[10px] data-[size=sm]:h-5' : 'max-w-40 px-2'}`}>
       <SelectValue className="min-w-0 gap-1.5">
         {selected?.color && <span aria-hidden="true" className="size-1.5 shrink-0 rounded-full" style={{ backgroundColor: assetCategoryColor(selected) }} />}
         <span className="truncate">{selected?.name}</span>

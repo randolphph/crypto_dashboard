@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { CategoryDropdown } from './CategoryDropdown';
 
-export function AssetCategorySelect({ assetId, label, defaultCategoryId, nativeStockSymbol }: { assetId: string; label: string; defaultCategoryId?: string; nativeStockSymbol?: string }) {
+export function AssetCategorySelect({ assetId, label, defaultCategoryId, nativeStockSymbol, compact = false }: { assetId: string; label: string; defaultCategoryId?: string; nativeStockSymbol?: string; compact?: boolean }) {
   const [open, setOpen] = useState(false);
   const [symbol, setSymbol] = useState('');
   const [error, setError] = useState('');
@@ -24,12 +24,12 @@ export function AssetCategorySelect({ assetId, label, defaultCategoryId, nativeS
   const value = resolveAssetCategory(config, assetId, defaultCategoryId);
   const known = nativeStockSymbol ?? savedSymbol ?? legacySymbol;
   const openAssociation = () => { setSymbol(known ?? ''); setError(''); setOpen(true); };
-  return <span className="inline-flex max-w-full flex-wrap items-center gap-1">
-    <CategoryDropdown label={`${label} 的分类`} value={value} categories={categories} onValueChange={(categoryId) => {
+  return <span className={`inline-flex max-w-full items-center gap-1 ${compact ? 'min-w-0 shrink-0 flex-nowrap' : 'flex-wrap'}`}>
+    <CategoryDropdown compact={compact} label={`${label} 的分类`} value={value} categories={categories} onValueChange={(categoryId) => {
       if (categoryId === US_STOCK_CATEGORY_ID && !nativeStockSymbol) { openAssociation(); return; }
       assign(assetId, categoryId, nativeStockSymbol);
     }} />
-    {value === US_STOCK_CATEGORY_ID && !nativeStockSymbol && <button type="button" aria-label={`关联 ${label} 的美股代码`} className="rounded-md px-1.5 py-1 text-xs font-normal text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" onClick={openAssociation}>{known ?? '关联代码'}</button>}
+    {value === US_STOCK_CATEGORY_ID && !nativeStockSymbol && <button type="button" aria-label={`关联 ${label} 的美股代码`} className={`shrink-0 rounded-md text-xs font-normal text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${compact ? 'h-5 max-w-16 truncate px-1 text-[10px]' : 'px-1.5 py-1'}`} onClick={openAssociation}>{known ?? '关联代码'}</button>}
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader><DialogTitle>关联美股 · {label}</DialogTitle></DialogHeader>

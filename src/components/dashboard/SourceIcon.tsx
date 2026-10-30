@@ -1,7 +1,7 @@
 'use client';
 
 import {
-  Bitcoin,
+  createLucideIcon,
   Wallet,
   LineChart,
   Landmark,
@@ -11,23 +11,52 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
-// Picks a venue-appropriate lucide icon for a breakdown label. Lucide doesn't
-// ship brand logos so we fall back to category-level glyphs whose colors line
-// up with the category palette used in PortfolioSummary (amber=crypto,
-// blue=stocks, emerald=cash/bank, purple=onchain).
-//
-// The label can come from many places — straight venue ("Binance"), broker
-// label ("A股 (同花顺)"), broker-cash compound ("IBKR 现金"), bank rollup
-// ("银行"), or a user-typed bank name ("招商银行"). Match by prefix/contains
-// so all of these get a sensible icon.
+// All platform marks share Lucide's 24-unit grid and display size.
+const BinanceMark = createLucideIcon('SourceBinance', [
+  ['path', { d: 'M12 2 18 8 15.5 10.5 12 7 8.5 10.5 6 8Z M4 9.5 6.5 12 4 14.5 1.5 12Z M20 9.5 22.5 12 20 14.5 17.5 12Z M12 9.5 14.5 12 12 14.5 9.5 12Z M6 16 8.5 13.5 12 17 15.5 13.5 18 16 12 22Z', fill: 'currentColor', stroke: 'none', key: 'diamonds' }],
+]);
+const OkxMark = createLucideIcon('SourceOkx', [
+  ['path', { d: 'M3 3h6v6H3Z M15 3h6v6h-6Z M9 9h6v6H9Z M3 15h6v6H3Z M15 15h6v6h-6Z', fill: 'currentColor', stroke: 'none', key: 'blocks' }],
+]);
+const DeribitLine = createLucideIcon('SourceDeribit', [
+  ['path', { d: 'M3 6h10a6 6 0 0 1 0 12H3 M6 6v12 M9 3v3 M13 3v3 M9 18v3 M13 18v3', key: 'symbol' }],
+]);
+const TonghuashunLine = createLucideIcon('SourceTonghuashun', [
+  ['path', { d: 'M5 12v3m0 5v2 M12 7v3m0 6v3 M19 2v3m0 7v3', key: 'wicks' }],
+  ['rect', { x: '3', y: '15', width: '4', height: '5', rx: '0.5', key: 'first' }],
+  ['rect', { x: '10', y: '10', width: '4', height: '6', rx: '0.5', key: 'second' }],
+  ['rect', { x: '17', y: '5', width: '4', height: '7', rx: '0.5', key: 'third' }],
+]);
+const IbkrLine = createLucideIcon('SourceIbkr', [
+  ['path', { d: 'M4 21V11l8-9-4 12v7 M12 21v-1a4 4 0 0 1 8 0v1', key: 'figure' }],
+  ['circle', { cx: '16', cy: '12', r: '3', key: 'head' }],
+]);
+
+const exchangeColor = 'text-warning classic:text-amber-500';
+const brokerColor = 'text-primary classic:text-blue-500';
+const platformIcons = {
+  binance: { Icon: BinanceMark, colorClass: 'text-[#f3ba2f]' },
+  okx: { Icon: OkxMark, colorClass: 'text-black dark:text-white' },
+  deribit: { Icon: DeribitLine, colorClass: exchangeColor },
+  tonghuashun: { Icon: TonghuashunLine, colorClass: brokerColor },
+  ibkr: { Icon: IbkrLine, colorClass: brokerColor },
+};
+
+function platformIcon(label: string) {
+  const normalized = label.trim().toLowerCase();
+  if (normalized.startsWith('binance')) return platformIcons.binance;
+  if (normalized.startsWith('okx')) return platformIcons.okx;
+  if (normalized.startsWith('deribit')) return platformIcons.deribit;
+  if (normalized.startsWith('ibkr')) return platformIcons.ibkr;
+  if (normalized.startsWith('a股') || normalized.startsWith('同花顺')) return platformIcons.tonghuashun;
+  return undefined;
+}
+
+// Sources without a platform glyph use their category icon.
 function classify(
   label: string
 ): { Icon: LucideIcon; colorClass: string } {
   if (label === '黄金') return { Icon: Coins, colorClass: 'text-warning classic:text-yellow-600' };
-  // Crypto exchanges
-  if (label === 'Binance' || label === 'OKX' || label === 'Deribit') {
-    return { Icon: Bitcoin, colorClass: 'text-warning classic:text-amber-500' };
-  }
   // On-chain
   if (label === '链上') {
     return { Icon: Wallet, colorClass: 'text-primary classic:text-purple-500' };
@@ -72,7 +101,12 @@ interface Props {
 }
 
 export function SourceIcon({ label, className, kind = 'auto' }: Props) {
+  const platform = kind === 'auto' ? platformIcon(label) : undefined;
   const { Icon, colorClass } =
-    kind === 'other' ? getCustomAssetIcon() : classify(label);
-  return <Icon className={cn('h-3.5 w-3.5 shrink-0', colorClass, className)} />;
+    platform ?? (kind === 'other' ? getCustomAssetIcon() : classify(label));
+  return (
+    <span data-source-icon data-platform-logo={platform ? label : undefined} aria-hidden="true" className={cn('inline-flex h-5 w-6 shrink-0 items-center justify-center', className)}>
+      <Icon className={cn('size-3.5 shrink-0', colorClass)} />
+    </span>
+  );
 }

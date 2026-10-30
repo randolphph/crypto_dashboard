@@ -159,21 +159,21 @@ function CustomAssetItem({
 }) {
   const { fmtUsd } = usePrivacyFormat();
   return (
-    <div className="flex flex-col gap-0.5 group relative">
-      <div className="flex items-center gap-1">
+    <div data-account-item={asset.name} data-custom-account className="group relative flex max-w-full min-w-0 flex-col gap-0.5">
+      <div className="flex h-5 min-w-0 items-center gap-1.5">
         <SourceIcon label={asset.name} kind="other" />
-        <p className="text-xs text-muted-foreground">{asset.name}</p>
-        <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
-          <button onClick={onEdit} className="text-muted-foreground hover:text-foreground">
+        <p className="min-w-0 max-w-40 truncate text-xs text-muted-foreground" title={asset.name}>{asset.name}</p>
+        <AssetCategorySelect assetId={customCategoryKey(asset.id)} label={asset.name} compact />
+        <div className="flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
+          <button aria-label={`编辑 ${asset.name}`} onClick={onEdit} className="text-muted-foreground hover:text-foreground">
             <Pencil className="h-2.5 w-2.5" />
           </button>
-          <button onClick={onDelete} className="text-muted-foreground hover:text-destructive">
+          <button aria-label={`删除 ${asset.name}`} onClick={onDelete} className="text-muted-foreground hover:text-destructive">
             <Trash2 className="h-2.5 w-2.5" />
           </button>
         </div>
       </div>
-      <p className="text-sm font-medium">{fmtUsd(asset.value)}</p>
-      <AssetCategorySelect assetId={customCategoryKey(asset.id)} label={asset.name} />
+      <p className="inline-flex h-5 items-center text-sm font-medium tabular-nums">{fmtUsd(asset.value)}</p>
     </div>
   );
 }
@@ -227,14 +227,14 @@ export function PortfolioSummary({
 
       {/* Per-source breakdown row beneath the overview. */}
       {(breakdown.length > 0 || assets.length > 0) && (
-        <div className="mt-6 pt-4 border-t">
+        <div data-account-breakdown className="mt-6 pt-4 border-t">
           <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground classic:text-muted-foreground/70 mb-2">
             分账户
           </p>
           <div className="flex flex-wrap items-end gap-x-5 gap-y-3">
             {apiBreakdown.map((item) => (
-              <div key={item.label} className="flex flex-col gap-0.5">
-                <p className="flex items-center gap-1 text-xs text-muted-foreground">
+              <div key={item.label} data-account-item={item.label} className="flex flex-col gap-0.5">
+                <p className="flex h-5 items-center gap-1.5 text-xs text-muted-foreground">
                   <SourceIcon label={item.label} />
                   {item.label}
                 </p>
