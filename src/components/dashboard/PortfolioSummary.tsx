@@ -19,6 +19,7 @@ import { SourceIcon } from './SourceIcon';
 import { AssetAllocationPie } from './AssetAllocationPie';
 import { AssetCategorySelect } from './AssetCategorySelect';
 import { customCategoryKey, type ClassificationAsset } from '@/lib/portfolio/assetCategories';
+import { AnimatedAmount } from './AnimatedAmount';
 
 interface BreakdownItem {
   label: string;
@@ -82,7 +83,7 @@ function useTodayDelta(totalValue: number): TodayDelta | null {
 }
 
 function TodayDeltaLine({ delta }: { delta: TodayDelta }) {
-  const { fmtUsd, hidden, percentHidden } = usePrivacyFormat();
+  const { percentHidden } = usePrivacyFormat();
   const positive = delta.delta >= 0;
   const label = delta.short
     ? delta.hours < 1
@@ -91,11 +92,12 @@ function TodayDeltaLine({ delta }: { delta: TodayDelta }) {
     : '今日';
   return (
     <p
+      data-today-delta
       className={`text-sm font-medium tabular-nums ${
         positive ? 'text-positive dark:text-positive classic:text-green-600 classic:dark:text-green-400' : 'text-negative dark:text-negative classic:text-red-600 classic:dark:text-red-400'
       }`}
     >
-      {hidden ? '******' : `${positive ? '+' : ''}${fmtUsd(delta.delta)}`} ({percentHidden ? '**%' : `${positive ? '+' : ''}${delta.pct.toFixed(2)}%`})
+      <AnimatedAmount value={delta.delta} showPositiveSign /> ({percentHidden ? '**%' : `${positive ? '+' : ''}${delta.pct.toFixed(2)}%`})
       <span className="ml-1.5 text-xs font-normal text-muted-foreground">
         {label}
       </span>
@@ -157,7 +159,6 @@ function CustomAssetItem({
   onEdit: () => void;
   onDelete: () => void;
 }) {
-  const { fmtUsd } = usePrivacyFormat();
   return (
     <div data-account-item={asset.name} data-custom-account className="group relative flex max-w-full min-w-0 flex-col gap-0.5">
       <div className="flex h-5 min-w-0 items-center gap-1.5">
@@ -173,7 +174,7 @@ function CustomAssetItem({
           </button>
         </div>
       </div>
-      <p className="inline-flex h-5 items-center text-sm font-medium tabular-nums">{fmtUsd(asset.value)}</p>
+      <p className="inline-flex h-5 items-center pl-7.5 text-sm font-medium tabular-nums"><AnimatedAmount value={asset.value} /></p>
     </div>
   );
 }
@@ -181,7 +182,6 @@ function CustomAssetItem({
 export function PortfolioSummary({
   totalValue,
   assetsValue,
-  liabilitiesValue,
   breakdown,
   categoryBreakdown,
   classificationAssets,
@@ -189,7 +189,6 @@ export function PortfolioSummary({
   historyRecording,
 }: PortfolioSummaryProps) {
   const { assets, addAsset, removeAsset, updateAsset } = useCustomAssetStore();
-  const { fmtUsd } = usePrivacyFormat();
   const [adding, setAdding] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
 
@@ -209,13 +208,9 @@ export function PortfolioSummary({
               <div className="h-9 w-48 animate-pulse rounded bg-muted" />
             ) : (
               <p className="text-3xl font-bold tracking-tight">
-                {Number.isFinite(totalValue) ? fmtUsd(totalValue) : '—'}
+                <AnimatedAmount value={totalValue} />
               </p>
             )}
-            <p className="flex flex-wrap gap-x-2 gap-y-0.5 text-xs text-muted-foreground">
-              <span className="whitespace-nowrap">资产合计 {Number.isFinite(assetsValue) ? fmtUsd(assetsValue) : '—'}</span>
-              <span className="whitespace-nowrap">负债合计 {liabilitiesValue === undefined ? '—（汇率不可用）' : fmtUsd(liabilitiesValue)}</span>
-            </p>
             {!isLoading && todayDelta && (
               <TodayDeltaLine delta={todayDelta} />
             )}
@@ -238,12 +233,13 @@ export function PortfolioSummary({
                   <SourceIcon label={item.label} />
                   {item.label}
                 </p>
-                <p className="inline-flex h-5 items-center text-sm font-medium tabular-nums">
-                  {item.isLoading ? (
+                <p className="inline-flex h-5 items-center pl-7.5 text-sm font-medium tabular-nums">
+                  {item.isLoading && (
                     <span role="status" aria-label={`${item.label} 金额加载中`}>
                       <LoaderCircle className="h-4 w-4 animate-spin text-muted-foreground" aria-hidden="true" />
                     </span>
-                  ) : Number.isFinite(item.value) ? fmtUsd(item.value) : '—'}
+                  )}
+                  <AnimatedAmount value={item.value} className={item.isLoading ? 'hidden' : undefined} />
                 </p>
               </div>
             ))}

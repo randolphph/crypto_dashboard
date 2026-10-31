@@ -23,8 +23,9 @@ export function AllocationStreamgraph({ hidden, percentHidden, replayKey, onRepl
   const categories = useMemo(() => definitions.map(category => ({ id: category.id, label: category.name, color: assetCategoryColor(category) })), [definitions]);
   const [range, setRange] = useState('month'), [mode, setMode] = useState<AllocationStreamMode>('amount');
   const [width, setWidth] = useState(800), [revealed, setRevealed] = useState(false), [selected, setSelected] = useState<number | null>(null);
+  const [cursorX, setCursorX] = useState(0);
   const [anchor, setAnchor] = useState({ x: 0, y: 0 });
-  const rootRef = useRef<HTMLDivElement>(null), tipRef = useRef<HTMLDivElement>(null);
+  const rootRef = useRef<HTMLDivElement>(null), tipRef = useRef<HTMLDivElement>(null), plotRef = useRef<SVGSVGElement>(null);
   const points = history.data?.points ?? EMPTY;
   const model = useMemo(() => {
     const now = Date.now();
@@ -54,14 +55,24 @@ export function AllocationStreamgraph({ hidden, percentHidden, replayKey, onRepl
   useLayoutEffect(() => {
     const tip = tipRef.current;
     if (!tip) return;
-    tip.style.left = `${Math.max(8, Math.min(anchor.x - tip.offsetWidth / 2, window.innerWidth - tip.offsetWidth - 8))}px`;
+    const margin = 8, gap = 12, preferredWidth = 280;
+    const rightSpace = window.innerWidth - margin - anchor.x - gap;
+    const leftSpace = anchor.x - gap - margin;
+    const side = rightSpace >= preferredWidth || rightSpace >= leftSpace ? 'right' : 'left';
+    tip.style.width = `${Math.min(preferredWidth, Math.max(0, side === 'right' ? rightSpace : leftSpace))}px`;
+    tip.dataset.side = side;
+    const left = side === 'right' ? anchor.x + gap : anchor.x - gap - tip.offsetWidth;
+    tip.style.left = `${Math.max(margin, Math.min(left, window.innerWidth - tip.offsetWidth - margin))}px`;
     tip.style.top = `${Math.max(8, Math.min(anchor.y, window.innerHeight - tip.offsetHeight - 8))}px`;
-  }, [active, anchor, hidden, model]);
-  const inspect = (index: number) => {
-    const root = rootRef.current, point = model.points[index];
-    if (!root || !point) return;
-    const box = root.getBoundingClientRect(), next = { x: box.left + geometry.x(point.timestamp), y: box.top + 24 };
-    setSelected(index);setAnchor(previous => previous.x === next.x && previous.y === next.y ? previous : next);
+  }, [active, anchor, hidden, percentHidden, model]);
+  const inspect = (index: number, pointerX?: number) => {
+    const plot = plotRef.current, point = model.points[index];
+    if (!plot || !point) return;
+    const box = plot.getBoundingClientRect();
+    const x = pointerX ?? geometry.x(point.timestamp);
+    const next = { x: box.left + x / width * box.width, y: box.top + 4 };
+    setSelected(index);setCursorX(x);
+    setAnchor(previous => previous.x === next.x && previous.y === next.y ? previous : next);
   };
   const replay = () => { setSelected(null);onReplay(); };
   const date = (timestamp: number) => new Date(timestamp).toLocaleString([], model.to - model.from < 86400000 ? { hour: '2-digit', minute: '2-digit' } : { month: 'short', day: 'numeric' });
@@ -91,13 +102,16 @@ export function AllocationStreamgraph({ hidden, percentHidden, replayKey, onRepl
     {history.data?.writeError || history.isError ? <div role="status" className="flex h-[100px] items-center justify-center text-xs text-muted-foreground">{history.data?.writeError ?? '分布历史暂时无法读取'}</div>
       : !canDraw ? <div data-allocation-stream-empty className="flex h-[100px] items-center justify-center px-4 text-center text-xs text-muted-foreground">
         {history.isLoading ? '正在读取分布历史' : model.points.length < 2 ? '已开始记录资产分布，积累两个时间点后显示趋势' : model.segments.every(segment => segment.length < 2) ? '记录曾暂停，等待更多连续时间点形成趋势' : '当前区间暂无正值资产分布'}
-      </div> : <svg key={`${replayKey}:${range}:${mode}`} viewBox={`0 0 ${width} 100`} aria-hidden="true" className={`block h-[100px] w-full cursor-pointer ${revealed ? 'allocation-stream-reveal' : 'allocation-stream-pending'}`}
+      </div> : <svg ref={plotRef} key={`${replayKey}:${range}:${mode}`} viewBox={`0 0 ${width} 100`} aria-hidden="true" className={`block h-[100px] w-full cursor-pointer ${revealed ? 'allocation-stream-reveal' : 'allocation-stream-pending'}`}
+        onPointerLeave={() => setSelected(null)}
         onPointerMove={event => {
           if (event.pointerType !== 'mouse') return;
-          const box = event.currentTarget.getBoundingClientRect(), timestamp = model.from + Math.max(0, Math.min(1, (event.clientX - box.left) / box.width)) * (model.to - model.from);
+          const box = event.currentTarget.getBoundingClientRect();
+          const fraction = Math.max(0, Math.min(1, (event.clientX - box.left) / box.width));
+          const timestamp = model.from + fraction * (model.to - model.from);
           let lo = 0, hi = model.points.length - 1;
           while (lo < hi) { const mid = Math.floor((lo + hi) / 2);if (model.points[mid].timestamp < timestamp) lo = mid + 1;else hi = mid; }
-          inspect(lo > 0 && timestamp - model.points[lo - 1].timestamp < model.points[lo].timestamp - timestamp ? lo - 1 : lo);
+          inspect(lo > 0 && timestamp - model.points[lo - 1].timestamp < model.points[lo].timestamp - timestamp ? lo - 1 : lo, fraction * width);
         }}>
         {geometry.bands.map((band, index) => <g key={band.id}>
           {band.paths.map((path, part) => <path key={part} data-stream-band={band.id} d={path} fill={band.color} stroke="var(--card)" strokeWidth={1.2} className="allocation-stream-band" style={{ animationDelay: `${index * .16}s` }} />)}
@@ -106,17 +120,23 @@ export function AllocationStreamgraph({ hidden, percentHidden, replayKey, onRepl
         <line x1={4} x2={width - 4} y1={geometry.baseline} y2={geometry.baseline} stroke="var(--border)" strokeWidth={.8} />
         {geometry.ticks.map((tick, index) => <line key={index} x1={tick.x} x2={tick.x} y1={geometry.baseline} y2={geometry.baseline - (index % 8 === 0 ? 5 : 3)} stroke="var(--muted-foreground)" strokeWidth={.6} />)}
         {labels.map((tick, index) => <text key={tick.timestamp} x={tick.x} y={98} textAnchor={index === 0 ? 'start' : index === labels.length - 1 ? 'end' : 'middle'} fill="var(--muted-foreground)" fontSize={9}>{date(tick.timestamp)}</text>)}
-        {active && <line data-stream-cursor x1={geometry.x(active.timestamp)} x2={geometry.x(active.timestamp)} y1={4} y2={geometry.baseline} stroke="var(--foreground)" strokeWidth={.7} strokeDasharray="2 3" />}
+        {active && <g pointerEvents="none">
+          <line x1={cursorX} x2={cursorX} y1={0} y2={100} stroke="var(--card)" strokeWidth={3} />
+          <line data-stream-cursor x1={cursorX} x2={cursorX} y1={0} y2={100} stroke="var(--foreground)" strokeWidth={1} />
+        </g>}
       </svg>}
     <div className="flex h-[20px] items-center gap-2 overflow-x-auto whitespace-nowrap text-[10px] text-muted-foreground" style={{ scrollbarWidth: 'none' }}>
       {model.series.map(category => <span key={category.id} data-stream-legend={category.id} className="inline-flex shrink-0 items-center gap-1"><span className="size-1.5 rounded-full" style={{ backgroundColor: category.color }} />{category.label}</span>)}
     </div>
-    {active && createPortal(<div ref={tipRef} data-allocation-stream-tooltip role="region" aria-label="资产分布历史详情" className="pointer-events-none fixed z-50 w-[300px] max-w-[calc(100vw-16px)] rounded-lg border bg-popover p-3 text-xs text-popover-foreground shadow-lg">
-      <p className="font-semibold">{new Date(active.timestamp).toLocaleString()}</p><p className="mt-1 mb-2 text-muted-foreground">正值资产合计 <span className="font-semibold text-foreground">{money(active.total)}</span></p>
+    {active && createPortal(<div ref={tipRef} data-allocation-stream-tooltip role="region" aria-label="资产分布历史详情" className="pointer-events-none fixed z-50 w-[280px] max-w-[calc(100vw-16px)] rounded-lg border bg-popover p-3 text-xs text-popover-foreground shadow-lg">
+      <p className="font-semibold"><time dateTime={new Date(active.timestamp).toISOString()}>{new Date(active.timestamp).toLocaleString()}</time></p><p className="mt-1 mb-2 text-muted-foreground">正值资产合计 <span className="font-semibold text-foreground">{money(active.total)}</span></p>
       {model.series.map(category => {
         const values = active.allocation.filter(row => category.other ? !model.series.some(series => !series.other && series.id === row.id) : category.id === row.id);
         const value = values.reduce((sum, row) => sum + Math.max(0, row.value), 0);
-        return <div key={category.id} className="mt-1 flex justify-between gap-3"><span>{category.label}</span><span className="tabular-nums">{money(value)} · {percentHidden ? '**%' : percentage(active.total > 0 ? value / active.total * 100 : 0)}</span></div>;
+        return <div key={category.id} data-stream-detail={category.id} className="mt-2 flex items-start justify-between gap-2">
+          <span className="flex min-w-0 items-center gap-1.5"><span className="size-1.5 shrink-0 rounded-full" style={{ backgroundColor: category.color }} /><span className="break-words">{category.label}</span></span>
+          <span className="shrink-0 text-right tabular-nums"><span data-stream-detail-share className="font-semibold">{percentHidden ? '**%' : percentage(active.total > 0 ? value / active.total * 100 : 0)}</span><span className="mt-0.5 block text-[10px] text-muted-foreground">{money(value)}</span></span>
+        </div>;
       })}
       {active.allocation.some(row => row.value < 0) && <p className="mt-2 text-[10px] text-muted-foreground">负值分类单列：{active.allocation.filter(row => row.value < 0).map(row => `${row.label} ${money(row.value)}`).join(' · ')}</p>}
       {active.quality === 'estimated' && <p className="mt-2 text-[10px] text-muted-foreground">此时间点含缓存或部分估值</p>}
