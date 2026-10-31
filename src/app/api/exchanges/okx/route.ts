@@ -21,13 +21,13 @@ export async function GET(request: Request) {
   }
 
   try {
-    const balances = await fetchOkxBalances(apiKey, apiSecret, passphrase);
+    const { balances, errors } = await fetchOkxBalances(apiKey, apiSecret, passphrase);
 
-    // Trading rows include eqUsd; funding rows need market prices.
+    // Trading rows include eqUsd; funding and savings rows need market prices.
     const needsPrice = balances.filter((b) => b.usdValue === 0);
     const missingPrices: string[] = [];
     if (needsPrice.length > 0) {
-      const prices = await fetchPrices(needsPrice.map((b) => b.asset));
+      const prices = await fetchPrices([...new Set(needsPrice.map((b) => b.asset))]);
       for (const b of balances) {
         if (b.usdValue === 0) {
           b.usdValue = b.amount * (prices[b.asset] ?? 0);
@@ -56,10 +56,11 @@ export async function GET(request: Request) {
         totalUsdValue,
         lastUpdated: new Date().toISOString(),
         dataQuality: {
-          complete: missingPrices.length === 0,
-          errors: [...new Set(missingPrices)].map(
-            (symbol) => `Price unavailable: ${symbol}`
-          ),
+          complete: errors.length === 0 && missingPrices.length === 0,
+          errors: [
+            ...errors,
+            ...[...new Set(missingPrices)].map((symbol) => `Price unavailable: ${symbol}`),
+          ],
         },
       },
       { headers: { 'Cache-Control': 'private, no-store' } }
