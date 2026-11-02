@@ -1,8 +1,9 @@
 import { fetchBinanceAllBalances } from '@/lib/exchanges/binance';
 import { fetchPrices } from '@/lib/prices';
+import { fetchBinanceEquityPrices, isBinanceEquityAsset } from '@/lib/exchanges/binanceEquity';
 import { enforceRateLimit } from '@/lib/http/guards';
+import { MIN_ASSET_USD_VALUE } from '@/lib/portfolio/assetDust';
 
-const MIN_USD_VALUE = 10;
 export const maxDuration = 20;
 
 export async function GET(request: Request) {
@@ -33,21 +34,29 @@ export async function GET(request: Request) {
     const allSymbols = [
       ...new Set(accounts.flatMap((a) => a.balances.map((b) => b.asset))),
     ];
-    const prices = allSymbols.length > 0 ? await fetchPrices(allSymbols) : {};
+    const cryptoSymbols = allSymbols.filter((symbol) => !isBinanceEquityAsset(symbol));
+    const equitySymbols = allSymbols.filter(isBinanceEquityAsset);
+    const [cryptoPrices, equityPrices] = await Promise.all([
+      cryptoSymbols.length > 0 ? fetchPrices(cryptoSymbols) : {},
+      equitySymbols.length > 0 ? fetchBinanceEquityPrices(equitySymbols, apiKey) : {},
+    ]);
+    const prices: Record<string, number> = { ...cryptoPrices, ...equityPrices };
     const missingPrices = allSymbols.filter((symbol) => !(prices[symbol] > 0));
+    const unpriced = new Set(missingPrices);
     const accountErrors = accounts
       .filter((account) => !!account.error)
       .map((account) => `${account.label}: ${account.error}`);
 
-    // Add USD values, filter < $10, surface sub-account errors
+    // Price before filtering: a missing quote does not prove a holding is dust.
     const accountsWithUsd = accounts
       .map((account) => {
         const balances = account.balances
           .map((b) => ({
             ...b,
             usdValue: b.amount * (prices[b.asset] ?? 0),
+            ...(unpriced.has(b.asset) ? { valuationIncomplete: true } : {}),
           }))
-          .filter((b) => b.usdValue >= MIN_USD_VALUE);
+          .filter((b) => b.valuationIncomplete || b.usdValue >= MIN_ASSET_USD_VALUE);
         return {
           label: account.label,
           balances,

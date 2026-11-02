@@ -2,6 +2,7 @@ import { fetchOkxBalances } from '@/lib/exchanges/okx';
 import { fetchPrices } from '@/lib/prices';
 import { enforceRateLimit } from '@/lib/http/guards';
 import type { AssetBalance } from '@/types/common';
+import { MIN_ASSET_USD_VALUE } from '@/lib/portfolio/assetDust';
 
 export const maxDuration = 20;
 
@@ -31,7 +32,10 @@ export async function GET(request: Request) {
       for (const b of balances) {
         if (b.usdValue === 0) {
           b.usdValue = b.amount * (prices[b.asset] ?? 0);
-          if (!(prices[b.asset] > 0)) missingPrices.push(b.asset);
+          if (!(prices[b.asset] > 0)) {
+            missingPrices.push(b.asset);
+            b.valuationIncomplete = true;
+          }
         }
       }
     }
@@ -42,11 +46,12 @@ export async function GET(request: Request) {
       if (existing) {
         existing.amount += balance.amount;
         existing.usdValue += balance.usdValue;
+        if (balance.valuationIncomplete) existing.valuationIncomplete = true;
       } else {
         byAsset.set(balance.asset, { ...balance });
       }
     }
-    const filtered = [...byAsset.values()].filter((b) => b.usdValue >= 10);
+    const filtered = [...byAsset.values()].filter((b) => b.valuationIncomplete || b.usdValue >= MIN_ASSET_USD_VALUE);
     const totalUsdValue = filtered.reduce((sum, b) => sum + b.usdValue, 0);
 
     return Response.json(

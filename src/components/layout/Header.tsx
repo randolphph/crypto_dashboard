@@ -29,7 +29,7 @@ export function Header() {
           <BarChart3 className="h-6 w-6" />
           <span className="hidden text-lg font-bold xl:inline">Crypto Dashboard</span>
         </div>
-        <nav className="flex items-center gap-1">
+        <nav className="flex items-center gap-0 sm:gap-1">
           {navItems.map((item) => (
             <Link
               key={item.href}
@@ -49,7 +49,7 @@ export function Header() {
         </nav>
         <div className="ml-auto flex items-center gap-1 sm:gap-3">
           <div className="hidden 2xl:block"><FxBadge /></div>
-          <div className="hidden 2xl:block"><WalletStatus /></div>
+          <WalletStatus />
           <div className="hidden sm:block"><RefreshControl /></div>
           <PrivacyToggle />
           <ThemeToggle />

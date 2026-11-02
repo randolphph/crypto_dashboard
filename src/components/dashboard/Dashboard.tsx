@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { Plus, Bitcoin, LineChart, Banknote, Coins } from 'lucide-react';
+import { Plus, Bitcoin, LineChart, Banknote } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { PortfolioSummary } from './PortfolioSummary';
 import { ExchangeSection } from './ExchangeSection';
@@ -9,6 +9,7 @@ import { DeribitSection } from './DeribitSection';
 import { OnchainSection } from './OnchainSection';
 import { StockSection } from './StockSection';
 import { GoldSection } from './GoldSection';
+import { GoldBarsIcon } from './GoldBarsIcon';
 import { CashSection } from './CashSection';
 import { WalletManager } from '@/components/settings/WalletManager';
 import { StockPositionsManager } from '@/components/settings/StockPositionsManager';
@@ -91,7 +92,7 @@ const tabGroups = [
     iconClass: 'text-positive classic:text-emerald-500',
     tabs: [{ id: 'bank', label: '银行' }],
   },
-  { id: 'physical', label: '实物资产', Icon: Coins, iconClass: 'text-warning classic:text-yellow-600', tabs: [{ id: 'gold', label: '黄金' }] },
+  { id: 'physical', label: '实物资产', Icon: GoldBarsIcon, iconClass: 'text-warning classic:text-yellow-600', tabs: [{ id: 'gold', label: '黄金' }] },
 ] as const;
 
 type TabId =

@@ -1,4 +1,5 @@
 import 'server-only';
+import { MIN_ASSET_USD_VALUE } from '@/lib/portfolio/assetDust';
 import { fetchBalancesViaOkx, fetchDefiPositionsViaOkx, isOkxWeb3Available, lpKey, type OkxWeb3Creds, type OkxWeb3Chain } from './okxWeb3';
 import { fetchHyperliquidWalletBalances } from './hyperliquid';
 import { DEFAULT_RECEIPT_TOKEN_SYMBOLS } from './receiptTokens';
@@ -135,7 +136,7 @@ export async function fetchCompleteWallet(
     // Those records carry a zero USD value and are omitted below, without
     // turning the wallet or the portfolio into a data-quality warning.
     const balancesWithUsd = markedBalances
-      .filter((b) => b.usdValue >= 1);
+      .filter((b) => b.usdValue >= MIN_ASSET_USD_VALUE);
 
     const balancesUsd = balancesWithUsd
       .filter((b) => !b.dedupedToDefi)

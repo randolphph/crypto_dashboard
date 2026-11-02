@@ -1,24 +1,10 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import fs from 'node:fs';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
-import Module from 'node:module';
 import crypto from 'node:crypto';
-import ts from 'typescript';
+import { createTsLoader } from './helpers/loadTs.mjs';
 
-const sourceRoot = fileURLToPath(new URL('../src/', import.meta.url));
 function loadTs(relative, mocks) {
-  const filename = path.join(sourceRoot, relative);
-  const loaded = new Module(filename);
-  loaded.require = (specifier) => Object.hasOwn(mocks, specifier)
-    ? mocks[specifier]
-    : Module.createRequire(filename)(specifier);
-  const compiled = ts.transpileModule(fs.readFileSync(filename, 'utf8'), {
-    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, esModuleInterop: true },
-  });
-  loaded._compile(compiled.outputText, filename);
-  return loaded.exports;
+  return createTsLoader(mocks)(relative);
 }
 
 function okxClient(tradingDetails, fundingBalances = [], overrides = {}) {
@@ -84,7 +70,7 @@ test('USDG funding balances have a dollar price without an external ticker reque
   assert.deepEqual(await fetchPrices(['USDG']), { USDG: 1 });
 });
 
-test('OKX route prices funding balances and combines currencies before the $10 filter', async () => {
+test('OKX route prices funding balances and combines currencies before the value filter', async () => {
   const { GET } = loadTs('app/api/exchanges/okx/route.ts', {
     '@/lib/exchanges/okx': { fetchOkxBalances: async () => ({ balances: [
       { asset: 'BTC', amount: 0.00005, usdValue: 5 },
@@ -149,7 +135,6 @@ test('empty savings is complete; failed or malformed savings preserves other bal
 });
 
 test('route includes Earn in totals and classification once, sharing prices across account rows', async () => {
-  const { createTsLoader } = await import('./helpers/loadTs.mjs');
   const load = createTsLoader();
   const { buildClassificationAssets, aggregateAssetCategories, DEFAULT_ASSET_CATEGORIES } = load('lib/portfolio/assetCategories.ts');
   const client = okxClient([{ ccy: 'BTC', eq: '0.1', eqUsd: '10000' }], [
@@ -199,7 +184,28 @@ test('route exposes savings failure and missing prices as incomplete without dro
   const data = await response.json();
   assert.equal(response.status, 200);
   assert.equal(data.totalUsdValue, 100);
+  assert.deepEqual(data.balances.find(b => b.asset === 'UNKNOWN'), {
+    asset: 'UNKNOWN', amount: 10, usdValue: 0, valuationIncomplete: true,
+  });
   assert.deepEqual(data.dataQuality, { complete: false, errors: [
     'OKX 简单赚币活期：Permission denied', 'Price unavailable: UNKNOWN',
   ] });
+});
+
+test('OKX merged holdings retain incomplete valuation when only one account part has a quote', async () => {
+  const { GET } = loadTs('app/api/exchanges/okx/route.ts', {
+    '@/lib/exchanges/okx': { fetchOkxBalances: async () => ({ balances: [
+      { asset: 'BTC', amount: .000005, usdValue: .5 },
+      { asset: 'BTC', amount: .1, usdValue: 0 },
+    ], errors: [] }) },
+    '@/lib/prices': { fetchPrices: async () => ({}) },
+    '@/lib/http/guards': { enforceRateLimit: async () => null },
+  });
+  const data = await (await GET(okxRequest())).json();
+  assert.equal(data.balances.length, 1, 'unknown value cannot be filtered as sub-$1 dust');
+  assert.equal(data.balances[0].amount, .000005 + .1);
+  assert.equal(data.balances[0].usdValue, .5);
+  assert.equal(data.balances[0].valuationIncomplete, true);
+  assert.equal(data.totalUsdValue, .5, 'only the known part contributes to totals');
+  assert.equal(data.dataQuality.complete, false);
 });

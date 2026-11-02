@@ -2,6 +2,7 @@ import { fetchDeribitData } from '@/lib/exchanges/deribit';
 import { fetchPrices } from '@/lib/prices';
 import type { AssetBalance } from '@/types/common';
 import { enforceRateLimit } from '@/lib/http/guards';
+import { MIN_ASSET_USD_VALUE } from '@/lib/portfolio/assetDust';
 
 const STABLE_CURRENCIES = new Set(['USDC', 'USDT']);
 export const maxDuration = 20;
@@ -54,7 +55,9 @@ export async function GET(request: Request) {
         asset: s.currency,
         amount: s.margin_balance,
         usdValue: s.margin_balance * (prices[s.currency] ?? 0),
-      }));
+      }))
+      // Keep material negative margin balances too; they are liabilities.
+      .filter((balance) => Math.abs(balance.usdValue) >= MIN_ASSET_USD_VALUE);
 
     return Response.json(
       {

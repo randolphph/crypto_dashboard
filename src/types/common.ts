@@ -2,6 +2,9 @@ export interface AssetBalance {
   asset: string;
   amount: number;
   usdValue: number;
+  // Missing quotes: usdValue contains only the valued portion (zero if none).
+  // Keep the holding visible and never present that placeholder as a $0 quote.
+  valuationIncomplete?: boolean;
   tokenAddress?: string;
   chainId?: string;
   logo?: string;

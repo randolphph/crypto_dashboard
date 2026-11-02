@@ -62,7 +62,11 @@ export function AssetTable({ balances, location }: AssetTableProps) {
                 {fmtCrypto(item.amount)}
               </td>
               <td className="py-2 text-right tabular-nums">
-                {fmtUsd(item.usdValue)}
+                {item.valuationIncomplete ? (
+                  <span className="text-muted-foreground" title="缺少行情，未估值部分暂未计入总资产">
+                    {item.usdValue > 0 ? `${fmtUsd(item.usdValue)} + 待估值` : '待估值'}
+                  </span>
+                ) : fmtUsd(item.usdValue)}
               </td>
             </tr>
           ))}

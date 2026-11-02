@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { useDashboardStore } from '@/stores/dashboardStore';
 import { useApiKeyStore } from '@/stores/apiKeyStore';
+import { useVaultStore } from '@/stores/vaultStore';
 import { readApiError } from '@/lib/fetchError';
 import { useMemo } from 'react';
 import { useAssetStockMappingStore } from '@/stores/assetStockMappingStore';
@@ -17,11 +18,16 @@ const EXCHANGE_LABEL: Record<'binance' | 'okx' | 'deribit', string> = {
 export function useExchangeData(exchange: 'binance' | 'okx' | 'deribit') {
   const refreshInterval = useDashboardStore((s) => s.refreshInterval);
   const getHeaders = useApiKeyStore((s) => s.getHeaders);
+  const wallet = useVaultStore((s) => s.address);
+  const bootstrapping = useVaultStore((s) => s.status === 'pending');
   const mappings = useAssetStockMappingStore((s) => s.mappings);
   const categoryConfig = useAssetCategoryStore();
 
   const query = useQuery({
-    queryKey: ['exchange', exchange],
+    // Switching between local access and an unlocked wallet must load that
+    // session's balances instead of retaining the other session's cache.
+    queryKey: ['exchange', exchange, wallet],
+    enabled: !bootstrapping,
     queryFn: async () => {
       const res = await fetch(`/api/exchanges/${exchange}`, {
         headers: getHeaders(),

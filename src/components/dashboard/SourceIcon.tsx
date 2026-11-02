@@ -6,10 +6,10 @@ import {
   LineChart,
   Landmark,
   Box,
-  Coins,
   type LucideIcon,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { GoldBarsIcon } from './GoldBarsIcon';
 
 // All platform marks share Lucide's 24-unit grid and display size.
 const BinanceMark = createLucideIcon('SourceBinance', [
@@ -32,14 +32,13 @@ const IbkrLine = createLucideIcon('SourceIbkr', [
   ['circle', { cx: '16', cy: '12', r: '3', key: 'head' }],
 ]);
 
-const exchangeColor = 'text-warning classic:text-amber-500';
 const brokerColor = 'text-primary classic:text-blue-500';
 const platformIcons = {
   binance: { Icon: BinanceMark, colorClass: 'text-[#f3ba2f]' },
   okx: { Icon: OkxMark, colorClass: 'text-black dark:text-white' },
-  deribit: { Icon: DeribitLine, colorClass: exchangeColor },
+  deribit: { Icon: DeribitLine, colorClass: 'text-blue-500 dark:text-blue-400' },
   tonghuashun: { Icon: TonghuashunLine, colorClass: brokerColor },
-  ibkr: { Icon: IbkrLine, colorClass: brokerColor },
+  ibkr: { Icon: IbkrLine, colorClass: 'text-red-500 dark:text-red-400' },
 };
 
 function platformIcon(label: string) {
@@ -56,7 +55,7 @@ function platformIcon(label: string) {
 function classify(
   label: string
 ): { Icon: LucideIcon; colorClass: string } {
-  if (label === '黄金') return { Icon: Coins, colorClass: 'text-warning classic:text-yellow-600' };
+  if (label === '黄金' || label === '实物资产') return { Icon: GoldBarsIcon, colorClass: 'text-warning classic:text-yellow-600' };
   // On-chain
   if (label === '链上') {
     return { Icon: Wallet, colorClass: 'text-primary classic:text-purple-500' };

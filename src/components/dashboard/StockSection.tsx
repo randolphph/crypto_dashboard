@@ -218,11 +218,6 @@ function PositionsTable({ positions }: { positions: EnrichedPosition[] }) {
                       {secondary}
                     </div>
                   )}
-                  {p.quoteError && (
-                    <div className="text-xs text-destructive">
-                      行情: {p.quoteError}
-                    </div>
-                  )}
                 </td>
                 <td className="py-2">
                   <span className="rounded-full bg-secondary px-2 py-0.5 text-xs font-medium">
