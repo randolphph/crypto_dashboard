@@ -63,6 +63,8 @@ cp .env.example .env    # 填入需要的凭据（见下节，全部可选）
 npm run dev             # http://localhost:3000
 ```
 
+本地运行 `npm run dev`（或 `npm run dev:proxy`）时无需钱包登录，可直接进入页面。`npm run build && npm start` 和线上部署仍需钱包登录。本地开发所需的服务端凭据可配置在 `.env.local`；浏览器中已有的钱包加密凭据仍需原钱包解锁。
+
 本地若因 DNS 或网络问题无法连接 OKX 等数据源，可以使用已有的 HTTP 代理：在 `.env.local` 中设置 `HTTPS_PROXY=http://127.0.0.1:7897`（端口以自己的代理为准）及 `NO_PROXY=localhost,127.0.0.1,::1`，然后运行 `npm run dev:proxy`。此命令需要支持 `--use-env-proxy` 的 Node（已在 v25.9.0 验证），仅影响该开发服务，不修改系统 DNS、Tailscale 或 Clash 配置；普通 `npm run dev` 保持原启动方式。线上部署不要配置本机代理地址。
 
 生产构建：
