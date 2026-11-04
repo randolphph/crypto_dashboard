@@ -1,4 +1,5 @@
 import type { WalletBalance, WalletConfig } from '@/types/onchain';
+import { normalizeXLayerAddress } from './xlayerAddress';
 
 export const ONCHAIN_FRESH_MS = 10 * 60 * 1000;
 export const ONCHAIN_SERVER_RETENTION_MS = 7 * 24 * 60 * 60 * 1000;
@@ -11,6 +12,7 @@ export function walletChains(wallet: WalletConfig) {
 }
 
 export function normalizedWalletAddress(address: string): string {
+  if (/^xko[a-f0-9]{40}$/i.test(address)) return normalizeXLayerAddress(address).toLowerCase();
   // Solana and legacy Bitcoin addresses are case-sensitive.
   return /^(0x|bc1|tb1)/i.test(address) ? address.toLowerCase() : address;
 }

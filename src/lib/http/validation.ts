@@ -8,6 +8,7 @@ import type {
   StockPosition,
 } from '@/types/stocks';
 import { RequestInputError } from './guards';
+import { normalizeXLayerAddress } from '@/lib/onchain/xlayerAddress';
 
 const MARKETS = new Set<StockMarket>(['A', 'HK', 'US', 'KR']);
 const BROKERS = new Set<StockBroker>(['ths', 'longport', 'ibkr']);
@@ -18,6 +19,7 @@ const CHAINS = new Set<Chain>([
   'base',
   'bsc',
   'plasma',
+  'xlayer',
   'hyperliquid',
   'robinhood',
   'solana',
@@ -115,10 +117,16 @@ export function parseOnchainBody(value: unknown): {
       throw new RequestInputError('invalid legacy network');
     }
 
+    let address = row.address.trim();
+    if (chains.includes('xlayer') || (!chains.length && network === 'xlayer')) {
+      try { address = normalizeXLayerAddress(address); }
+      catch (error) { throw new RequestInputError(error instanceof Error ? error.message : 'X Layer 地址格式不正确'); }
+    }
+
     return {
       id: row.id.trim(),
       name: row.name.trim(),
-      address: row.address.trim(),
+      address,
       chains,
       network: network as Chain | undefined,
     };

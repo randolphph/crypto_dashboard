@@ -6,6 +6,7 @@ import { useWalletStore } from '@/stores/walletStore';
 import { truncateAddress } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import type { Chain, EvmChain, WalletConfig } from '@/types/onchain';
+import { normalizeXLayerAddress } from '@/lib/onchain/xlayerAddress';
 
 interface WalletManagerProps {
   embedded?: boolean;
@@ -21,6 +22,7 @@ const EVM_CHAINS: { id: EvmAddressChain; label: string }[] = [
   { id: 'base', label: 'Base' },
   { id: 'bsc', label: 'BNB Chain' },
   { id: 'plasma', label: 'Plasma' },
+  { id: 'xlayer', label: 'X Layer' },
   { id: 'hyperliquid', label: 'Hyperliquid' },
   { id: 'robinhood', label: 'Robinhood Chain' },
 ];
@@ -32,6 +34,7 @@ const CHAIN_LABELS: Record<Chain, string> = {
   base: 'Base',
   bsc: 'BSC',
   plasma: 'Plasma',
+  xlayer: 'X Layer',
   hyperliquid: 'Hyperliquid',
   robinhood: 'Robinhood',
   solana: 'SOL',
@@ -58,6 +61,7 @@ export function WalletManager({ embedded, autoOpenForm }: WalletManagerProps = {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [name, setName] = useState('');
   const [address, setAddress] = useState('');
+  const [error, setError] = useState('');
   const [walletType, setWalletType] = useState<WalletType>('evm');
   const [selectedEvmChains, setSelectedEvmChains] = useState<EvmAddressChain[]>(['ethereum']);
 
@@ -68,6 +72,7 @@ export function WalletManager({ embedded, autoOpenForm }: WalletManagerProps = {
   const resetForm = () => {
     setName('');
     setAddress('');
+    setError('');
     setWalletType('evm');
     setSelectedEvmChains(['ethereum']);
     setShowForm(false);
@@ -80,6 +85,7 @@ export function WalletManager({ embedded, autoOpenForm }: WalletManagerProps = {
     setEditingId(wallet.id);
     setName(wallet.name);
     setAddress(wallet.address);
+    setError('');
     setWalletType(type);
     setSelectedEvmChains(
       type === 'evm' ? (chains as EvmAddressChain[]) : ['ethereum']
@@ -97,17 +103,24 @@ export function WalletManager({ embedded, autoOpenForm }: WalletManagerProps = {
           ? ['solana']
           : selectedEvmChains;
 
+    let queryAddress = address.trim();
+    setError('');
+    if (chains.includes('xlayer')) {
+      try { queryAddress = normalizeXLayerAddress(queryAddress); }
+      catch (error) { setError(error instanceof Error ? error.message : 'X Layer 地址格式不正确'); return; }
+    }
+
     if (editingId) {
       updateWallet(editingId, {
         name: name.trim(),
-        address: address.trim(),
+        address: queryAddress,
         chains,
       });
     } else {
       addWallet({
         id: crypto.randomUUID(),
         name: name.trim(),
-        address: address.trim(),
+        address: queryAddress,
         chains,
       });
     }
@@ -264,10 +277,16 @@ export function WalletManager({ embedded, autoOpenForm }: WalletManagerProps = {
             <input
               type="text"
               value={address}
-              onChange={(e) => setAddress(e.target.value)}
-              placeholder={walletType === 'evm' ? '0x...' : walletType === 'bitcoin' ? 'bc1... / 1... / 3...' : 'Solana 地址...'}
+              onChange={(e) => {
+                setAddress(e.target.value);
+                setError('');
+                if (walletType === 'evm' && /^xko/i.test(e.target.value.trim())) setSelectedEvmChains(['xlayer']);
+              }}
+              placeholder={walletType === 'evm' ? '0x... / XKO...' : walletType === 'bitcoin' ? 'bc1... / 1... / 3...' : 'Solana 地址...'}
               className="mt-1 w-full rounded-lg border bg-background px-3 py-2 text-sm font-mono"
             />
+            {walletType === 'evm' && selectedEvmChains.includes('xlayer') && <p className="mt-1 text-xs text-muted-foreground">支持 OKX Pay 的 XKO 地址，按等价的 0x 地址读取链上资产。</p>}
+            {error && <p role="alert" className="mt-1 text-xs text-destructive">{error}</p>}
           </div>
 
           <button

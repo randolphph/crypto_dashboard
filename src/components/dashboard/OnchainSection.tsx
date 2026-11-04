@@ -17,6 +17,7 @@ const CHAIN_LABELS: Record<string, string> = {
   base: 'Base',
   bsc: 'BSC',
   plasma: 'Plasma',
+  xlayer: 'X Layer',
   hyperliquid: 'Hyperliquid',
   robinhood: 'Robinhood',
   solana: 'SOL',

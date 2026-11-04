@@ -5,6 +5,7 @@ import { getAddress } from 'viem';
 import { fetchWithTimeout } from '@/lib/http/fetch';
 import { isAaveProtocol } from './aaveReceipts';
 import type { AssetBalance } from '@/types/common';
+import { normalizeXLayerAddress } from './xlayerAddress';
 
 const BASE_URL = 'https://web3.okx.com';
 
@@ -26,6 +27,7 @@ const CHAIN_INDEX_MAP: Record<OkxWeb3Chain, string> = {
   base: '8453',
   bsc: '56',
   plasma: '9745',
+  xlayer: '196',
   robinhood: '4663',
   solana: '501',
   bitcoin: '0',
@@ -166,6 +168,7 @@ const CHAIN_INDEX_LABEL: Record<string, string> = {
   '8453': 'Base',
   '56': 'BSC',
   '9745': 'Plasma',
+  '196': 'X Layer',
   '4663': 'Robinhood',
   '501': 'SOL',
 };
@@ -217,6 +220,7 @@ export async function fetchBalancesViaOkx(
   chains: OkxWeb3Chain[],
   overrides?: OkxWeb3Creds
 ): Promise<AssetBalance[]> {
+  if (chains.includes('xlayer')) address = normalizeXLayerAddress(address);
   const chainIndexes = chains.map((c) => CHAIN_INDEX_MAP[c]).join(',');
   const path = `/api/v5/wallet/asset/all-token-balances-by-address?address=${address}&chains=${chainIndexes}&filter=0`;
 
@@ -374,6 +378,7 @@ export async function fetchDefiPositionsViaOkx(
   chains: OkxWeb3Chain[],
   overrides?: OkxWeb3Creds
 ): Promise<DefiFetchResult> {
+  if (chains.includes('xlayer')) address = normalizeXLayerAddress(address);
   // Bitcoin has no DeFi via OKX; skip it but pass everything else through.
   const walletAddressList = chains
     .filter((c) => c !== 'bitcoin')

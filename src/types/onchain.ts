@@ -7,6 +7,7 @@ export type EvmChain =
   | 'base'
   | 'bsc'
   | 'plasma'
+  | 'xlayer'
   | 'robinhood';
 export type Chain = EvmChain | 'hyperliquid' | 'solana' | 'bitcoin';
 
