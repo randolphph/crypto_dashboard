@@ -29,7 +29,7 @@ export interface GoldQuote {
   currency: 'CNY';
   unit: 'gram';
   price: number;
-  source: 'sina-sge';
+  source: 'sina-sge' | 'sge-daily';
   updatedAt: string;
   receivedAt: string;
   status: 'live' | 'stale';

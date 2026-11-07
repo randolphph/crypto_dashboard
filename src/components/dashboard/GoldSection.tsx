@@ -107,7 +107,7 @@ export function GoldSection({ fx, quote, quoteError, quoteLoading }: { fx?: FxRa
       </div>
       <div className="mx-5 mt-4 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 rounded-lg bg-muted/40 px-3 py-2 text-xs">
         <span className="text-muted-foreground">国内现货 · Au99.99 · 元/克</span>
-        <span data-gold-field="spot-price" className="font-medium tabular-nums">{priceLocal === null ? '—' : formatCurrency(priceLocal, displayCurrency)}<span className="ml-2 font-normal text-muted-foreground">{quoteLoading ? '获取中' : valuation.priceStatus === 'unavailable' ? '暂无报价' : stale ? '最近成交价' : '现货参考'}</span></span>
+        <span data-gold-field="spot-price" className="font-medium tabular-nums">{priceLocal === null ? '—' : formatCurrency(priceLocal, displayCurrency)}<span className="ml-2 font-normal text-muted-foreground">{quoteLoading ? '获取中' : valuation.priceStatus === 'unavailable' ? '暂无报价' : quote?.source === 'sge-daily' ? '最近收盘价' : stale ? '最近成交价' : '现货参考'}</span></span>
       </div>
       <dl className="grid grid-cols-2 items-center gap-x-5 gap-y-6 px-5 py-5 md:grid-cols-4 md:gap-x-8">
         <div className="min-w-0">
@@ -140,7 +140,7 @@ export function GoldSection({ fx, quote, quoteError, quoteLoading }: { fx?: FxRa
         </details>
       )}
       <div className="flex flex-wrap items-center justify-between gap-1 px-5 pb-4 pt-3 text-[11px] text-muted-foreground">
-        <span><a href="https://finance.sina.com.cn/money/gold/" target="_blank" rel="noreferrer" className="hover:text-foreground">新浪财经</a> · 上金所 Au99.99{quote && valuation.priceStatus !== 'unavailable' && <> · <time dateTime={quote.updatedAt}>{new Date(quote.updatedAt).toLocaleString('zh-CN', { hour12: false })}</time></>}</span>
+        <span><a href={quote?.source === 'sge-daily' ? 'https://www.sge.com.cn/sjzx/quotation_daily_new' : 'https://finance.sina.com.cn/money/gold/'} target="_blank" rel="noreferrer" className="hover:text-foreground">{quote?.source === 'sge-daily' ? '上金所官方' : '新浪财经'}</a> · 上金所 Au99.99{quote && valuation.priceStatus !== 'unavailable' && <> · <time dateTime={quote.updatedAt}>{new Date(quote.updatedAt).toLocaleString('zh-CN', { hour12: false })}</time></>}</span>
         <span>参考价不含加工费及回购折价</span>
       </div>
       <Dialog open={open} onOpenChange={setOpen}>

@@ -173,3 +173,17 @@ test('live snapshot market value is excluded from cash; old cost snapshots still
   assert.equal(snapshotToAiJson(noCost).summary.byCategory.cashImpliedUsd, 100);
   assert.equal(snapshotToAiJson(noCost).summary.byCategory.goldCostUsd, null);
 });
+
+test('official closing quotes preserve domestic classification and snapshot provenance', () => {
+  const closing = { ...quote, source: 'sge-daily', status: 'stale', updatedAt: new Date(now - 86400000).toISOString() };
+  const valuation = valueGoldHoldings([gold()], fx, closing);
+  assert.equal(valuation.priceStatus, 'stale');
+  assert.equal(valuation.totalUsd, 2499);
+  assert.equal(buildClassificationAssets({ gold: valuation.items, banks: [], customAssets: [] })[0].source, '黄金（上金所 Au99.99）');
+  const snapshot = buildSnapshot({ wallet: '0x123', gold: valuation.items, portfolio: { totalUsd: 2499, assetsUsd: 2499, otherUsd: 2499 } });
+  const exported = snapshotToAiJson(snapshot);
+  assert.equal(exported.gold[0].priceSource, 'sge-daily');
+  assert.equal(exported.gold[0].priceUpdatedAt, closing.updatedAt);
+  assert.equal(exported.gold[0].priceStatus, 'stale');
+  assert.match(snapshotToMarkdown(snapshot), /sge-daily/);
+});

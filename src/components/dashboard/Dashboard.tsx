@@ -161,7 +161,7 @@ export function Dashboard() {
     okx.data?.error != null ||
     deribit.data?.error != null ||
     ((bankNeedsFx || liabilityNeedsFx) && !fx && !fxQuery.isLoading) ||
-    (goldHoldings.length > 0 && (!goldValuation.complete || goldQuote.isError));
+    (goldHoldings.length > 0 && !goldValuation.complete);
 
   const hasDataQualityIssue =
     binance.data?.dataQuality?.complete === false ||
@@ -171,8 +171,7 @@ export function Dashboard() {
       onchain.data.some(
         (wallet) => hasOnchainWarning(wallet)
       )) ||
-    stocks.data?.dataQuality?.complete === false ||
-    (goldHoldings.length > 0 && goldValuation.priceStatus !== 'live');
+    stocks.data?.dataQuality?.complete === false;
 
   const brokerById = (b: StockBroker) =>
     stocks.data?.brokers.find((x) => x.broker === b);
@@ -310,7 +309,7 @@ export function Dashboard() {
       dataQuality: stocks.data?.dataQuality,
     },
     { label: '银行汇率', required: bankNeedsFx, value: fx ? bankCashValue : undefined, loading: !fx && fxQuery.isLoading },
-    { label: '黄金', required: goldHoldings.length > 0, value: goldValuation.totalUsd ?? undefined, loading: !goldValuation.complete && (goldQuote.isLoading || fxQuery.isLoading), warnings: [...(goldValuation.priceStatus === 'stale' ? ['使用国内最近成交价，请留意行情时间'] : []), ...(!goldValuation.costComplete ? ['买入成本缺少汇率，盈亏暂不可用'] : [])], error: goldQuote.error?.message ?? (goldValuation.complete ? undefined : '黄金行情或持仓数据不可用') },
+    { label: '黄金', required: goldHoldings.length > 0, value: goldValuation.totalUsd ?? undefined, loading: !goldValuation.complete && (goldQuote.isLoading || fxQuery.isLoading), warnings: [...(goldValuation.priceStatus === 'stale' ? [goldQuote.data?.source === 'sge-daily' ? '使用国内最近收盘价，请留意行情日期' : '使用国内最近成交价，请留意行情时间'] : []), ...(!goldValuation.costComplete ? ['买入成本缺少汇率，盈亏暂不可用'] : [])], error: goldQuote.error?.message ?? (goldValuation.complete ? undefined : '黄金行情或持仓数据不可用') },
     { label: '负债', required: liabilities.length > 0, value: liabilityValuation.totalUsd, loading: liabilityNeedsFx && !fx && fxQuery.isLoading, error: liabilityValuation.complete ? undefined : '汇率不可用，无法换算负债' },
   ];
   const historyRecording = assessHistoryRecording({ totalValue, sources: historySources });
@@ -338,8 +337,10 @@ export function Dashboard() {
     !isLoading &&
     Number.isFinite(totalValue) &&
     !!walletAddress;
-  const snapshotHasWarnings = hasError || hasDataQualityIssue;
-  const snapshotReady = snapshotPayloadReady && !snapshotHasWarnings;
+  // Valid domestic closing/cached prices remain recordable with their original
+  // source, timestamp and stale status carried in every gold holding.
+  const snapshotHasWarnings = hasError || hasDataQualityIssue || (goldHoldings.length > 0 && (goldValuation.priceStatus !== 'live' || goldQuote.isError));
+  const snapshotReady = snapshotPayloadReady && !hasError && !hasDataQualityIssue;
   const snapshotPayload =
     snapshotPayloadReady && walletAddress
       ? buildSnapshot({

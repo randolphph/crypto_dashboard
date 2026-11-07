@@ -199,7 +199,7 @@ export function buildClassificationAssets(input: ClassificationInput): Classific
   }
   for (const bank of input.banks) add({ id: bankCategoryKey(bank.id), label: `${bank.bank} ${bank.currency}`, source: '银行', value: bank.valueUsd, defaultCategoryId: 'cash' });
   for (const asset of input.customAssets) add({ id: customCategoryKey(asset.id), label: asset.name, source: '自定义资产', value: asset.value });
-  for (const holding of input.gold ?? []) if (holding.valueUsd !== null) add({ id: goldCategoryKey(holding.id), label: holding.name, source: holding.valuationBasis === 'cost' ? '黄金（成本估值）' : holding.priceSource === 'sina-sge' ? '黄金（上金所 Au99.99）' : '黄金（国际现货估值）', value: holding.valueUsd, defaultCategoryId: GOLD_CATEGORY_ID });
+  for (const holding of input.gold ?? []) if (holding.valueUsd !== null) add({ id: goldCategoryKey(holding.id), label: holding.name, source: holding.valuationBasis === 'cost' ? '黄金（成本估值）' : ['sina-sge', 'sge-daily'].includes(holding.priceSource ?? '') ? '黄金（上金所 Au99.99）' : '黄金（国际现货估值）', value: holding.valueUsd, defaultCategoryId: GOLD_CATEGORY_ID });
   // The same economic asset may be returned in several fragments. Its tag
   // stays stable and its valuation is included exactly once per fragment.
   const unique = new Map<string, ClassificationAsset>();
