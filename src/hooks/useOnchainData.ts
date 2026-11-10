@@ -11,6 +11,7 @@ import { ONCHAIN_CHECK_MS } from '@/lib/onchain/cachePolicy';
 import type { WalletBalance } from '@/types/onchain';
 import { useAssetStockMappingStore } from '@/stores/assetStockMappingStore';
 import { annotateWallets } from '@/lib/portfolio/assetStockMapping';
+import { useManualStockCostStore } from '@/stores/manualStockCostStore';
 import { useAssetCategoryStore } from '@/stores/assetCategoryStore';
 import { resolveUsStockSymbol } from '@/lib/portfolio/assetCategories';
 
@@ -18,6 +19,7 @@ export function useOnchainData() {
   const wallets = useWalletStore((s) => s.wallets);
   const mappings = useAssetStockMappingStore((s) => s.mappings);
   const categoryConfig = useAssetCategoryStore();
+  const manualCosts = useManualStockCostStore(s => s.costs);
   const refreshInterval = useDashboardStore((s) => s.refreshInterval);
   const getHeaders = useApiKeyStore((s) => s.getHeaders);
   const credentialValues = useApiKeyStore((s) => JSON.stringify([s.okxWeb3ApiKey, s.okxWeb3ApiSecret, s.okxWeb3Passphrase, s.okxWeb3ProjectId]));
@@ -79,7 +81,7 @@ export function useOnchainData() {
     try { await query.refetch(); }
     finally { force.current = false; }
   };
-  const data = useMemo(() => query.data ? annotateWallets(query.data, mappings, (id, known) => resolveUsStockSymbol(categoryConfig, id, known)) : undefined, [query.data, mappings, categoryConfig]);
+  const data = useMemo(() => query.data ? annotateWallets(query.data, mappings, (id, known) => resolveUsStockSymbol(categoryConfig, id, known), manualCosts) : undefined, [query.data, mappings, categoryConfig, manualCosts]);
   return { ...query, data, refreshNow,
     isLoading: query.isLoading || (!!owner && wallets.length > 0 && !active) };
 }

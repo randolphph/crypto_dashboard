@@ -4,6 +4,7 @@ import Image from 'next/image';
 import { usePrivacyFormat } from '@/hooks/usePrivacyFormat';
 import { AssetCategorySelect } from './AssetCategorySelect';
 import { defiCategoryKey } from '@/lib/portfolio/assetCategories';
+import { StockCostEditor, StockCostPnl } from './StockCostEditor';
 import type {
   DefiInvestType,
   DefiProtocolPosition,
@@ -71,6 +72,10 @@ export function DefiPositions({ positions, totalUsdValue, walletId }: DefiPositi
               </span>
             </div>
 
+            {p.stockSymbol && <div className="mb-2 flex flex-wrap items-center justify-between gap-2 border-t pt-2 text-xs">
+              <span className="inline-flex items-center gap-1 text-muted-foreground">买入价<StockCostEditor assetId={defiCategoryKey(walletId, p.platformId, p.chainId)} symbol={p.stockSymbol} label={`${p.platformName} ${p.network}`} valueUsd={p.totalUsdValue} protocol /></span>
+              <span className="tabular-nums">浮动盈亏 <StockCostPnl cost={p.stockCost} /></span>
+            </div>}
             <div className="space-y-1.5">
               {p.positions.map((pos, i) => (
                 <div key={i} className="text-xs">

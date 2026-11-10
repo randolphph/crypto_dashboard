@@ -5,6 +5,7 @@ import type {
 } from '@/types/snapshot';
 import type { StocksData } from '@/types/stocks';
 import type { WalletBalance } from '@/types/onchain';
+import type { StockCostValuation } from './manualStockCost';
 
 // Loose shapes — these come from /api/exchanges/* JSON responses and we only
 // need a subset of fields. Keeping it narrow avoids tight coupling with the
@@ -15,6 +16,8 @@ interface AssetBalanceLike {
   usdValue: number;
   dedupedToDefi?: boolean;
   stockSymbol?: string;
+  stockCost?: StockCostValuation;
+  valuationIncomplete?: boolean;
 }
 
 interface BinanceSubAccountLike {
@@ -280,6 +283,13 @@ function flattenOnchain(wallets: WalletBalance[] | undefined): PositionSnapshot[
         currency: 'USD',
         valueUsd: protocol.totalUsdValue,
         raw: protocol.positions,
+        ...(protocol.stockSymbol && protocol.stockCost ? {
+          kind: 'stock', symbol: protocol.stockSymbol, market: 'US', side: 'long', assetSymbol: protocol.platformName,
+          qty: protocol.stockCost.underlyingShares, priceLocal: asPrice(protocol.stockCost.underlyingShares, protocol.totalUsdValue),
+          entryPrice: protocol.stockCost.costBasisUsd, costSource: 'manual', costUsd: protocol.stockCost.costUsd,
+          underlyingShares: protocol.stockCost.underlyingShares, sharesPerUnit: 1,
+          pnlUsd: protocol.stockCost.pnlUsd ?? undefined, pnlLocal: protocol.stockCost.pnlUsd ?? undefined,
+        } satisfies Partial<PositionSnapshot> : {}),
       });
     }
   }
@@ -287,7 +297,10 @@ function flattenOnchain(wallets: WalletBalance[] | undefined): PositionSnapshot[
 }
 
 function stockSnapshotFields(balance: AssetBalanceLike & { chainId?: string; tokenAddress?: string }): Partial<PositionSnapshot> {
-  return { symbol: balance.stockSymbol, kind: 'stock', market: 'US', side: balance.amount < 0 ? 'short' : 'long', assetSymbol: balance.asset, quantityUnit: 'token', chainId: balance.chainId, tokenAddress: balance.tokenAddress };
+  return { symbol: balance.stockSymbol, kind: 'stock', market: 'US', side: balance.amount < 0 ? 'short' : 'long', assetSymbol: balance.asset, quantityUnit: 'token', chainId: balance.chainId, tokenAddress: balance.tokenAddress,
+    ...(balance.stockCost ? { entryPrice: balance.stockCost.buyPriceUsd, costSource: 'manual', costUsd: balance.stockCost.costUsd, underlyingShares: balance.stockCost.underlyingShares, sharesPerUnit: balance.stockCost.sharesPerUnit, pnlUsd: balance.stockCost.pnlUsd ?? undefined, pnlLocal: balance.stockCost.pnlUsd ?? undefined } : {}),
+    ...(balance.valuationIncomplete ? { priceLocal: undefined } : {}),
+  };
 }
 
 // IBKR positions encode option metadata in the id field:
@@ -440,6 +453,11 @@ export function snapshotFingerprint(payload: SnapshotPayload): string {
       x.tokenAddress ?? '',
       Math.round(x.qty * 1e6),
       Math.round(x.valueUsd * 100),
+      x.costSource ?? '',
+      x.entryPrice ?? null,
+      x.costUsd ?? null,
+      x.underlyingShares ?? null,
+      x.sharesPerUnit ?? null,
     ]),
     t: Math.round(payload.portfolio.totalUsd * 100),
     ...(payload.gold?.length ? { gold: payload.gold.map(h => [h.id, h.name, h.grams, h.buyPricePerGram, h.currency, h.valueUsd, h.costUsd, h.valueCny, h.priceCnyPerGram, h.priceSource, h.priceUpdatedAt, h.priceStatus, h.valuationBasis]) } : {}),

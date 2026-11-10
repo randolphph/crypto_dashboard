@@ -6,6 +6,7 @@ import { readApiError } from '@/lib/fetchError';
 import { useMemo } from 'react';
 import { useAssetStockMappingStore } from '@/stores/assetStockMappingStore';
 import { annotateExchange } from '@/lib/portfolio/assetStockMapping';
+import { useManualStockCostStore } from '@/stores/manualStockCostStore';
 import { useAssetCategoryStore } from '@/stores/assetCategoryStore';
 import { resolveUsStockSymbol } from '@/lib/portfolio/assetCategories';
 
@@ -22,6 +23,7 @@ export function useExchangeData(exchange: 'binance' | 'okx' | 'deribit') {
   const bootstrapping = useVaultStore((s) => s.status === 'pending');
   const mappings = useAssetStockMappingStore((s) => s.mappings);
   const categoryConfig = useAssetCategoryStore();
+  const manualCosts = useManualStockCostStore(s => s.costs);
 
   const query = useQuery({
     // Switching between local access and an unlocked wallet must load that
@@ -42,6 +44,6 @@ export function useExchangeData(exchange: 'binance' | 'okx' | 'deribit') {
     refetchOnMount: 'always',
     refetchInterval: refreshInterval > 0 ? refreshInterval * 1000 : false,
   });
-  const data = useMemo(() => query.data && exchange !== 'deribit' ? annotateExchange(query.data, exchange, mappings, (id, known) => resolveUsStockSymbol(categoryConfig, id, known)) : query.data, [query.data, exchange, mappings, categoryConfig]);
+  const data = useMemo(() => query.data && exchange !== 'deribit' ? annotateExchange(query.data, exchange, mappings, (id, known) => resolveUsStockSymbol(categoryConfig, id, known), manualCosts) : query.data, [query.data, exchange, mappings, categoryConfig, manualCosts]);
   return { ...query, data };
 }

@@ -232,7 +232,7 @@ export function TargetTable({
               </TableCell>
               <TableCell className="text-center tabular-nums">
                 {d.costBasisLocal !== null
-                  ? <span title="复用资产看板持仓成本；多账户按持股数量加权">{hidden ? '****' : formatCurrency(d.costBasisLocal, MARKET_CURRENCY[d.target.market])}</span>
+                  ? <span title="复用资产看板持仓成本；多账户按股数加权，代币按填写的每枚对应股数换算">{hidden ? '****' : formatCurrency(d.costBasisLocal, MARKET_CURRENCY[d.target.market])}</span>
                   : <span className="text-muted-foreground" title="暂无完整的股票成本数据">—</span>}
               </TableCell>
               <TableCell className="text-center tabular-nums">

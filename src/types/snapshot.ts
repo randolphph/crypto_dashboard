@@ -33,9 +33,13 @@ export interface PositionSnapshot {
   // Explicit direction for AI consumers. Spot balances omit this (implicitly
   // long); positions with directional risk (stocks, futures, options) set it.
   side?: 'long' | 'short';
-  // Cost basis / average entry. Set when the upstream API gives it
-  // (IBKR costBasis, Binance futures entryPrice, Deribit average_price).
+  // Cost basis / average entry from the API, or an explicitly marked manual
+  // cost for a tagged stock holding. Token entry prices retain token units.
   entryPrice?: number;
+  costSource?: 'manual';
+  costUsd?: number;
+  underlyingShares?: number;
+  sharesPerUnit?: number;
   priceLocal?: number;
   currency: string;
   valueLocal?: number;

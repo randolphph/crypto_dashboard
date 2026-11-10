@@ -1,5 +1,6 @@
 import type { AssetBalance } from '@/types/common';
 import type { WalletBalance } from '@/types/onchain';
+import { valueManualStockCost, type ManualStockCost, type StockCostValuation } from './manualStockCost';
 
 export type AssetLocation =
   | { source: 'binance'; account: string }
@@ -9,13 +10,7 @@ export type AssetLocation =
 export interface AssetStockMapping { key: string; symbol: string }
 export const defiCategoryKey = (walletId: string, platformId: string, chainId: string) => JSON.stringify(['defi', walletId, platformId, chainId]);
 
-export function normalizeStockSymbol(value: string): string {
-  const symbol = value.trim().toUpperCase();
-  if (!/^[A-Z][A-Z0-9]*(?:[.-][A-Z0-9]+)*$/.test(symbol) || symbol.length > 20) {
-    throw new Error('请填写有效美股代码，例如 NVDA、BRK.B');
-  }
-  return symbol;
-}
+export { normalizeStockSymbol } from './stockSymbol';
 
 export function canMarkStock(location: AssetLocation, balance: Pick<AssetBalance, 'dedupedToDefi'>): boolean {
   return !balance.dedupedToDefi && (location.source !== 'binance' || ['现货', '理财', '资金账户'].includes(location.account));
@@ -32,15 +27,17 @@ export function assetMappingKey(location: AssetLocation, balance: Pick<AssetBala
 }
 
 export type StockSymbolResolver = (assetId: string, knownSymbol?: string) => string | undefined;
-export function annotateBalances(balances: AssetBalance[], location: AssetLocation, mappings: AssetStockMapping[], resolveSymbol?: StockSymbolResolver): AssetBalance[] {
+export function annotateBalances(balances: AssetBalance[], location: AssetLocation, mappings: AssetStockMapping[], resolveSymbol?: StockSymbolResolver, costs: Record<string, ManualStockCost> = {}): AssetBalance[] {
   const byKey = new Map(mappings.map((entry) => [entry.key, entry.symbol]));
   return balances.map((balance) => {
     const raw = { ...balance };
     delete raw.stockSymbol;
+    delete raw.stockCost;
     const key = assetMappingKey(location, balance);
     const known = byKey.get(key);
     const symbol = canMarkStock(location, balance) ? resolveSymbol ? resolveSymbol(`balance:${key}`, known) : known : undefined;
-    return symbol ? { ...raw, stockSymbol: symbol } : raw;
+    const stockCost = symbol ? valueManualStockCost(costs[`balance:${key}`], symbol, balance.amount, balance.usdValue, balance.valuationIncomplete) : undefined;
+    return symbol ? { ...raw, stockSymbol: symbol, ...(stockCost ? { stockCost } : {}) } : raw;
   });
 }
 
@@ -49,23 +46,26 @@ interface ExchangeBalances {
   accounts?: Array<{ label: string; balances: AssetBalance[] }>;
 }
 
-export function annotateExchange<T extends ExchangeBalances>(data: T, source: 'binance' | 'okx', mappings: AssetStockMapping[], resolveSymbol?: StockSymbolResolver): T {
+export function annotateExchange<T extends ExchangeBalances>(data: T, source: 'binance' | 'okx', mappings: AssetStockMapping[], resolveSymbol?: StockSymbolResolver, costs: Record<string, ManualStockCost> = {}): T {
   return {
     ...data,
-    ...(data.balances ? { balances: source === 'okx' ? annotateBalances(data.balances, { source }, mappings, resolveSymbol) : data.balances } : {}),
-    ...(data.accounts ? { accounts: data.accounts.map((account) => ({ ...account, balances: annotateBalances(account.balances, source === 'binance' ? { source, account: account.label } : { source }, mappings, resolveSymbol) })) } : {}),
+    ...(data.balances ? { balances: source === 'okx' ? annotateBalances(data.balances, { source }, mappings, resolveSymbol, costs) : data.balances } : {}),
+    ...(data.accounts ? { accounts: data.accounts.map((account) => ({ ...account, balances: annotateBalances(account.balances, source === 'binance' ? { source, account: account.label } : { source }, mappings, resolveSymbol, costs) })) } : {}),
   };
 }
 
-export function annotateWallets(wallets: WalletBalance[], mappings: AssetStockMapping[], resolveSymbol?: StockSymbolResolver): WalletBalance[] {
+export function annotateWallets(wallets: WalletBalance[], mappings: AssetStockMapping[], resolveSymbol?: StockSymbolResolver, costs: Record<string, ManualStockCost> = {}): WalletBalance[] {
   return wallets.map((wallet) => ({
     ...wallet,
-    balances: annotateBalances(wallet.balances, { source: 'onchain', walletId: wallet.walletId }, mappings, resolveSymbol),
+    balances: annotateBalances(wallet.balances, { source: 'onchain', walletId: wallet.walletId }, mappings, resolveSymbol, costs),
     ...(wallet.defiPositions ? { defiPositions: wallet.defiPositions.map((protocol) => {
       const raw = { ...protocol };
       delete raw.stockSymbol;
-      const symbol = resolveSymbol?.(defiCategoryKey(wallet.walletId, protocol.platformId, protocol.chainId));
-      return symbol ? { ...raw, stockSymbol: symbol } : raw;
+      delete raw.stockCost;
+      const key = defiCategoryKey(wallet.walletId, protocol.platformId, protocol.chainId);
+      const symbol = resolveSymbol?.(key);
+      const stockCost = symbol && costs[key]?.quantity !== undefined ? valueManualStockCost(costs[key], symbol, undefined, protocol.totalUsdValue) : undefined;
+      return symbol ? { ...raw, stockSymbol: symbol, ...(stockCost ? { stockCost } : {}) } : raw;
     }) } : {}),
   }));
 }
@@ -78,6 +78,7 @@ export interface MappedStockHolding {
   amount?: number;
   assetSymbol?: string;
   tokenQuantities?: Array<{ amount: number; assetSymbol: string }>;
+  stockCost?: StockCostValuation;
 }
 
 export function mappedStockHoldings(input: { binance?: ExchangeBalances & { configured?: boolean }; okx?: ExchangeBalances & { configured?: boolean }; onchain?: WalletBalance[] }): MappedStockHolding[] {
@@ -85,7 +86,7 @@ export function mappedStockHoldings(input: { binance?: ExchangeBalances & { conf
   const add = (balances: AssetBalance[], source: string) => {
     for (const balance of balances) {
       if (!balance.stockSymbol || balance.dedupedToDefi || !Number.isFinite(balance.usdValue) || balance.usdValue <= 0) continue;
-      out.push({ symbol: balance.stockSymbol, market: 'US', valueUsd: balance.usdValue, sourceLabel: `${source} · ${balance.asset}`, amount: balance.amount, assetSymbol: balance.asset });
+      out.push({ symbol: balance.stockSymbol, market: 'US', valueUsd: balance.usdValue, sourceLabel: `${source} · ${balance.asset}`, amount: balance.amount, assetSymbol: balance.asset, ...(balance.stockCost ? { stockCost: balance.stockCost } : {}) });
     }
   };
   if (input.binance?.configured !== false) for (const account of input.binance?.accounts ?? []) {
@@ -100,6 +101,7 @@ export function mappedStockHoldings(input: { binance?: ExchangeBalances & { conf
       // must not be added again or converted into fictitious stock shares.
       out.push({ symbol: protocol.stockSymbol, market: 'US', valueUsd: protocol.totalUsdValue,
         sourceLabel: `${wallet.walletName} · ${protocol.platformName} (${protocol.network})`,
+        ...(protocol.stockCost ? { stockCost: protocol.stockCost } : {}),
         tokenQuantities: protocol.positions.flatMap((position) => position.tokens
           .filter((token) => Number.isFinite(token.amount))
           .map((token) => ({ amount: token.amount, assetSymbol: token.symbol }))),

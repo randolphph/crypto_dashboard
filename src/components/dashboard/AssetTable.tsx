@@ -7,6 +7,7 @@ import type { AssetLocation } from '@/lib/portfolio/assetStockMapping';
 import { AssetCategorySelect } from './AssetCategorySelect';
 import { balanceCategoryKey, defaultBalanceCategory } from '@/lib/portfolio/assetCategories';
 import { assetIconSource } from '@/lib/portfolio/assetIconSource';
+import { StockCostEditor, StockCostPnl } from './StockCostEditor';
 
 interface AssetTableProps {
   balances: AssetBalance[];
@@ -16,6 +17,7 @@ interface AssetTableProps {
 export function AssetTable({ balances, location }: AssetTableProps) {
   const { fmtUsd, fmtCrypto } = usePrivacyFormat();
   const sorted = [...balances].sort((a, b) => b.usdValue - a.usdValue);
+  const showStockCosts = !!location && balances.some(item => !!item.stockSymbol && !item.dedupedToDefi);
 
   if (sorted.length === 0) {
     return (
@@ -32,6 +34,7 @@ export function AssetTable({ balances, location }: AssetTableProps) {
           <tr className="border-b text-left text-muted-foreground">
             <th className="pb-2 font-medium">资产</th>
             <th className="pb-2 text-right font-medium">数量</th>
+            {showStockCosts && <><th className="pb-2 text-right font-medium">买入价 (USD)</th><th className="pb-2 text-right font-medium">浮动盈亏</th></>}
             <th className="pb-2 text-right font-medium">价值 (USD)</th>
           </tr>
         </thead>
@@ -61,6 +64,10 @@ export function AssetTable({ balances, location }: AssetTableProps) {
               <td className="py-2 text-right tabular-nums">
                 {fmtCrypto(item.amount)}
               </td>
+              {showStockCosts && <td className="py-2 text-right tabular-nums">
+                {item.stockSymbol && location && !item.dedupedToDefi ? <StockCostEditor assetId={balanceCategoryKey(location, item)} symbol={item.stockSymbol} label={item.asset} amount={item.amount} valueUsd={item.usdValue} incomplete={item.valuationIncomplete} /> : <span className="text-muted-foreground">—</span>}
+              </td>}
+              {showStockCosts && <td className="py-2 text-right tabular-nums"><StockCostPnl cost={item.stockCost} /></td>}
               <td className="py-2 text-right tabular-nums">
                 {item.valuationIncomplete ? (
                   <span className="text-muted-foreground" title="缺少行情，未估值部分暂未计入总资产">

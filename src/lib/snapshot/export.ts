@@ -40,6 +40,10 @@ interface PerpHolding {
 }
 
 interface StockHolding {
+  costSource?: 'manual';
+  costUsd?: number;
+  underlyingShares?: number;
+  sharesPerUnit?: number;
   account?: string;
   assetSymbol?: string;
   quantityUnit?: 'token';
@@ -198,6 +202,10 @@ function pushStock(p: PositionSnapshot, v: VenueExport): void {
     side,
     qty: Math.abs(p.qty),
     entryPrice: p.entryPrice,
+    costSource: p.costSource,
+    costUsd: p.costUsd,
+    underlyingShares: p.underlyingShares,
+    sharesPerUnit: p.sharesPerUnit,
     price: p.priceLocal,
     valueUsd: p.valueUsd,
     pnlUsd: p.pnlUsd,
@@ -506,6 +514,7 @@ export function snapshotToAiJson(snapshot: SnapshotPayload): AiSnapshotExport {
   }
 
   const notes: string[] = [];
+  if (snapshot.positions.some(p => p.costSource === 'manual')) notes.push('costSource=manual 的买入价由用户填写；costUsd 为按当前持仓数量计算的成本，underlyingShares 为按用户填写的换算比例或股数计算的对应股票数量。估值仍来自原平台。');
   if (snapshot.gold?.length) notes.push('黄金按 valuationBasis 标示估值口径：spot 为现货参考市值（sina-sge 是国内上金所 Au99.99 人民币/克报价，sge-daily 是上金所官方每日收盘价，gold-api 为旧国际报价），cost 为历史成本估值；报价来源与时间见各持仓。黄金不计入隐含现金，成本和盈亏按快照汇率折算。');
   if (oldFormatCount > 0) {
     notes.push(
@@ -995,7 +1004,8 @@ function renderPerps(perps: PositionSnapshot[], lines: string[]): void {
 
 function renderStocks(stocks: PositionSnapshot[], lines: string[]): void {
   lines.push('**股票**');
-  if (stocks.some((p) => p.assetSymbol)) lines.push('标记美股的数量为原代币数量，价格为代币价格，不代表等量股票股数；估值取自原平台。');
+  if (stocks.some((p) => p.quantityUnit === 'token')) lines.push('标记美股的数量为原代币数量，价格为代币价格，不代表等量股票股数；估值取自原平台。');
+  if (stocks.some(p => p.costSource === 'manual')) lines.push('手动买入价以当前持有数量计算成本；代币按填写的每枚对应股数换算，DeFi 股票数量由用户填写。');
   lines.push(
     table(
       ['标的', '市场', '方向', '数量', '入场', '现价', '币种', 'USD 价值', 'PnL%'],

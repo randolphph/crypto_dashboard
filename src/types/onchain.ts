@@ -1,4 +1,5 @@
 import type { AssetBalance } from './common';
+import type { StockCostValuation } from '@/lib/portfolio/manualStockCost';
 
 export type EvmChain =
   | 'ethereum'
@@ -41,6 +42,7 @@ export interface DefiPositionItem {
 export interface DefiProtocolPosition {
   // User association derived from its classification, never an upstream quote.
   stockSymbol?: string;
+  stockCost?: StockCostValuation;
   platformId: string;
   platformName: string;
   platformLogo?: string;

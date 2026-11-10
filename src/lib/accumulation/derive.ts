@@ -172,6 +172,11 @@ function matchLive(
   );
   const mapped = mappedHoldings.filter((p) => p.market === target.market && sameSymbol(p.symbol, target.symbol));
   const mappedValue = mapped.reduce((sum, p) => sum + p.valueUsd, 0);
+  const mappedCostComplete = mapped.every(p => !!p.stockCost);
+  const mappedCostUsd = mapped.reduce((sum, p) => sum.plus(p.stockCost?.costUsd ?? 0), new Decimal(0)).toNumber();
+  const mappedShares = mapped.reduce((sum, p) => sum.plus(p.stockCost?.underlyingShares ?? 0), new Decimal(0)).toNumber();
+  const mappedPnlComplete = mapped.every(p => p.stockCost?.pnlUsd !== undefined && p.stockCost.pnlUsd !== null && Number.isFinite(p.stockCost.pnlUsd));
+  const mappedPnlUsd = mapped.reduce((sum, p) => sum.plus(p.stockCost?.pnlUsd ?? 0), new Decimal(0)).toNumber();
   if (matches.length === 0) {
     const q = watchQuotes.get(quoteKey(target.market, target.symbol));
     return {
@@ -181,10 +186,10 @@ function matchLive(
       priceStatus: q?.priceStatus,
       isHeld: mapped.length > 0,
       currentValue: mappedValue,
-      pnlUsd: null,
-      pnlPct: null,
+      pnlUsd: mapped.length > 0 && mappedPnlComplete ? mappedPnlUsd : null,
+      pnlPct: mapped.length > 0 && mappedPnlComplete && mappedCostUsd > 0 ? new Decimal(mappedPnlUsd).div(mappedCostUsd).mul(100).toNumber() : null,
       changePct: q?.changePct ?? null,
-      costBasisLocal: null,
+      costBasisLocal: mapped.length > 0 && mappedCostComplete && mappedShares > 0 ? new Decimal(mappedCostUsd).div(mappedShares).toNumber() : null,
       name: q?.name ?? null,
     };
   }
@@ -201,8 +206,8 @@ function matchLive(
   const price = lead ?? (quote && Number.isFinite(quote.price) && quote.price > 0 ? quote : undefined);
 
   const pnlParts = matches.filter((p) => typeof p.pnlUsd === 'number' && Number.isFinite(p.pnlUsd));
-  const pnlUsd = pnlParts.length === matches.length && mapped.length === 0
-    ? pnlParts.reduce((s, p) => s + (p.pnlUsd ?? 0), 0)
+  const pnlUsd = pnlParts.length === matches.length && mappedPnlComplete
+    ? pnlParts.reduce((s, p) => s.plus(p.pnlUsd ?? 0), new Decimal(mappedPnlUsd)).toNumber()
     : null;
   // Aggregate cost basis value = current value − unrealized PnL; pct off that.
   const costValueUsd = pnlUsd !== null ? currentValue - pnlUsd : null;
@@ -212,14 +217,14 @@ function matchLive(
       : null;
 
   const heldEquities = equities.filter((p) => Number.isFinite(p.shares) && p.shares !== 0);
-  const hasCompleteCost = mapped.length === 0 && heldEquities.length > 0 && heldEquities.every(
+  const hasCompleteCost = mappedCostComplete && (heldEquities.length > 0 || mappedShares > 0) && heldEquities.every(
     (p) => typeof p.costBasis === 'number' && Number.isFinite(p.costBasis) && p.costBasis >= 0
   );
   // Costs come from the same holdings as the dashboard. Absolute quantities
   // keep a short position's per-share cost positive and avoid netting costs.
   const costBasisLocal = hasCompleteCost
-    ? heldEquities.reduce((sum, p) => sum.plus(new Decimal(p.costBasis!).mul(Math.abs(p.shares))), new Decimal(0))
-      .div(heldEquities.reduce((sum, p) => sum.plus(Math.abs(p.shares)), new Decimal(0))).toNumber()
+    ? heldEquities.reduce((sum, p) => sum.plus(new Decimal(p.costBasis!).mul(Math.abs(p.shares))), new Decimal(mappedCostUsd))
+      .div(heldEquities.reduce((sum, p) => sum.plus(Math.abs(p.shares)), new Decimal(mappedShares))).toNumber()
     : null;
 
   return {

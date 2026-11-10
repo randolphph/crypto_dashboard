@@ -1,3 +1,5 @@
+import type { StockCostValuation } from '@/lib/portfolio/manualStockCost';
+
 export interface AssetBalance {
   asset: string;
   amount: number;
@@ -14,6 +16,7 @@ export interface AssetBalance {
   exclusionReason?: 'aave-receipt';
   // User classification, applied to live/cached balances at read time.
   stockSymbol?: string;
+  stockCost?: StockCostValuation;
 }
 
 export interface ExchangeData {
