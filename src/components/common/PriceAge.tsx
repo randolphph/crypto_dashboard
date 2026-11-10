@@ -29,7 +29,6 @@ export function PriceAge({ updatedAt, source, status, error }: { updatedAt?: str
 
   const ageMs = Math.max(0, now - timestamp);
   const sourceName = source ? ({ sina: '新浪', yahoo: 'Yahoo', tencent: '腾讯', naver: 'Naver', local: '本地备用', 'ibkr-flex': 'IBKR 报表' } as Record<string, string>)[source] ?? source : undefined;
-  const notice = status === 'closed' ? '休市' : status === 'error' ? '更新失败' : status === 'stale' ? '行情延迟' : status === 'fallback' ? '备用估值' : undefined;
   return (
     <span
       title={[Number.isFinite(timestamp) ? `${source && source !== 'local' ? '行情时间' : '报价抓取时间'}：${new Date(timestamp).toLocaleString()}` : '行情时间未知', sourceName, source === 'local' ? '后台行情暂不可用，临时使用本地采价' : error].filter(Boolean).join(' · ')}
@@ -43,7 +42,7 @@ export function PriceAge({ updatedAt, source, status, error }: { updatedAt?: str
       )}
     >
       <Clock3 className="h-2.5 w-2.5" />
-      {[sourceName, notice, Number.isFinite(timestamp) ? relativeAge(ageMs) : undefined].filter(Boolean).join(' · ')}
+      {Number.isFinite(timestamp) ? relativeAge(ageMs) : '数据年龄未知'}
     </span>
   );
 }

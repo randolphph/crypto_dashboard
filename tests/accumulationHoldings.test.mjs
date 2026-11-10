@@ -69,3 +69,12 @@ test('profit and loss sorting ranks losses, zero and gains correctly and always 
   rows[2].target = { ...rows[2].target, sector: 'selected' };
   assert.equal(sortTargets(rows, 'pnlUsd', false, 'selected')[0].target.symbol, 'loss');
 });
+
+test('daily change sorting ranks gains, flat prices, losses and missing quotes in both directions', () => {
+  const rows = [
+    ['unknown', null], ['loss', -2.5], ['flat', 0], ['gain', 3.2],
+  ].map(([symbol, changePct]) => ({ target: { symbol, sector: 'AI' }, changePct }));
+  assert.deepEqual(sortTargets(rows, 'changePct', false).map(row => row.target.symbol), ['gain', 'flat', 'loss', 'unknown']);
+  assert.deepEqual(sortTargets(rows, 'changePct', true).map(row => row.target.symbol), ['loss', 'flat', 'gain', 'unknown']);
+  assert.deepEqual(rows.map(row => row.target.symbol), ['unknown', 'loss', 'flat', 'gain']);
+});

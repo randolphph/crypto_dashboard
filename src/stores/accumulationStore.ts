@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { validatePositionLimitShare } from '@/lib/accumulation/positionLimit';
 import {
   DEFAULT_AI_TARGET_PORTFOLIO_SHARE,
   type AccumulationTarget,
@@ -38,20 +39,26 @@ export const useAccumulationStore = create<State>()(
             ? Math.min(1, Math.max(0, share))
             : DEFAULT_AI_TARGET_PORTFOLIO_SHARE,
         }),
-      addTarget: (t) =>
-        set((s) => ({ targets: [...s.targets, { ...t, id: makeId() }] })),
+      addTarget: (t) => {
+        validatePositionLimitShare(t.positionLimitShare);
+        set((s) => ({ targets: [...s.targets, { ...t, id: makeId() }] }));
+      },
       removeTarget: (id) =>
         set((s) => ({ targets: s.targets.filter((t) => t.id !== id) })),
-      updateTarget: (id, updates) =>
+      updateTarget: (id, updates) => {
+        validatePositionLimitShare(updates.positionLimitShare);
         set((s) => ({
           targets: s.targets.map((t) =>
             t.id === id ? { ...t, ...updates } : t
           ),
-        })),
-      replaceAll: (targets) =>
+        }));
+      },
+      replaceAll: (targets) => {
+        targets.forEach(t => validatePositionLimitShare(t.positionLimitShare));
         set({
           targets: targets.map((t) => ({ ...t, id: t.id || makeId() })),
-        }),
+        });
+      },
     }),
     {
       name: 'crypto-dashboard-accumulation-plan',

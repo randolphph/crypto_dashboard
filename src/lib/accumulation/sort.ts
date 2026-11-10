@@ -1,6 +1,6 @@
 import type { DerivedTarget } from './derive';
 
-export type TargetSortKey = 'symbol' | 'sector' | 'currentValue' | 'tier' | 'pnlUsd';
+export type TargetSortKey = 'symbol' | 'sector' | 'currentValue' | 'tier' | 'pnlUsd' | 'changePct';
 
 export function sortTargets(
   targets: DerivedTarget[],
@@ -18,7 +18,7 @@ export function sortTargets(
       : key === 'symbol' || key === 'sector' ? a.target[key] : a[key];
     const bv = key === 'tier' ? b.nearestTierLevel
       : key === 'symbol' || key === 'sector' ? b.target[key] : b[key];
-    // Unknown PnL is never zero profit, including when sorting losses first.
+    // Unknown PnL or daily change is never zero, in either sort direction.
     if (av === null && bv !== null) return 1;
     if (av !== null && bv === null) return -1;
     const direction = ascending ? 1 : -1;

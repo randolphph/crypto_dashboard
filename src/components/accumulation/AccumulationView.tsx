@@ -314,7 +314,8 @@ export function AccumulationView() {
         derived={derived}
         sectorColors={sectorColors}
         activeSector={activeSector}
-        onUpdate={updateTarget}
+        totalPortfolioUsd={totalPortfolioUsd}
+        onLimitChange={(id, positionLimitShare) => updateTarget(id, { positionLimitShare })}
         onDelete={removeTarget}
       />
 
@@ -407,6 +408,7 @@ function editablePlanTarget(target: AccumulationTarget) {
     symbol: target.symbol,
     market: target.market,
     sector: target.sector,
+    ...(target.positionLimitShare !== undefined ? { positionLimitShare: target.positionLimitShare } : {}),
     ma20: target.ma20,
     tierOffsets: target.tierOffsets,
     ...(target.relRatios ? { relRatios: target.relRatios } : {}),
@@ -467,11 +469,16 @@ function ImportDialog({
         setError(`${t.symbol}: tierPrices 必须包含三个正数或 null`);
         return;
       }
+      if (t.positionLimitShare !== undefined && (typeof t.positionLimitShare !== 'number' || !Number.isFinite(t.positionLimitShare) || t.positionLimitShare <= 0 || t.positionLimitShare > 1)) {
+        setError(`${t.symbol}: positionLimitShare 需大于 0 且不超过 1`);
+        return;
+      }
       out.push({
         id: typeof t.id === 'string' ? t.id : '',
         symbol: t.symbol,
         market: t.market as AccumulationTarget['market'],
         sector: typeof t.sector === 'string' ? t.sector : '未分类',
+        ...(t.positionLimitShare !== undefined ? { positionLimitShare: t.positionLimitShare } : {}),
         ma20: t.ma20,
         tierOffsets: t.tierOffsets as [number, number, number],
         ...(t.tierPrices ? { tierPrices: t.tierPrices } : {}),
@@ -507,8 +514,8 @@ function ImportDialog({
         <p className="mb-2 text-xs text-muted-foreground">
           A 股手动维护:每个标的 symbol / market(A·HK·US·KR) / sector / ma20 /
           tierOffsets[3] / status。总待加额度按「目标仓位 − 当前真实仓位」计算；
-          板块仅展示当前持仓构成。点击任一锚价可固定手动价格，逐档重置可恢复自动计算
-          （tierPrices[3] 中 null 表示自动）。档2/档3也可编辑相对档1的下跌比例（relRatios[2]）。
+          板块仅展示当前持仓构成。tierPrices[3] 可设置手动锚价，null 表示自动计算；
+          relRatios[2] 可设置档2/档3相对档1的下跌比例。positionLimitShare 可设置占总资产的仓位上限（如 0.05 表示 5%）。
         </p>
         <textarea
           value={text}

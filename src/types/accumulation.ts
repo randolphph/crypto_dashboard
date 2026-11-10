@@ -3,8 +3,8 @@ import type { StockMarket } from '@/types/stocks';
 // ── AI 加仓计划 (read-only) ────────────────────────────────────────────────
 // A target is an eligible symbol inside a sector plus the prices where it may
 // be added. The portfolio has one overall target; sectors only describe the
-// current holding mix, and individual symbols intentionally have no target
-// amount. Everything that can
+// current holding mix. Each symbol can also have a maximum portfolio share.
+// Everything that can
 // drift (automatic tier prices, gap-to-anchor, trigger proximity) is derived at render
 // time in `lib/accumulation/derive.ts`.
 //
@@ -21,6 +21,8 @@ export interface AccumulationTarget {
   // (IBKR + 同花顺) keys cleanly on `market:symbol`.
   market: StockMarket;
   sector: string;
+  // Optional maximum share of total portfolio assets (0 < share <= 1).
+  positionLimitShare?: number;
   // 20-day moving average, hand-maintained. The anchor ladder hangs off this.
   ma20: number;
   // Three anchor offsets relative to ma20: price = ma20 * (1 + offset). Buying
@@ -31,10 +33,9 @@ export interface AccumulationTarget {
   // Optional override for 档2/档3 anchor prices, expressed as a relative drop
   // off 档1's anchor price: price = tier1Price * (1 − r). Two entries [r2, r3],
   // each an independent fraction (0.03 = 3% below 档1). When set it takes
-  // precedence over tierOffsets[1]/[2]; 档1 is unaffected. Edited inline in the
-  // 三档锚价 column.
+  // precedence over tierOffsets[1]/[2]; 档1 is unaffected.
   relRatios?: [number, number];
-  // Absolute prices in local currency, edited inline. Each null entry keeps
+  // Absolute prices in local currency, editable through plan JSON. Each null entry keeps
   // that tier automatic; positive values stay fixed when MA20 changes.
   tierPrices?: TierPrices;
   // Legacy fields kept only so previously saved plans can still hydrate. They
