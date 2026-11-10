@@ -7,6 +7,7 @@ import type {
 } from '@/types/stocks';
 import type { MappedStockHolding } from '@/lib/portfolio/assetStockMapping';
 import Decimal from 'decimal.js';
+import { BROKER_LABEL } from '@/types/stocks';
 
 // Within this fraction of an anchor price (or already through it) a tier counts
 // as "接近触发" and the row gets flagged — provided the gate/sector is armed.
@@ -39,6 +40,7 @@ export interface HoldingQuantity {
 export interface DerivedTarget {
   quantities: HoldingQuantity[];
   mappedSources?: string[];
+  holdingSources?: string[];
   target: AccumulationTarget;
   // Display name from live data (A/HK stocks); null when unknown.
   name: string | null;
@@ -327,6 +329,10 @@ export function deriveTarget(
   return {
     quantities: holdingQuantities(target, positions, mappedHoldings),
     mappedSources: mappedHoldings.filter((p) => p.market === target.market && sameSymbol(p.symbol, target.symbol)).map((p) => p.sourceLabel),
+    holdingSources: [...new Set([
+      ...positions.filter(p => p.market === target.market && sameSymbol(p.symbol, target.symbol)).map(p => BROKER_LABEL[p.broker] ?? '券商'),
+      ...mappedHoldings.filter(p => p.market === target.market && sameSymbol(p.symbol, target.symbol)).map(p => p.sourceLabel),
+    ])],
     target,
     name,
     ma20,

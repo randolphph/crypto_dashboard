@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { validatePositionLimitShare } from '@/lib/accumulation/positionLimit';
+import { assertPositionBudget } from '@/lib/accumulation/positionLimit';
 import {
   DEFAULT_AI_TARGET_PORTFOLIO_SHARE,
   type AccumulationTarget,
@@ -10,6 +10,7 @@ interface State {
   targets: AccumulationTarget[];
   targetPortfolioShare: number;
   setTargetPortfolioShare: (share: number) => void;
+  setAllocationPlan: (share: number, limits: Record<string, number | undefined>) => void;
   addTarget: (t: Omit<AccumulationTarget, 'id'>) => void;
   removeTarget: (id: string) => void;
   updateTarget: (
@@ -33,30 +34,39 @@ export const useAccumulationStore = create<State>()(
     (set) => ({
       targets: [],
       targetPortfolioShare: DEFAULT_AI_TARGET_PORTFOLIO_SHARE,
-      setTargetPortfolioShare: (share) =>
-        set({
-          targetPortfolioShare: Number.isFinite(share)
-            ? Math.min(1, Math.max(0, share))
-            : DEFAULT_AI_TARGET_PORTFOLIO_SHARE,
-        }),
+      setTargetPortfolioShare: (share) => set(state => {
+        assertPositionBudget(state.targets, share);
+        return { targetPortfolioShare: share };
+      }),
+      setAllocationPlan: (share, limits) => set(state => {
+        // Apply only allocation fields to the latest targets, preserving other
+        // edits and including any newly added target in the final validation.
+        const targets = state.targets.map(target => Object.hasOwn(limits, target.id)
+          ? { ...target, positionLimitShare: limits[target.id] }
+          : target);
+        assertPositionBudget(targets, share);
+        return { targets, targetPortfolioShare: share };
+      }),
       addTarget: (t) => {
-        validatePositionLimitShare(t.positionLimitShare);
-        set((s) => ({ targets: [...s.targets, { ...t, id: makeId() }] }));
+        set(state => {
+          const targets = [...state.targets, { ...t, id: makeId() }];
+          assertPositionBudget(targets, state.targetPortfolioShare, state.targets);
+          return { targets };
+        });
       },
       removeTarget: (id) =>
         set((s) => ({ targets: s.targets.filter((t) => t.id !== id) })),
       updateTarget: (id, updates) => {
-        validatePositionLimitShare(updates.positionLimitShare);
-        set((s) => ({
-          targets: s.targets.map((t) =>
-            t.id === id ? { ...t, ...updates } : t
-          ),
-        }));
+        set(state => {
+          const targets = state.targets.map(t => t.id === id ? { ...t, ...updates } : t);
+          assertPositionBudget(targets, state.targetPortfolioShare, state.targets);
+          return { targets };
+        });
       },
       replaceAll: (targets) => {
-        targets.forEach(t => validatePositionLimitShare(t.positionLimitShare));
-        set({
-          targets: targets.map((t) => ({ ...t, id: t.id || makeId() })),
+        set(state => {
+          assertPositionBudget(targets, state.targetPortfolioShare);
+          return { targets: targets.map(t => ({ ...t, id: t.id || makeId() })) };
         });
       },
     }),

@@ -1,9 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
-import { Popover } from '@base-ui/react/popover';
-import { Slider } from '@base-ui/react/slider';
-import { Pencil, X } from 'lucide-react';
+import { Pencil } from 'lucide-react';
 import type { FundingOverview as FundingData } from '@/lib/accumulation/derive';
 import { usePrivacyFormat } from '@/hooks/usePrivacyFormat';
 
@@ -28,60 +25,18 @@ function Stat({
 export function FundingOverview({
   funding,
   targetPortfolioShare,
-  onTargetPortfolioShareChange,
-  getFundingPreview,
+  onOpenSettings,
 }: {
   funding: FundingData;
   targetPortfolioShare: number;
-  onTargetPortfolioShareChange: (share: number) => void;
-  getFundingPreview: (share: number) => {
-    aiTargetTotal: number;
-    pendingBudget: number;
-  };
+  onOpenSettings: () => void;
 }) {
   const { fmtUsd: formatUsd, hidden, percentHidden } = usePrivacyFormat();
   const fmtUsd = (value: number) => Number.isFinite(value) ? formatUsd(value) : '—';
   const sharePct = Number.isFinite(funding.aiShareOfPortfolio) ? (funding.aiShareOfPortfolio * 100).toFixed(1) : '—';
-  const targetSharePct = targetPortfolioShare * 100;
-  const [open, setOpen] = useState(false);
-  const [draft, setDraft] = useState(String(Number(targetSharePct.toFixed(1))));
-
-  useEffect(() => {
-    if (!open) setDraft(String(Number(targetSharePct.toFixed(1))));
-  }, [targetSharePct, open]);
-
-  const parsedDraft = Number.parseFloat(draft);
-  const draftIsValid = Number.isFinite(parsedDraft);
-  const draftPct = draftIsValid
-    ? Math.min(100, Math.max(0, parsedDraft))
-    : 0;
-  const preview = useMemo(
-    () => getFundingPreview(draftPct / 100),
-    [draftPct, getFundingPreview]
-  );
-
-  const changeDraft = (value: number) => {
-    setDraft(String(Math.min(100, Math.max(0, value))));
-  };
-
-  const applyTargetShare = () => {
-    if (!draftIsValid) return;
-    onTargetPortfolioShareChange(draftPct / 100);
-    setOpen(false);
-  };
-
   return (
     <div className="flex flex-col gap-3">
-      <Popover.Root
-        open={open}
-        onOpenChange={(nextOpen) => {
-          setOpen(nextOpen);
-          if (nextOpen) {
-            setDraft(String(Number(targetSharePct.toFixed(1))));
-          }
-        }}
-      >
-        <Popover.Trigger
+        <button type="button" onClick={onOpenSettings}
           className="group w-full rounded-lg border px-3 py-2 text-left transition-colors hover:border-primary/40 hover:bg-primary/[0.025] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/35"
         >
           <span className="flex items-center justify-between gap-2">
@@ -89,118 +44,13 @@ export function FundingOverview({
             <Pencil className="h-3 w-3 text-muted-foreground transition-colors group-hover:text-primary" />
           </span>
           <span className="mt-0.5 block text-lg font-semibold tabular-nums">
-            {percentHidden ? '**%' : `${Number(targetSharePct.toFixed(1))}%`}
+            {percentHidden ? '**%' : targetPortfolioShare.toLocaleString('zh-CN', { style: 'percent', maximumSignificantDigits: 6 })}
           </span>
           <span className="block text-[11px] text-muted-foreground">
             当前 {percentHidden ? '**%' : `${sharePct}%`} · 目标{' '}
             {hidden ? '****' : fmtUsd(funding.aiTargetTotal)}
           </span>
-        </Popover.Trigger>
-        <Popover.Portal>
-          <Popover.Positioner
-            side="right"
-            align="start"
-            sideOffset={12}
-            className="z-50"
-          >
-            <Popover.Popup className="w-[min(22rem,calc(100vw-2rem))] origin-[var(--transform-origin)] rounded-lg border bg-popover p-4 text-popover-foreground shadow-lg outline-none data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95">
-              <div className="flex items-center justify-between gap-3">
-                <Popover.Title className="text-sm font-medium">
-                  设置 AI 仓位目标
-                </Popover.Title>
-                <Popover.Close
-                  aria-label="关闭仓位设置"
-                  className="inline-flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                >
-                  <X className="h-3.5 w-3.5" />
-                </Popover.Close>
-              </div>
-
-              <div className="mt-4 grid grid-cols-4 gap-2">
-                {[25, 30, 35, 40].map((preset) => (
-                  <button
-                    key={preset}
-                    type="button"
-                    onClick={() => changeDraft(preset)}
-                    className={`rounded-full px-2 py-1.5 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/35 ${
-                      draftPct === preset
-                        ? 'bg-primary/15 text-primary dark:text-primary'
-                        : 'bg-secondary text-muted-foreground hover:text-foreground'
-                    }`}
-                  >
-                    {preset}%
-                  </button>
-                ))}
-              </div>
-
-              <div className="mt-5 flex items-center gap-3">
-                <Slider.Root
-                  value={draftPct}
-                  onValueChange={changeDraft}
-                  min={0}
-                  max={100}
-                  step={1}
-                  className="flex min-w-0 flex-1 items-center"
-                >
-                  <Slider.Control className="flex h-5 w-full touch-none items-center select-none">
-                    <Slider.Track className="relative h-1 w-full rounded-full bg-secondary">
-                      <Slider.Indicator className="rounded-full bg-primary" />
-                      <Slider.Thumb
-                        aria-label="AI 仓位目标百分比"
-                        className="h-4 w-4 rounded-full border-2 border-primary bg-background shadow-sm outline-none transition-transform hover:scale-110 focus-visible:ring-2 focus-visible:ring-primary/35"
-                      />
-                    </Slider.Track>
-                  </Slider.Control>
-                </Slider.Root>
-                <label className="flex h-8 items-center overflow-hidden rounded-md border bg-background focus-within:border-primary focus-within:ring-1 focus-within:ring-primary/25">
-                  <span className="sr-only">自定义仓位百分比</span>
-                  <input
-                    type="number"
-                    min="0"
-                    max="100"
-                    step="1"
-                    inputMode="decimal"
-                    value={draft}
-                    onChange={(event) => setDraft(event.target.value)}
-                    onKeyDown={(event) => {
-                      if (event.key === 'Enter') applyTargetShare();
-                    }}
-                    className="w-12 bg-transparent px-2 text-right text-sm tabular-nums outline-none"
-                  />
-                  <span className="border-l px-2 text-xs text-muted-foreground">%</span>
-                </label>
-              </div>
-              <div className="mt-1 flex justify-between text-[10px] text-muted-foreground">
-                <span>0%</span>
-                <span>100%</span>
-              </div>
-
-              <div className="mt-4 rounded-md bg-secondary/70 px-3 py-2 text-xs text-muted-foreground">
-                <span>目标金额 </span>
-                <span className="font-medium text-foreground tabular-nums">
-                  {hidden ? '****' : fmtUsd(preview.aiTargetTotal)}
-                </span>
-                <span className="mx-1.5">·</span>
-                <span>待加 </span>
-                <span className="font-medium text-foreground tabular-nums">
-                  {hidden ? '****' : fmtUsd(preview.pendingBudget)}
-                </span>
-              </div>
-
-              <div className="mt-3 flex justify-end">
-                <button
-                  type="button"
-                  disabled={!draftIsValid}
-                  onClick={applyTargetShare}
-                  className="rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground transition-colors hover:bg-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  应用
-                </button>
-              </div>
-            </Popover.Popup>
-          </Popover.Positioner>
-        </Popover.Portal>
-      </Popover.Root>
+        </button>
       <Stat
         label="已有 AI 仓位"
         value={hidden ? '****' : fmtUsd(funding.aiCurrentTotal)}

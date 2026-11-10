@@ -21,7 +21,8 @@ export interface AccumulationTarget {
   // (IBKR + 同花顺) keys cleanly on `market:symbol`.
   market: StockMarket;
   sector: string;
-  // Optional maximum share of total portfolio assets (0 < share <= 1).
+  // Optional maximum share of total assets (0 < share <= 1).
+  // All planned shares together must fit within targetPortfolioShare.
   positionLimitShare?: number;
   // 20-day moving average, hand-maintained. The anchor ladder hangs off this.
   ma20: number;

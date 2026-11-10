@@ -65,14 +65,14 @@ export function TargetTable({
   sectorColors,
   activeSector,
   totalPortfolioUsd,
-  onLimitChange,
+  onOpenSettings,
   onDelete,
 }: {
   derived: DerivedTarget[];
   sectorColors: ReadonlyMap<string, string>;
   activeSector?: string | null;
   totalPortfolioUsd: number;
-  onLimitChange: (id: string, share: number | undefined) => void;
+  onOpenSettings: (id?: string) => void;
   onDelete: (id: string) => void;
 }) {
   const { fmtUsd, hidden, percentHidden } = usePrivacyFormat();
@@ -193,7 +193,7 @@ export function TargetTable({
                 {!!d.mappedSources?.length && <p className="mx-auto max-w-48 whitespace-normal text-[10px] text-muted-foreground" title={d.mappedSources.join('；')}>含标记美股 · {d.mappedSources.join(' / ')}</p>}
               </TableCell>
               <TableCell className="text-center tabular-nums">
-                <PositionLimitCell symbol={d.target.symbol} currentValue={d.currentValue} totalPortfolioUsd={totalPortfolioUsd} limitShare={d.target.positionLimitShare} onChange={share => onLimitChange(d.target.id, share)} />
+                <PositionLimitCell symbol={d.target.symbol} currentValue={d.currentValue} totalPortfolioUsd={totalPortfolioUsd} limitShare={d.target.positionLimitShare} onOpenSettings={() => onOpenSettings(d.target.id)} />
               </TableCell>
               <TableCell className="text-center tabular-nums">
                 {d.pnlUsd !== null ? (

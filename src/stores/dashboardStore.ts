@@ -3,6 +3,8 @@ import { persist } from 'zustand/middleware';
 import type { SnapshotPayload } from '@/types/snapshot';
 
 interface DashboardState {
+  aiHoldingsView: 'chart' | 'table';
+  setAiHoldingsView: (view: 'chart' | 'table') => void;
   refreshInterval: number;
   setRefreshInterval: (interval: number) => void;
   // Timestamp (ms since epoch) of the last refresh. Stored as a number so
@@ -22,6 +24,8 @@ interface DashboardState {
 export const useDashboardStore = create<DashboardState>()(
   persist(
     (set) => ({
+      aiHoldingsView: 'chart',
+      setAiHoldingsView: (view) => set({ aiHoldingsView: view }),
       refreshInterval: 60,
       setRefreshInterval: (interval) => set({ refreshInterval: interval }),
       lastRefreshed: null,
@@ -39,6 +43,7 @@ export const useDashboardStore = create<DashboardState>()(
       migrate: (state) => state as DashboardState,
       partialize: (state) => ({
         refreshInterval: state.refreshInterval,
+        aiHoldingsView: state.aiHoldingsView,
       }),
     }
   )

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useEffect, useCallback } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { Target, Power, FileJson, X, Plus } from 'lucide-react';
 import { useAccumulationStore } from '@/stores/accumulationStore';
 import { useGate } from '@/hooks/useGate';
@@ -27,7 +27,8 @@ import { type AccumulationTarget } from '@/types/accumulation';
 import { usePrivacyFormat } from '@/hooks/usePrivacyFormat';
 import { SectorDonut } from './SectorDonut';
 import { FundingOverview } from './FundingOverview';
-import { TargetTable } from './TargetTable';
+import { TargetHoldings } from './TargetHoldings';
+import { AllocationSettingsDialog } from './AllocationSettingsDialog';
 import { OptionExposurePanel } from './OptionExposurePanel';
 import { buildSectorColorMap } from './sectorColors';
 import { cn } from '@/lib/utils';
@@ -53,13 +54,14 @@ export function AccumulationView() {
   const targetPortfolioShare = useAccumulationStore(
     (s) => s.targetPortfolioShare
   );
-  const setTargetPortfolioShare = useAccumulationStore(
-    (s) => s.setTargetPortfolioShare
+  const setAllocationPlan = useAccumulationStore(
+    (s) => s.setAllocationPlan
   );
   const replaceAll = useAccumulationStore((s) => s.replaceAll);
   const addTarget = useAccumulationStore((s) => s.addTarget);
   const removeTarget = useAccumulationStore((s) => s.removeTarget);
-  const updateTarget = useAccumulationStore((s) => s.updateTarget);
+  const [allocationSettings, setAllocationSettings] = useState<{ targetId?: string } | null>(null);
+  const openAllocationSettings = (targetId?: string) => setAllocationSettings({ targetId });
   const { gate, setOpen, isMutating } = useGate();
 
   // Live data — these hooks share react-query / zustand state with the
@@ -212,17 +214,6 @@ export function AccumulationView() {
       ),
     [rollups, portfolioTargetTotal, totalPortfolioUsd, availableAmmo]
   );
-  const getFundingPreview = useCallback(
-    (share: number) => {
-      const previewTargetTotal = totalPortfolioUsd * share;
-      return {
-        aiTargetTotal: previewTargetTotal,
-        pendingBudget: previewTargetTotal - funding.aiCurrentTotal,
-      };
-    },
-    [totalPortfolioUsd, funding.aiCurrentTotal]
-  );
-
   const [showImport, setShowImport] = useState(false);
   // Sector highlight lights up both rings, the legend dot, and the matching
   // table rows. Hover previews; click pins. Effective = hover falls back to
@@ -285,8 +276,7 @@ export function AccumulationView() {
         <FundingOverview
           funding={funding}
           targetPortfolioShare={targetPortfolioShare}
-          onTargetPortfolioShareChange={setTargetPortfolioShare}
-          getFundingPreview={getFundingPreview}
+          onOpenSettings={openAllocationSettings}
         />
         <div className="flex justify-center">
           <SectorDonut
@@ -310,12 +300,13 @@ export function AccumulationView() {
         </div>
       </div>
 
-      <TargetTable
+      <TargetHoldings
         derived={derived}
         sectorColors={sectorColors}
         activeSector={activeSector}
         totalPortfolioUsd={totalPortfolioUsd}
-        onLimitChange={(id, positionLimitShare) => updateTarget(id, { positionLimitShare })}
+        targetPortfolioShare={targetPortfolioShare}
+        onOpenSettings={openAllocationSettings}
         onDelete={removeTarget}
       />
 
@@ -330,6 +321,16 @@ export function AccumulationView() {
           还没有加仓标的。点击右上角「计划 JSON」粘贴计划。
         </div>
       )}
+
+      {allocationSettings && <AllocationSettingsDialog
+        targets={targets}
+        targetPortfolioShare={targetPortfolioShare}
+        totalPortfolioUsd={totalPortfolioUsd}
+        aiCurrentTotal={funding.aiCurrentTotal}
+        initialTargetId={allocationSettings.targetId}
+        onClose={() => setAllocationSettings(null)}
+        onApply={setAllocationPlan}
+      />}
 
       {showImport && (
         <ImportDialog
@@ -490,7 +491,7 @@ function ImportDialog({
         note: t.note,
       });
     }
-    onApply(out);
+    try { onApply(out); } catch (cause) { setError(cause instanceof Error ? cause.message : '计划保存失败'); }
   };
 
   return (
@@ -523,7 +524,7 @@ function ImportDialog({
           spellCheck={false}
           className="h-72 w-full resize-none rounded-md border bg-muted/30 p-3 font-mono text-xs"
         />
-        {error && <p className="mt-2 text-xs text-negative">{error}</p>}
+        {error && <p role="alert" className="mt-2 text-xs text-negative">{error}</p>}
         <div className="mt-3 flex justify-end gap-2">
           <button
             onClick={onClose}
